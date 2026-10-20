@@ -201,11 +201,11 @@ fun SumUpAlbumScreen(
                         },
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "",
-                        tint = Color.White)
+                        tint = com.music.spotui.ui.theme.TextPrimary)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
-                    titleContentColor = Color.White,
+                    titleContentColor = com.music.spotui.ui.theme.TextPrimary,
                 ),
                 title = {
                     Text(text = "")
@@ -258,13 +258,13 @@ fun SumUpAlbumScreen(
                 Text(modifier = Modifier
                     .padding(20.dp, 5.dp, 0.dp, 0.dp),
                     text = albumName,
-                    color = Color.White,
+                    color = com.music.spotui.ui.theme.TextPrimary,
                     fontSize = 23.sp,
                     fontWeight = FontWeight.Bold)
                 Text(modifier = Modifier
                     .padding(20.dp, 0.dp, 0.dp, 0.dp),
                     text = album[0].artists.ifBlank { albumSongs.firstOrNull()?.singer ?: "" },
-                    color = Color.White,
+                    color = com.music.spotui.ui.theme.TextPrimary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium)
                 Text(modifier = Modifier
@@ -335,7 +335,7 @@ fun SumUpAlbumScreen(
                                     Color(AppPalette.toArgb())
                                 }
                                 else{
-                                    Color.White
+                                    com.music.spotui.ui.theme.TextPrimary
                                 },
                                 contentDescription = ""
                             )
@@ -347,7 +347,7 @@ fun SumUpAlbumScreen(
                             Icon(
                                 imageVector = if (albumDownloaded)
                                     Icons.Default.CheckCircle else ImageVector.vectorResource(R.drawable.ic_download),
-                                tint = if (albumDownloaded) Color(AppPalette.toArgb()) else Color.White,
+                                tint = if (albumDownloaded) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary,
                                 modifier = Modifier
                                     .size(24.dp)
                                     .clickable(
@@ -371,7 +371,7 @@ fun SumUpAlbumScreen(
                             // Shuffle-play: start the album in random order.
                             Icon(
                                 painter = painterResource(id = R.drawable.ic_player_shuffle),
-                                tint = Color.White,
+                                tint = com.music.spotui.ui.theme.TextPrimary,
                                 modifier = Modifier
                                     .size(24.dp)
                                     .clickable(
@@ -405,7 +405,7 @@ fun SumUpAlbumScreen(
                                 modifier = Modifier
                                     .size(52.dp)
                                     .clip(RoundedCornerShape(100.dp))
-                                    .background(Color.White)
+                                    .background(com.music.spotui.ui.theme.Saffron)
                                     .clickable(
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = null
@@ -433,7 +433,7 @@ fun SumUpAlbumScreen(
                                 Icon(
                                     modifier = Modifier
                                         .size(25.dp),
-                                    tint = Color.Black,
+                                    tint = com.music.spotui.ui.theme.OnSaffron,
                                     painter = painterResource(
                                         id = if (playing) R.drawable.ic_playing else R.drawable.play_svgrepo_com,
                                     ),
@@ -465,7 +465,7 @@ fun SumUpAlbumScreen(
                     }
                     val songId = albumSongs[song].id
 
-                    val currentPlayingIndicatorColor = if(songId == albumViewModel.currentSongId.value) Color(AppPalette.toArgb()) else Color.White
+                    val currentPlayingIndicatorColor = if(songId == albumViewModel.currentSongId.value) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary
 
                     Row(
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -548,7 +548,7 @@ fun SumUpAlbumScreen(
                             }
                             ,
                             tint = if (isLiked){
-                                Color.White
+                                com.music.spotui.ui.theme.TextPrimary
                             }else{
                                 Color.Gray
                             },

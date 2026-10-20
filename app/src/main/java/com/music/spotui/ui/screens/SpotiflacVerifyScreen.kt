@@ -129,7 +129,7 @@ fun SpotiflacVerifyScreen(navController: NavController, next: String = "") {
         if (!done) message = "Verification timed out. Tap Retry or Skip for now."
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    Box(modifier = Modifier.fillMaxSize().background(com.music.spotui.ui.theme.AppBackground)) {
         AndroidView(
             modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()
                 .padding(top = 40.dp, bottom = 56.dp),
@@ -164,7 +164,7 @@ fun SpotiflacVerifyScreen(navController: NavController, next: String = "") {
         if (message.isNotEmpty()) {
             Text(
                 message,
-                color = Color.White,
+                color = com.music.spotui.ui.theme.TextPrimary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.align(Alignment.Center).padding(24.dp),
             )
@@ -172,15 +172,15 @@ fun SpotiflacVerifyScreen(navController: NavController, next: String = "") {
 
         Row(
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .navigationBarsPadding().height(56.dp).background(Color.Black),
+                .navigationBarsPadding().height(56.dp).background(com.music.spotui.ui.theme.AppBackground),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            TextButton(onClick = { attempt++ }) { Text("Retry", color = Color.White) }
-            TextButton(onClick = leave) { Text("Skip for now", color = Color.White) }
+            TextButton(onClick = { attempt++ }) { Text("Retry", color = com.music.spotui.ui.theme.TextPrimary) }
+            TextButton(onClick = leave) { Text("Skip for now", color = com.music.spotui.ui.theme.TextPrimary) }
         }
 
         Box(
-            modifier = Modifier.fillMaxWidth().statusBarsPadding().height(40.dp).background(Color.Black),
+            modifier = Modifier.fillMaxWidth().statusBarsPadding().height(40.dp).background(com.music.spotui.ui.theme.AppBackground),
             contentAlignment = Alignment.Center,
         ) {
             Text(

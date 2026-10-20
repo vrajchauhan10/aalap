@@ -171,13 +171,13 @@ fun SumUpSearchScreen(
                     ) {
                         Text(
                             "Recent searches",
-                            color = Color.White,
+                            color = com.music.spotui.ui.theme.TextPrimary,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
                             "Clear",
-                            color = Color(0xFFB3B3B3),
+                            color = com.music.spotui.ui.theme.TextMuted,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.clickable(
@@ -374,7 +374,7 @@ fun RecentItemRow(
                 .weight(1f)
                 .padding(start = 10.dp, end = 8.dp),
         ) {
-            Text(text = item.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(text = item.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
             val subtitle = when (item.type) {
                 "song" -> "Song • ${item.singer}"
                 "artist" -> "Artist"
@@ -386,7 +386,7 @@ fun RecentItemRow(
         }
         Icon(
             imageVector = Icons.Default.Close,
-            tint = Color(0xFFB3B3B3),
+            tint = com.music.spotui.ui.theme.TextMuted,
             modifier = Modifier
                 .size(20.dp)
                 .clickable(
@@ -413,7 +413,7 @@ fun SearchSongRow(
     val likeState = searchViewModel.likeState.value
     LaunchedEffect(likeState) { isLiked = isSongLiked(context, song.id.toString()) }
     val currentPlayingIndicatorColor =
-        if (song.id == searchViewModel.currentSongId.value) Color(AppPalette.toArgb()) else Color.White
+        if (song.id == searchViewModel.currentSongId.value) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary
 
     Row(
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -478,7 +478,7 @@ fun SearchSongRow(
                     searchViewModel.updateLikeState(!searchViewModel.likeState.value)
                 },
             painter = if (isLiked) painterResource(id = R.drawable.added) else painterResource(id = R.drawable.ic_add),
-            tint = if (isLiked) Color.White else Color.Gray,
+            tint = if (isLiked) com.music.spotui.ui.theme.TextPrimary else Color.Gray,
             contentDescription = "",
         )
     }
@@ -488,7 +488,7 @@ fun SearchSongRow(
 fun SearchSectionHeader(title: String) {
     Text(
         text = title,
-        color = Color.White,
+        color = com.music.spotui.ui.theme.TextPrimary,
         fontSize = 18.sp,
         fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(16.dp, 18.dp, 16.dp, 4.dp),
@@ -520,7 +520,7 @@ fun SearchShowRow(show: com.music.spotui.data.entity.PodcastModel, onClick: () -
             contentDescription = "",
         )
         Column {
-            Text(text = show.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(text = show.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
             Text(
                 text = "Podcast" + (if (show.publisher.isNotBlank()) " • ${show.publisher}" else ""),
                 color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1,
@@ -554,7 +554,7 @@ fun SearchArtistRow(artist: com.music.spotui.data.entity.ArtistsModel, onClick: 
             contentDescription = "",
         )
         Column {
-            Text(text = artist.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(text = artist.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Text(text = "Artist", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium)
         }
     }
@@ -585,7 +585,7 @@ fun SearchAlbumRow(album: com.music.spotui.data.entity.AlbumsModel, onClick: () 
             contentDescription = "",
         )
         Column {
-            Text(text = album.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(text = album.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Text(text = "Album • ${album.artists}", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
         }
     }
@@ -618,7 +618,7 @@ fun BrowseAllSection(onCategoryClick: (genre: String, title: String) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = "Browse all",
-            color = Color.White,
+            color = com.music.spotui.ui.theme.TextPrimary,
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 8.dp),
@@ -680,7 +680,7 @@ private fun BrowseCategoryTile(
         }
         Text(
             text = name,
-            color = Color.White,
+            color = com.music.spotui.ui.theme.TextPrimary,
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 2,
@@ -697,8 +697,8 @@ fun SearchTopBar() {
             .fillMaxWidth()
             .padding(16.dp)
     ) {
-        Text(text = "Search", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        //Icon(imageVector = Icons.Default.Person, contentDescription = "", tint = Color.White)
+        Text(text = "Search", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        //Icon(imageVector = Icons.Default.Person, contentDescription = "", tint = com.music.spotui.ui.theme.TextPrimary)
     }
 
 }
@@ -718,7 +718,7 @@ fun SearchStickyBar(
             .padding(10.dp)
             .clip(RoundedCornerShape(10.dp))
             .height(55.dp)
-            .background(Color.White)
+            .background(com.music.spotui.ui.theme.TextPrimary)
             .padding(10.dp, 0.dp)
     ){
         Icon(

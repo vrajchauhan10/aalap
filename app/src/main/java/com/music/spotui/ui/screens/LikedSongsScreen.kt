@@ -120,12 +120,12 @@ fun LikedSongsScreen(navController: NavController) {
                             ) { navController.navigateUp() },
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "",
-                            tint = Color.White
+                            tint = com.music.spotui.ui.theme.TextPrimary
                         )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
-                        titleContentColor = Color.White,
+                        titleContentColor = com.music.spotui.ui.theme.TextPrimary,
                     ),
                     title = { Text(text = "") }
                 )
@@ -171,7 +171,7 @@ fun LikedSongsScreen(navController: NavController) {
                                 Icon(
                                     imageVector = Icons.Filled.Favorite,
                                     contentDescription = "",
-                                    tint = Color.White,
+                                    tint = com.music.spotui.ui.theme.TextPrimary,
                                     modifier = Modifier.size(90.dp),
                                 )
                             }
@@ -180,7 +180,7 @@ fun LikedSongsScreen(navController: NavController) {
                         Text(
                             modifier = Modifier.padding(20.dp, 5.dp, 0.dp, 0.dp),
                             text = "Liked Songs",
-                            color = Color.White,
+                            color = com.music.spotui.ui.theme.TextPrimary,
                             fontSize = 28.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -209,7 +209,7 @@ fun LikedSongsScreen(navController: NavController) {
                                 Icon(
                                     imageVector = if (likedDownloaded)
                                         Icons.Default.CheckCircle else ImageVector.vectorResource(R.drawable.ic_download),
-                                    tint = if (likedDownloaded) Color(AppPalette.toArgb()) else Color.White,
+                                    tint = if (likedDownloaded) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary,
                                     modifier = Modifier
                                         .size(24.dp)
                                         .clickable(
@@ -234,7 +234,7 @@ fun LikedSongsScreen(navController: NavController) {
                                 // Shuffle-play: start liked songs in random order.
                                 Icon(
                                     painter = painterResource(id = R.drawable.ic_player_shuffle),
-                                    tint = Color.White,
+                                    tint = com.music.spotui.ui.theme.TextPrimary,
                                     modifier = Modifier
                                         .size(24.dp)
                                         .clickable(
@@ -267,7 +267,7 @@ fun LikedSongsScreen(navController: NavController) {
                                     modifier = Modifier
                                         .size(52.dp)
                                         .clip(RoundedCornerShape(100.dp))
-                                        .background(Color.White)
+                                        .background(com.music.spotui.ui.theme.Saffron)
                                         .clickable(
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = null
@@ -294,7 +294,7 @@ fun LikedSongsScreen(navController: NavController) {
                                 ) {
                                     Icon(
                                         modifier = Modifier.size(25.dp),
-                                        tint = Color.Black,
+                                        tint = com.music.spotui.ui.theme.OnSaffron,
                                         painter = painterResource(
                                             id = if (playing) R.drawable.ic_playing else R.drawable.play_svgrepo_com,
                                         ),
@@ -309,7 +309,7 @@ fun LikedSongsScreen(navController: NavController) {
                 itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
                     com.music.spotui.ui.components.SwipeToQueue(song) {
                     val currentColor = if (song.id == likedSongsViewModel.currentSongId.value)
-                        Color(AppPalette.toArgb()) else Color.White
+                        Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary
 
                     Row(
                         horizontalArrangement = Arrangement.Start,

@@ -149,3 +149,19 @@ fun currentStreamingQuality(c: Context): StreamQuality {
     val isMetered = cm?.isActiveNetworkMetered ?: false
     return if (isMetered) getCellularQuality(c) else getWifiQuality(c)
 }
+
+/** App appearance: follow the phone's dark-mode setting, or force one palette. */
+enum class ThemeMode(val label: String) {
+    SYSTEM("System default"),
+    LIGHT("Light"),
+    DARK("Dark"),
+}
+
+private const val KEY_THEME_MODE = "theme_mode"
+
+fun getThemeMode(c: Context): ThemeMode =
+    runCatching { ThemeMode.valueOf(prefs(c).getString(KEY_THEME_MODE, null) ?: "") }
+        .getOrDefault(ThemeMode.SYSTEM)
+
+fun setThemeMode(c: Context, mode: ThemeMode) =
+    prefs(c).edit().putString(KEY_THEME_MODE, mode.name).apply()

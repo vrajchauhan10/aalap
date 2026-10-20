@@ -236,11 +236,9 @@ object SongPlayer {
         cancelCrossfade()
         // Do not keep the previous track audible while this request resolves.
         // Otherwise the UI can show the newly tapped track while old audio keeps
-        // playing for several seconds, or forever if resolution fails.
-        runCatching {
-            player?.pause()
-            player?.clearMediaItems()
-        }
+        // playing for several seconds, or forever if resolution fails. A short
+        // fade-out (instead of a hard cut) makes skipping feel smooth.
+        fadeOutThenClear()
 
         // Podcast episodes are encoded as "episode:<id>" queries — play them via the
         // Spotify web player's episode page (same engine as tracks).
@@ -307,6 +305,8 @@ object SongPlayer {
         withContext(Dispatchers.Main) {
             if (currentRequest != song) return@withContext
             ensurePlayer(appContext)
+            // A still-running fade-out from the previous track must not clear this one.
+            fadeJob?.cancel()
             player!!.setMediaItem(buildMediaItem(streamUrl, mimeType))
             player!!.prepare()
             // Restored session: continue from where the last run stopped.
@@ -315,10 +315,53 @@ object SongPlayer {
             }
             restoreQuery = null
             player!!.playWhenReady = true
+            fadeIn(player!!)
         }
         startPositionWatch()
         // Quick-start songs trigger it after their own upgrade instead.
         if (!wantsQuickStart(song, appContext)) soulseekLookahead(appContext)
+    }
+
+    // ── Smooth track changes ──
+    // Manual skips fade the outgoing track out and the incoming one in, instead of
+    // hard-cutting. (Automatic song-to-song blending is the separate Crossfade setting.)
+    @Volatile private var fadeJob: kotlinx.coroutines.Job? = null
+    private const val FADE_OUT_MS = 180L
+    private const val FADE_IN_MS = 450L
+    private const val FADE_STEPS = 12
+
+    private fun fadeOutThenClear() {
+        fadeJob?.cancel()
+        val p = player ?: return
+        if (!p.isPlaying) {
+            runCatching { p.pause(); p.clearMediaItems() }
+            return
+        }
+        fadeJob = scope.launch(Dispatchers.Main) {
+            val start = p.volume
+            for (i in 1..FADE_STEPS) {
+                p.volume = start * (1f - i.toFloat() / FADE_STEPS)
+                delay(FADE_OUT_MS / FADE_STEPS)
+            }
+            runCatching { p.pause(); p.clearMediaItems() }
+            p.volume = 1f
+        }
+        // If cancelled mid-fade, the incoming track's fadeIn() resets the volume.
+    }
+
+    private fun fadeIn(p: ExoPlayer) {
+        if (isCrossfading) return
+        p.volume = 0f
+        fadeJob = scope.launch(Dispatchers.Main) {
+            for (i in 1..FADE_STEPS) {
+                delay(FADE_IN_MS / FADE_STEPS)
+                if (isCrossfading) return@launch
+                // Ease-out curve: quick to become audible, gentle at the top.
+                val t = i.toFloat() / FADE_STEPS
+                p.volume = 1f - (1f - t) * (1f - t)
+            }
+            p.volume = 1f
+        }
     }
 
     private fun streamFailed(song: String, appContext: Context) {

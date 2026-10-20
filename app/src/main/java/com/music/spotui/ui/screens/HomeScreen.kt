@@ -1,5 +1,7 @@
 package com.music.spotui.ui.screens
 
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
@@ -121,7 +123,7 @@ fun HomeScreen(navController: NavController){
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = "Couldn't load music.\nCheck your connection and try again.",
-                        color = Color.White,
+                        color = com.music.spotui.ui.theme.TextPrimary,
                         textAlign = TextAlign.Center,
                     )
                 }
@@ -144,28 +146,24 @@ private fun onHomeItemClick(navController: NavController, item: HomeItem) {
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
-    // Mirror open.spotify.com exactly: sections render in the order the feed
-    // returns them. The 2-column "shortcuts" grid is only used for the UNTITLED
-    // section the web home starts with — if the feed leads with a titled section
-    // ("Jump back in", "Made For …"), it renders as a titled carousel first,
-    // not force-squeezed into the grid.
+    // Aalap home: greeting + shortcut chips, a featured banner, a "Jump back in" tile
+    // row (the feed's untitled shortcuts section), then the titled carousels in feed order.
     val sections = feed.sections
     val gridSection = sections.firstOrNull()?.takeIf { it.title.isBlank() }
     val carousels = if (gridSection != null) sections.drop(1) else sections
+    val featured = gridSection?.items?.firstOrNull() ?: carousels.firstOrNull()?.items?.firstOrNull()
 
     LazyColumn(
-        contentPadding = PaddingValues(bottom = 130.dp),
+        contentPadding = PaddingValues(bottom = 190.dp),
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(AppBackground.toArgb()))
+            .background(com.music.spotui.ui.theme.AppBackground)
     ) {
-        item {
-            HomeHeaderRow(navController)
-        }
+        item { HomeHeaderRow(navController) }
+        featured?.let { item { FeaturedBanner(it) { onHomeItemClick(navController, it) } } }
         gridSection?.let { section ->
-            item {
-                HomeShortcutGrid(navController, section.items.take(8))
-            }
+            val rest = section.items.drop(1).take(10)
+            if (rest.isNotEmpty()) item { JumpBackInRow(navController, rest) }
         }
         items(carousels.size) { i ->
             HomeFeedSection(navController, carousels[i])
@@ -173,8 +171,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
     }
 }
 
-/** Spotify-style top row: profile avatar on the left (opens Settings, like the
- *  official app's profile drawer), then the filter pills — one single row. */
+/** Greeting with the listener's name, profile avatar (opens Profile), and shortcut chips. */
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 private fun HomeHeaderRow(navController: NavController) {
@@ -182,22 +179,36 @@ private fun HomeHeaderRow(navController: NavController) {
     androidx.compose.runtime.LaunchedEffect(Unit) {
         com.music.spotui.data.api.ProfileCache.ensure(context)
     }
+    val firstName = com.music.spotui.data.api.ProfileCache.name?.trim()?.substringBefore(' ')
+    val greeting = when (java.time.LocalTime.now().hour) {
+        in 5..11 -> "Good morning"
+        in 12..16 -> "Good afternoon"
+        in 17..21 -> "Good evening"
+        else -> "Late-night listening"
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 26.dp, bottom = 8.dp),
+            .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 4.dp),
     ) {
+        Column(Modifier.weight(1f)) {
+            Text(greeting, color = com.music.spotui.ui.theme.TextMuted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(
+                firstName ?: "Aalap",
+                color = com.music.spotui.ui.theme.TextPrimary,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+            )
+        }
         val avatarUrl = com.music.spotui.data.api.ProfileCache.imageUrl
-        val initial = com.music.spotui.data.api.ProfileCache.name
-            ?.trim()?.firstOrNull()?.uppercase() ?: "•"
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .padding(start = 16.dp)
-                .size(34.dp)
+                .size(44.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFE8622C))
+                .background(com.music.spotui.ui.theme.Saffron)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -208,152 +219,171 @@ private fun HomeHeaderRow(navController: NavController) {
                     model = avatarUrl,
                     contentScale = ContentScale.Crop,
                     contentDescription = "Profile",
-                    modifier = Modifier.size(34.dp),
+                    modifier = Modifier.size(44.dp),
                 )
             } else {
-                Text(
-                    text = initial,
-                    color = Color.Black,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                )
+                Text(firstName?.firstOrNull()?.uppercase() ?: "A", color = com.music.spotui.ui.theme.OnSaffron, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
-        // Scrolls sideways if the pills don't fit, like Spotify's.
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .weight(1f)
-                .horizontalScroll(androidx.compose.foundation.rememberScrollState())
-                .padding(start = 12.dp, end = 8.dp),
-        ) {
-            // Home is the music view, so "Music" is the selected (green) pill.
-            HomePill("Music", selected = true) {}
-            HomePill("Local files") { navController.navigate(Routes.LocalFiles.route) }
-            HomePill("History") { navController.navigate(Routes.History.route) }
+    }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+    ) {
+        HomeChip(androidx.compose.ui.graphics.vector.rememberVectorPainter(androidx.compose.material.icons.Icons.Default.Favorite), "Liked") {
+            navController.navigate(Routes.Liked.route)
         }
-        Box(Modifier.padding(end = 16.dp)) { UpdateButton() }
+        HomeChip(androidx.compose.ui.res.painterResource(R.drawable.ic_download), "Downloads") {
+            navController.navigate(Routes.Downloads.route)
+        }
+        HomeChip(androidx.compose.ui.graphics.vector.rememberVectorPainter(androidx.compose.material.icons.Icons.Default.DateRange), "History") {
+            navController.navigate(Routes.History.route)
+        }
+        HomeChip(androidx.compose.ui.res.painterResource(R.drawable.ic_library_big), "Local files") {
+            navController.navigate(Routes.LocalFiles.route)
+        }
     }
 }
 
 @Composable
-private fun HomePill(label: String, selected: Boolean = false, onClick: () -> Unit) {
-    Box(
-        contentAlignment = Alignment.Center,
+private fun HomeChip(icon: androidx.compose.ui.graphics.painter.Painter, label: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (selected) Color(0xFF1ED760) else Color(0xFF2A2A2A))
+            .clip(RoundedCornerShape(14.dp))
+            .background(com.music.spotui.ui.theme.SurfaceHigh)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
-        Text(text = label, color = if (selected) Color.Black else Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        androidx.compose.material3.Icon(icon, contentDescription = null, tint = com.music.spotui.ui.theme.Saffron, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
-/** "Spotui x.y" pill: checks GitHub every few hours and turns into an update link. */
+/** Large card for the top item of the feed. */
+@OptIn(ExperimentalGlideComposeApi::class)
 @Composable
-private fun UpdateButton() {
-    val context = LocalContext.current
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var update by remember { androidx.compose.runtime.mutableStateOf<com.music.spotui.data.api.UpdateChecker.Update?>(null) }
-    val current = com.music.spotui.BuildConfig.VERSION_NAME
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        update = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            com.music.spotui.data.api.UpdateChecker.check(context, current)
-        }
+private fun FeaturedBanner(item: HomeItem, onClick: () -> Unit) {
+    val subtitle = when (item) {
+        is HomeItem.Album -> item.subtitle
+        is HomeItem.Playlist -> item.subtitle
+        is HomeItem.Artist -> "Artist"
     }
-    fun openRelease(url: String) = runCatching {
-        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
-    }
-    val found = update
-    Box(
-        contentAlignment = Alignment.CenterStart,
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (found != null) Color(0xFF1ED760) else Color(0xFF2A2A2A))
-            .clickable {
-                if (found != null) openRelease(found.url) else scope.launch {
-                    val fresh = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        com.music.spotui.data.api.UpdateChecker.check(context, current, force = true)
-                    }
-                    update = fresh
-                    android.widget.Toast.makeText(
-                        context,
-                        if (fresh != null) "Update ${fresh.version} is available" else "You're up to date ($current)",
-                        android.widget.Toast.LENGTH_SHORT,
-                    ).show()
-                }
-            }
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .fillMaxWidth()
+            .height(150.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                androidx.compose.ui.graphics.Brush.linearGradient(
+                    listOf(com.music.spotui.ui.theme.Saffron.copy(alpha = 0.85f), com.music.spotui.ui.theme.SaffronDeep.copy(alpha = 0.55f), com.music.spotui.ui.theme.Surface)
+                )
+            )
+            .clickable(onClick = onClick)
+            .padding(14.dp),
     ) {
-        Text(
-            text = if (found != null) "Update ${found.version}" else "Spotui $current",
-            color = if (found != null) Color.Black else Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text("FOR YOU", color = com.music.spotui.ui.theme.OnSaffron.copy(alpha = 0.8f), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+            Spacer(Modifier.height(4.dp))
+            Text(item.name, color = com.music.spotui.ui.theme.OnSaffron, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 2, lineHeight = 24.sp)
+            if (subtitle.isNotBlank()) {
+                Text(subtitle, color = com.music.spotui.ui.theme.OnSaffron.copy(alpha = 0.75f), fontSize = 12.sp, maxLines = 1)
+            }
+        }
+        GlideImage(
+            model = item.imageUrl,
+            contentScale = ContentScale.Crop,
+            loading = placeholder(R.drawable.placeholder),
+            failure = placeholder(R.drawable.placeholder),
+            contentDescription = item.name,
+            modifier = Modifier
+                .size(122.dp)
+                .clip(if (item is HomeItem.Artist) CircleShape else RoundedCornerShape(18.dp)),
         )
     }
 }
 
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
-private fun HomeShortcutGrid(navController: NavController, items: List<HomeItem>) {
-    Column(modifier = Modifier.padding(8.dp, 4.dp)) {
-        items.chunked(2).forEach { rowItems ->
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+private fun JumpBackInRow(navController: NavController, items: List<HomeItem>) {
+    SectionHeader("Jump back in")
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp),
+    ) {
+        items(items.size) { i ->
+            val item = items[i]
+            Box(
+                contentAlignment = Alignment.BottomStart,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp, 4.dp),
+                    .size(124.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .clickable { onHomeItemClick(navController, item) },
             ) {
-                rowItems.forEach { item ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(GridBackground.toArgb()))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) { onHomeItemClick(navController, item) },
-                    ) {
-                        GlideImage(
-                            modifier = Modifier.size(48.dp),
-                            contentScale = ContentScale.Crop,
-                            model = item.imageUrl,
-                            loading = placeholder(R.drawable.placeholder),
-                            failure = placeholder(R.drawable.placeholder),
-                            contentDescription = "",
+                GlideImage(
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    model = item.imageUrl,
+                    loading = placeholder(R.drawable.placeholder),
+                    failure = placeholder(R.drawable.placeholder),
+                    contentDescription = item.name,
+                )
+                // Scrim so the name stays readable on any artwork.
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.75f)
+                            )
                         )
-                        Text(
-                            text = item.name,
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 2,
-                            modifier = Modifier.padding(8.dp, 4.dp),
-                        )
-                    }
-                }
-                if (rowItems.size == 1) Spacer(modifier = Modifier.weight(1f))
+                )
+                Text(
+                    text = item.name,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    lineHeight = 15.sp,
+                    modifier = Modifier.padding(10.dp),
+                )
             }
         }
     }
 }
 
+/** Section title with Aalap's saffron accent bar. */
+@Composable
+private fun SectionHeader(title: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 12.dp),
+    ) {
+        Box(
+            Modifier
+                .size(width = 4.dp, height = 20.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(com.music.spotui.ui.theme.Saffron)
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(title, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+    }
+}
+
 @Composable
 private fun HomeFeedSection(navController: NavController, section: HomeSection) {
-    Text(
-        text = section.title,
-        color = Color.White,
-        fontSize = 21.sp,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(16.dp, 20.dp, 16.dp, 4.dp),
-    )
-    LazyRow(contentPadding = androidx.compose.foundation.layout.PaddingValues(10.dp, 0.dp)) {
+    SectionHeader(section.title)
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp),
+    ) {
         items(section.items.size) { i ->
             HomeFeedCard(section.items[i]) { onHomeItemClick(navController, section.items[i]) }
         }
@@ -372,8 +402,7 @@ private fun HomeFeedCard(item: HomeItem, onClick: () -> Unit) {
     Column(
         horizontalAlignment = if (isArtist) Alignment.CenterHorizontally else Alignment.Start,
         modifier = Modifier
-            .width(150.dp)
-            .padding(6.dp)
+            .width(140.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -381,18 +410,18 @@ private fun HomeFeedCard(item: HomeItem, onClick: () -> Unit) {
     ) {
         GlideImage(
             modifier = Modifier
-                .size(150.dp)
-                .clip(if (isArtist) CircleShape else RoundedCornerShape(8.dp)),
+                .size(140.dp)
+                .clip(if (isArtist) CircleShape else RoundedCornerShape(20.dp)),
             contentScale = ContentScale.Crop,
             model = item.imageUrl,
             loading = placeholder(R.drawable.placeholder),
             failure = placeholder(R.drawable.placeholder),
             contentDescription = "",
         )
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = item.name,
-            color = Color.White,
+            color = com.music.spotui.ui.theme.TextPrimary,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
@@ -400,9 +429,10 @@ private fun HomeFeedCard(item: HomeItem, onClick: () -> Unit) {
         )
         Text(
             text = subtitle,
-            color = Color(0xFFB3B3B3),
+            color = com.music.spotui.ui.theme.TextMuted,
             fontSize = 11.sp,
-            maxLines = 2,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             textAlign = if (isArtist) TextAlign.Center else TextAlign.Start,
         )
     }
@@ -457,18 +487,18 @@ fun GreetingSection(name : String = "User") {
             Text(
                 text = greeting,
                 style = MaterialTheme.typography.headlineSmall,
-                color = Color.White,
+                color = com.music.spotui.ui.theme.TextPrimary,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold
                 )
             Text(
                 text = "Have a Nice Day",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White,
+                color = com.music.spotui.ui.theme.TextPrimary,
                 fontSize = 13.sp
                 )
         }
-//        Icon(imageVector = Icons.Outlined.Person, contentDescription = "Profile", tint = Color.White)
+//        Icon(imageVector = Icons.Outlined.Person, contentDescription = "Profile", tint = com.music.spotui.ui.theme.TextPrimary)
     }
 }
 
@@ -495,7 +525,7 @@ fun GreetingSection(name : String = "User") {
 //                    .padding(10.dp, 5.dp)
 //
 //            ){
-//                Text(text = chip[it], color = Color.White)
+//                Text(text = chip[it], color = com.music.spotui.ui.theme.TextPrimary)
 //            }
 //        }
 //    }
@@ -550,7 +580,7 @@ fun HomePlaylistGrid(navController: NavController, albums: List<AlbumsModel>) {
                         Text(modifier = Modifier.padding(5.dp),
                             text = chunkedAlbums[it][album].name,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White,
+                            color = com.music.spotui.ui.theme.TextPrimary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -574,7 +604,7 @@ fun HomeAlbums(
     Text(modifier = Modifier
         .padding(20.dp, 10.dp, 0.dp, 0.dp),
         text = "Albums",
-        color = Color.White,
+        color = com.music.spotui.ui.theme.TextPrimary,
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold)
         LazyRow(modifier = Modifier.padding(6.dp)){
@@ -605,7 +635,7 @@ fun HomeAlbums(
                         fontSize = 13.sp,
                         text = reversedAlbum[album].name,
                         textAlign = TextAlign.Center,
-                        color = Color.White,
+                        color = com.music.spotui.ui.theme.TextPrimary,
                         fontWeight = FontWeight.Bold)
                     Text(
                         fontSize = 12.sp,
@@ -627,7 +657,7 @@ fun HomeRecentlyPlayed(
     Text(modifier = Modifier
         .padding(20.dp, 10.dp, 0.dp, 0.dp),
         text = "Recently Played",
-        color = Color.White,
+        color = com.music.spotui.ui.theme.TextPrimary,
         fontSize = 23.sp,
         fontWeight = FontWeight.Bold)
     LazyRow(modifier = Modifier.padding(6.dp)){
@@ -652,7 +682,7 @@ fun HomeRecentlyPlayed(
                         contentDescription = "Albums")
                     Text(modifier = Modifier.padding(2.dp),
                         text = "Album name",
-                        color = Color.White,
+                        color = com.music.spotui.ui.theme.TextPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp)
                 }
@@ -671,7 +701,7 @@ fun HomeArtists(
     Text(modifier = Modifier
         .padding(20.dp, 10.dp, 0.dp, 0.dp),
         text = "Best of Artists",
-        color = Color.White,
+        color = com.music.spotui.ui.theme.TextPrimary,
         fontSize = 23.sp,
         fontWeight = FontWeight.Bold)
     LazyRow(modifier = Modifier.padding(6.dp)){
@@ -723,7 +753,7 @@ fun ImageCard(
     Text(modifier = Modifier
         .padding(20.dp, 10.dp, 0.dp, 0.dp),
         text = "Discover",
-        color = Color.White,
+        color = com.music.spotui.ui.theme.TextPrimary,
         fontSize = 22.sp,
         fontWeight = FontWeight.Bold)
     Column(
@@ -779,7 +809,7 @@ fun ImageCard(
                     ) {
                         Text(
                             text = "Album : ${albums[album].name}",
-                            style = TextStyle(color = Color.White, fontSize = 20.sp),
+                            style = TextStyle(color = com.music.spotui.ui.theme.TextPrimary, fontSize = 20.sp),
                             textAlign = TextAlign.Center
                         )
 

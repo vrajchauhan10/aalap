@@ -178,15 +178,15 @@ fun LocalFilesScreen(navController: NavController) {
                             },
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = Color.White,
+                            tint = com.music.spotui.ui.theme.TextPrimary,
                         )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
-                        titleContentColor = Color.White,
+                        titleContentColor = com.music.spotui.ui.theme.TextPrimary,
                     ),
                     // The hero below already says "Local files"; the bar only names album/artist pages.
-                    title = { Text(openAlbum?.name ?: openArtist?.name ?: "", color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1) },
+                    title = { Text(openAlbum?.name ?: openArtist?.name ?: "", color = com.music.spotui.ui.theme.TextPrimary, fontWeight = FontWeight.Bold, maxLines = 1) },
                 )
             },
         ) { innerPadding ->
@@ -261,7 +261,7 @@ private data class LocalArtist(val name: String, val cover: String, val songs: L
 /** "A, B feat. C" groups under its first artist, like Spotify's album artist. */
 private fun albumArtist(singer: String) = singer.substringBefore(",").substringBefore(" feat").trim().ifBlank { "Unknown artist" }
 
-private val Green = Color(0xFF1ED760)
+private val Green get() = com.music.spotui.ui.theme.Saffron
 private val LosslessFormats = setOf("FLAC", "WAV", "ALAC", "AIFF", "APE", "WV")
 
 /** FLAC / MP3 / M4A ... from the file's MIME type, else its extension. */
@@ -292,15 +292,15 @@ private fun LocalHero(
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.size(150.dp).clip(RoundedCornerShape(6.dp))
-                .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF1ED760), Color(0xFF0B3D20)))),
+                .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(com.music.spotui.ui.theme.Saffron, com.music.spotui.ui.theme.Surface))),
         ) {
             Icon(
                 painter = androidx.compose.ui.res.painterResource(R.drawable.ic_devices),
-                contentDescription = null, tint = Color.White, modifier = Modifier.size(64.dp),
+                contentDescription = null, tint = com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(64.dp),
             )
         }
-        Text("Local files", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
-        Text(summary, color = Color(0xFFB3B3B3), fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+        Text("Local files", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
+        Text(summary, color = com.music.spotui.ui.theme.TextMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
             Box {
                 Row(
@@ -312,11 +312,11 @@ private fun LocalHero(
                 ) {
                     Icon(
                         painter = androidx.compose.ui.res.painterResource(R.drawable.ic_add),
-                        contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp),
+                        contentDescription = null, tint = com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(22.dp),
                     )
                     Text(
                         if (importing) "Importing…" else "Add music",
-                        color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        color = com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(start = 8.dp),
                     )
                 }
@@ -339,7 +339,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
         value = query,
         onValueChange = onChange,
         singleLine = true,
-        textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 14.sp),
+        textStyle = androidx.compose.ui.text.TextStyle(color = com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(Green),
         modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp),
         decorationBox = { field ->
@@ -377,7 +377,7 @@ private fun CollectionHeader(
         )
         Row(Modifier.fillMaxWidth().padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 2)
+                Text(title, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 2)
                 Text(subtitle, color = Color.Gray, fontSize = 13.sp, maxLines = 1)
             }
             ShuffleButton(onShuffle)
@@ -402,7 +402,7 @@ private fun ShuffleButton(onClick: () -> Unit) {
     Icon(
         painter = androidx.compose.ui.res.painterResource(R.drawable.ic_player_shuffle),
         contentDescription = "Shuffle",
-        tint = Color.White,
+        tint = com.music.spotui.ui.theme.TextPrimary,
         modifier = Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable(onClick = onClick).padding(10.dp),
     )
 }
@@ -410,8 +410,8 @@ private fun ShuffleButton(onClick: () -> Unit) {
 @Composable
 private fun TabPill(label: String, selected: Boolean, onClick: () -> Unit) {
     Text(
-        label, color = if (selected) Color.Black else Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (selected) Green else Color(0xFF2A2A2A))
+        label, color = if (selected) com.music.spotui.ui.theme.OnSaffron else com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (selected) Green else com.music.spotui.ui.theme.SurfaceHigh)
             .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }
@@ -428,7 +428,7 @@ private fun AlbumCard(album: LocalAlbum, modifier: Modifier, onClick: () -> Unit
             contentDescription = album.name,
             modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(6.dp)),
         )
-        Text(album.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
+        Text(album.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
         Text("${album.artist} · ${album.songs.size}", color = Color.Gray, fontSize = 12.sp, maxLines = 1)
     }
 }
@@ -449,7 +449,7 @@ private fun ArtistRow(artist: LocalArtist, onClick: () -> Unit) {
             modifier = Modifier.size(56.dp).clip(androidx.compose.foundation.shape.CircleShape),
         )
         Column(Modifier.padding(start = 14.dp).weight(1f)) {
-            Text(artist.name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(artist.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
             Text("${artist.songs.size} songs", color = Color.Gray, fontSize = 12.sp)
         }
     }
@@ -479,17 +479,17 @@ private fun LocalSongRow(
                 contentDescription = "",
             )
             Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-                Text(song.title, color = if (song.id == currentId) AppPalette else Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                Text(song.title, color = if (song.id == currentId) AppPalette else com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (format.isNotEmpty()) {
                         // Lossless formats are the point of local files: say so.
                         val lossless = format in LosslessFormats
                         Text(
                             format,
-                            color = if (lossless) Color.Black else Color(0xFFB3B3B3),
+                            color = if (lossless) Color.Black else com.music.spotui.ui.theme.TextMuted,
                             fontSize = 9.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(end = 6.dp).clip(RoundedCornerShape(3.dp))
-                                .background(if (lossless) Green else Color(0xFF3A3A3A)).padding(horizontal = 4.dp, vertical = 1.dp),
+                                .background(if (lossless) Green else com.music.spotui.ui.theme.SurfaceHigh).padding(horizontal = 4.dp, vertical = 1.dp),
                         )
                     }
                     Text(
@@ -523,7 +523,7 @@ private fun LocalSongRow(
 @Composable
 private fun EmptyLibrary(importing: Boolean, accent: Color, onSongs: () -> Unit, onFolder: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(28.dp, 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Your music, in lossless", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text("Your music, in lossless", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Text(
             "Import FLAC, MP3, WAV and more from your phone. They play offline, with your albums and artists, next to Spotify.",
             color = Color.Gray, fontSize = 14.sp,
@@ -532,7 +532,7 @@ private fun EmptyLibrary(importing: Boolean, accent: Color, onSongs: () -> Unit,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
             ImportButton("Add songs", accent, Modifier.weight(1f), enabled = !importing, onClick = onSongs)
-            ImportButton("Add folder", Color(0xFF2A2A33), Modifier.weight(1f), enabled = !importing, onClick = onFolder)
+            ImportButton("Add folder", com.music.spotui.ui.theme.SurfaceHigh, Modifier.weight(1f), enabled = !importing, onClick = onFolder)
         }
         if (importing) Text("Importing…", color = accent, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
     }
@@ -548,13 +548,13 @@ private fun ImportButton(
 ) {
     Text(
         text = label,
-        color = if (container == Color(0xFF2A2A33)) Color.White else Color.Black,
+        color = if (container == com.music.spotui.ui.theme.SurfaceHigh) com.music.spotui.ui.theme.TextPrimary else com.music.spotui.ui.theme.OnSaffron,
         fontSize = 14.sp,
         fontWeight = FontWeight.Bold,
         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         modifier = modifier
             .clip(RoundedCornerShape(50))
-            .background(if (enabled) container else Color(0xFF333333))
+            .background(if (enabled) container else com.music.spotui.ui.theme.SurfaceHigh)
             .clickable(enabled = enabled) { onClick() }
             .padding(vertical = 12.dp),
     )

@@ -7,9 +7,12 @@ import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.session.CommandButton
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -81,12 +84,30 @@ class PlaybackService : MediaLibraryService() {
 
         mediaSession = MediaLibrarySession.Builder(this, wrap(base), LibraryCallback())
             .setSessionActivity(sessionActivity)
+            .setCustomLayout(customLayout())
             .build()
+
+        // Keep the notification's Like / Shuffle buttons in step with the app, whichever
+        // side (notification, player screen, mini player) changed them.
+        serviceScope.launch {
+            androidx.compose.runtime.snapshotFlow {
+                Triple(currentSongState.songId.value, currentSongState.likeState.value, currentSongState.shuffle.value)
+            }.collect { mediaSession?.setCustomLayout(customLayout()) }
+        }
 
         // When a crossfade promotes a new ExoPlayer instance, re-bind the session to it
         // (runs on the main thread; setPlayer is the supported way to swap a session's player).
         SongPlayer.onPlayerSwapped = { newPlayer ->
             if (!showingWeb) mediaSession?.player = wrap(newPlayer)
+        }
+        // The activity releases the ExoPlayer when it is destroyed (back press, theme
+        // switch, low memory) while this service lives on. The next play builds a fresh
+        // player; without re-binding, the session kept the released one, so audio played
+        // but the notification / lock screen never appeared.
+        SongPlayer.onPlayerCreated = { newPlayer ->
+            android.os.Handler(mainLooper).post {
+                if (!showingWeb && mediaSession != null) mediaSession?.player = wrap(newPlayer)
+            }
         }
 
         // When stream resolution fails for a track, skip it automatically so the
@@ -108,6 +129,43 @@ class PlaybackService : MediaLibraryService() {
                 currentSongState.updatePlayingState(SpotifyWebPlayer.isPlaying)
             }
         }
+    }
+
+    // ── Notification extra buttons (beside previous / play / next) ──
+
+    private val cmdLike = SessionCommand(ACTION_LIKE, android.os.Bundle.EMPTY)
+    private val cmdShuffle = SessionCommand(ACTION_SHUFFLE, android.os.Bundle.EMPTY)
+
+    private fun currentTrackLiked(): Boolean =
+        com.music.spotui.data.preferences.isSongLiked(this, currentSongState.songId.value.toString())
+
+    private fun customLayout(): ImmutableList<CommandButton> {
+        val liked = currentTrackLiked()
+        val shuffled = currentSongState.shuffle.value
+        return ImmutableList.of(
+            CommandButton.Builder()
+                .setDisplayName(if (liked) "Remove from Liked Songs" else "Add to Liked Songs")
+                .setIconResId(if (liked) com.music.spotui.R.drawable.ic_notif_heart_filled else com.music.spotui.R.drawable.ic_notif_heart)
+                .setSessionCommand(cmdLike)
+                .build(),
+            CommandButton.Builder()
+                .setDisplayName(if (shuffled) "Shuffle off" else "Shuffle on")
+                .setIconResId(if (shuffled) com.music.spotui.R.drawable.ic_notif_shuffle_on else com.music.spotui.R.drawable.ic_notif_shuffle)
+                .setSessionCommand(cmdShuffle)
+                .build(),
+        )
+    }
+
+    /** Like/unlike the current track locally and on the Spotify account. */
+    private fun toggleLike() {
+        val id = currentSongState.songId.value.toString()
+        val track = currentSongState.queue.value.firstOrNull { it.id == currentSongState.songId.value }
+        val nowLiked = !currentTrackLiked()
+        if (nowLiked) com.music.spotui.data.preferences.addLikedSongId(this, id)
+        else com.music.spotui.data.preferences.removeLikedSongId(this, id)
+        com.music.spotui.data.api.SpotifySync.setTrackSaved(this, track?.spotifyTrackId.orEmpty(), nowLiked)
+        // Flip the shared like flag so open screens re-read the liked state.
+        currentSongState.updateLikeState(!currentSongState.likeState.value)
     }
 
     /** Point the media session at whichever engine is currently producing audio. */
@@ -258,16 +316,45 @@ class PlaybackService : MediaLibraryService() {
         const val NODE_DOWNLOADS = "downloads"
         const val NODE_PLAYLISTS = "playlists"
         const val NODE_ALBUMS = "albums"
+        const val ACTION_LIKE = "com.music.spotui.LIKE"
+        const val ACTION_SHUFFLE = "com.music.spotui.SHUFFLE"
     }
 
     private inner class LibraryCallback : MediaLibrarySession.Callback {
+
+        // Allow controllers (the system notification) to send our Like / Shuffle commands.
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): MediaSession.ConnectionResult {
+            val base = super.onConnect(session, controller)
+            val commands = base.availableSessionCommands.buildUpon()
+                .add(cmdLike)
+                .add(cmdShuffle)
+                .build()
+            return MediaSession.ConnectionResult.accept(commands, base.availablePlayerCommands)
+        }
+
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: android.os.Bundle,
+        ): ListenableFuture<SessionResult> {
+            when (customCommand.customAction) {
+                ACTION_LIKE -> toggleLike()
+                ACTION_SHUFFLE -> currentSongState.updateShuffleState(!currentSongState.shuffle.value)
+            }
+            session.setCustomLayout(customLayout())
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        }
 
         override fun onGetLibraryRoot(
             session: MediaLibrarySession,
             browser: MediaSession.ControllerInfo,
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<MediaItem>> =
-            Futures.immediateFuture(LibraryResult.ofItem(folder(ROOT, "spotui"), params))
+            Futures.immediateFuture(LibraryResult.ofItem(folder(ROOT, "Aalap"), params))
 
         override fun onGetChildren(
             session: MediaLibrarySession,
@@ -422,6 +509,7 @@ class PlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         serviceScope.cancel()
         SongPlayer.onPlayerSwapped = null
+        SongPlayer.onPlayerCreated = null
         SongPlayer.onStreamFailed = null
         SongPlayer.onTrackEnded = null
         SongPlayer.onPreloadedTrackStarted = null

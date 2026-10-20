@@ -140,12 +140,12 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                             ) { navController.navigateUp() },
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "",
-                            tint = Color.White
+                            tint = com.music.spotui.ui.theme.TextPrimary
                         )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
-                        titleContentColor = Color.White,
+                        titleContentColor = com.music.spotui.ui.theme.TextPrimary,
                     ),
                     title = { Text(text = "") }
                 )
@@ -188,7 +188,7 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                         Text(
                             modifier = Modifier.padding(20.dp, 5.dp, 0.dp, 0.dp),
                             text = playlist.name.ifBlank { playlistName },
-                            color = Color.White,
+                            color = com.music.spotui.ui.theme.TextPrimary,
                             fontSize = 23.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -205,7 +205,7 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                             Text(
                                 modifier = Modifier.padding(20.dp, 4.dp, 0.dp, 0.dp),
                                 text = "Playlist • ${playlist.artists}",
-                                color = Color.White,
+                                color = com.music.spotui.ui.theme.TextPrimary,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -261,7 +261,7 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                                 Icon(
                                     imageVector = if (playlistDownloaded)
                                         Icons.Default.CheckCircle else ImageVector.vectorResource(R.drawable.ic_download),
-                                    tint = if (playlistDownloaded) Color(AppPalette.toArgb()) else Color.White,
+                                    tint = if (playlistDownloaded) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary,
                                     modifier = Modifier
                                         .size(24.dp)
                                         .clickable(
@@ -286,7 +286,7 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                                 // Shuffle-play: start the playlist in random order.
                                 Icon(
                                     painter = painterResource(id = R.drawable.ic_player_shuffle),
-                                    tint = Color.White,
+                                    tint = com.music.spotui.ui.theme.TextPrimary,
                                     modifier = Modifier
                                         .size(24.dp)
                                         .clickable(
@@ -319,7 +319,7 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                                     modifier = Modifier
                                         .size(52.dp)
                                         .clip(RoundedCornerShape(100.dp))
-                                        .background(Color.White)
+                                        .background(com.music.spotui.ui.theme.Saffron)
                                         .clickable(
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = null
@@ -346,7 +346,7 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                                 ) {
                                     Icon(
                                         modifier = Modifier.size(25.dp),
-                                        tint = Color.Black,
+                                        tint = com.music.spotui.ui.theme.OnSaffron,
                                         painter = painterResource(
                                             id = if (playing) R.drawable.ic_playing else R.drawable.play_svgrepo_com,
                                         ),
@@ -367,7 +367,7 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                 itemsIndexed(displaySongs, key = { index, _ -> rowKeys[index] }) { index, song ->
                     com.music.spotui.ui.components.SwipeToQueue(song) {
                     val currentColor = if (song.id == playlistViewModel.currentSongId.value)
-                        Color(AppPalette.toArgb()) else Color.White
+                        Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary
 
                     Row(
                         horizontalArrangement = Arrangement.Start,

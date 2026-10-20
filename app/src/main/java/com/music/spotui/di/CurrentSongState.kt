@@ -169,6 +169,9 @@ class CurrentSongState @Inject constructor() {
                     singer = singer,
                     album = album,
                     image = coverUri,
+                    url = _queue.value.firstOrNull { it.id == songId }?.url.orEmpty(),
+                    spotifyTrackId = _queue.value.firstOrNull { it.id == songId }?.spotifyTrackId.orEmpty(),
+                    durationMs = _queue.value.firstOrNull { it.id == songId }?.durationMs ?: 0,
                 ),
             )
         }

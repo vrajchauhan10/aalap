@@ -119,12 +119,12 @@ fun DownloadsScreen(navController: NavController) {
                             ) { navController.navigateUp() },
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "",
-                            tint = Color.White
+                            tint = com.music.spotui.ui.theme.TextPrimary
                         )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
-                        titleContentColor = Color.White,
+                        titleContentColor = com.music.spotui.ui.theme.TextPrimary,
                     ),
                     title = { Text(text = "") }
                 )
@@ -170,7 +170,7 @@ fun DownloadsScreen(navController: NavController) {
                     Text(
                         modifier = Modifier.padding(20.dp, 5.dp, 0.dp, 0.dp),
                         text = "Downloaded",
-                        color = Color.White,
+                        color = com.music.spotui.ui.theme.TextPrimary,
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -196,7 +196,7 @@ fun DownloadsScreen(navController: NavController) {
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50))
-                                .background(Color(0xFF1A1A20))
+                                .background(com.music.spotui.ui.theme.Surface)
                                 .clickable {
                                     CoroutineScope(Dispatchers.IO).launch {
                                         val (n, dest) = com.music.spotui.data.preferences.exportDownloads(context)
@@ -219,7 +219,7 @@ fun DownloadsScreen(navController: NavController) {
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50))
-                                .background(Color(0xFF1A1A20))
+                                .background(com.music.spotui.ui.theme.Surface)
                                 .clickable {
                                     val n = com.music.spotui.data.preferences.clearAllDownloads(context)
                                     songs = getDownloadedSongs(context)
@@ -238,7 +238,7 @@ fun DownloadsScreen(navController: NavController) {
                     androidx.compose.material3.TextButton(
                         onClick = { com.music.spotui.di.Downloads.cancelAll() },
                         modifier = Modifier.padding(horizontal = 8.dp),
-                    ) { Text("Cancel all downloads (${inProgress.size})", color = Color.White) }
+                    ) { Text("Cancel all downloads (${inProgress.size})", color = com.music.spotui.ui.theme.TextPrimary) }
                 }
                 inProgress.forEach { (song, pct) ->
                     Row(
@@ -257,7 +257,7 @@ fun DownloadsScreen(navController: NavController) {
                             contentDescription = "",
                         )
                         Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-                            Text(text = song.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                            Text(text = song.title, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                             Spacer(modifier = Modifier.height(4.dp))
                             androidx.compose.material3.LinearProgressIndicator(
                                 progress = { (pct.coerceIn(0, 100)) / 100f },
@@ -266,7 +266,7 @@ fun DownloadsScreen(navController: NavController) {
                                     .height(4.dp)
                                     .clip(RoundedCornerShape(2.dp)),
                                 color = accent,
-                                trackColor = Color(0xFF333333),
+                                trackColor = com.music.spotui.ui.theme.SurfaceHigh,
                             )
                         }
                         Text(
@@ -291,7 +291,7 @@ fun DownloadsScreen(navController: NavController) {
                         com.music.spotui.ui.components.SwipeToQueue(songs[index]) {
                         val song = songs[index]
                         val currentColor = if (song.id == playerViewModel.currentSongId.value)
-                            Color(AppPalette.toArgb()) else Color.White
+                            Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary
 
                         Row(
                             horizontalArrangement = Arrangement.Start,

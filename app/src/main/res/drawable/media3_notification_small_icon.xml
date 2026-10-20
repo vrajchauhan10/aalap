@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Overrides Media3's default status-bar icon for the playback notification. Must be white-on-transparent. -->
+    <path android:pathData="M74,42 A23.3,23.3 0,1 0,76,62" android:strokeColor="#FFFFFFFF" android:strokeWidth="5" android:strokeLineCap="round" android:fillColor="#00000000"/>
+    <path android:pathData="M66,30 L74,42 L64,48" android:strokeColor="#FFFFFFFF" android:strokeWidth="5" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000"/>
+    <path android:pathData="M48,44 L64,54 L48,64 Z" android:fillColor="#FFFFFFFF" android:strokeColor="#FFFFFFFF" android:strokeWidth="2" android:strokeLineJoin="round"/>
+</vector>

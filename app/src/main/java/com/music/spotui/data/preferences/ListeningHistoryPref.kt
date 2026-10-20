@@ -16,7 +16,14 @@ data class HistoryEntry(
     val singer: String,
     val album: String = "",
     val image: String = "",
-)
+    // Playback query + Spotify id so a history row can be played again, and the track
+    // length for listening-time stats. Empty/0 on entries logged before 2.0.
+    val url: String = "",
+    val spotifyTrackId: String = "",
+    val durationMs: Int = 0,
+) {
+    val canReplay: Boolean get() = url.isNotBlank()
+}
 
 private const val PREF = "ListeningHistory"
 private const val KEY = "entries"
@@ -25,11 +32,13 @@ private const val MAX_ENTRIES = 500
 private fun HistoryEntry.toJson() = JSONObject().apply {
     put("ts", ts); put("songId", songId); put("title", title)
     put("singer", singer); put("album", album); put("image", image)
+    put("url", url); put("spotifyTrackId", spotifyTrackId); put("durationMs", durationMs)
 }
 
 private fun JSONObject.toEntry() = HistoryEntry(
     ts = optLong("ts"), songId = optInt("songId", -1), title = optString("title"),
     singer = optString("singer"), album = optString("album"), image = optString("image"),
+    url = optString("url"), spotifyTrackId = optString("spotifyTrackId"), durationMs = optInt("durationMs"),
 )
 
 fun getListeningHistory(context: Context): List<HistoryEntry> {

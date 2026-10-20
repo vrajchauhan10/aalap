@@ -36,17 +36,17 @@ import com.music.spotui.ui.navigation.Routes
 fun MusicSourceScreen(navController: NavController) {
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    Box(Modifier.fillMaxSize().background(com.music.spotui.ui.theme.AppBackground)) {
         Column(
             modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text("Choose your music source", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            Text("Choose your music source", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 26.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))
             Text(
-                "Spotify keeps your library and recommendations. Choose where Spotui streams the audio.",
-                color = Color(0xFFB3B3B3), fontSize = 14.sp, textAlign = TextAlign.Center,
+                "Spotify keeps your library and recommendations. Choose where Aalap streams the audio.",
+                color = com.music.spotui.ui.theme.TextMuted, fontSize = 14.sp, textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(32.dp))
 
@@ -57,9 +57,11 @@ fun MusicSourceScreen(navController: NavController) {
             ) {
                 if (isYoutubeLoggedIn(context)) {
                     setPrimaryMusicSource(context, MusicSource.YOUTUBE_MUSIC)
-                    navController.navigate("${Routes.SpotiflacVerify.route}?next=home")
+                    navController.navigate(Routes.Home.route) {
+                        popUpTo(Routes.MusicSource.route) { inclusive = true }
+                    }
                 } else {
-                    navController.navigate("${Routes.YouTubeLogin.route}?next=spotiflac")
+                    navController.navigate("${Routes.YouTubeLogin.route}?next=home")
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -68,7 +70,7 @@ fun MusicSourceScreen(navController: NavController) {
                 subtitle = "Fast exact-track matching. Quality depends on your Deezer plan.",
                 color = Color(0xFFA238FF),
             ) {
-                navController.navigate("${Routes.DeezerLogin.route}?next=spotiflac")
+                navController.navigate("${Routes.DeezerLogin.route}?next=home")
             }
         }
     }
@@ -78,7 +80,7 @@ fun MusicSourceScreen(navController: NavController) {
 private fun SourceCard(title: String, subtitle: String, color: Color, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth()
-            .background(Color(0xFF181818), RoundedCornerShape(16.dp))
+            .background(com.music.spotui.ui.theme.Surface, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
             .padding(18.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -86,10 +88,10 @@ private fun SourceCard(title: String, subtitle: String, color: Color, onClick: (
         Box(
             Modifier.background(color, RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 9.dp),
             contentAlignment = Alignment.Center,
-        ) { Text("♫", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
+        ) { Text("♫", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
-            Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = Color(0xFFB3B3B3), fontSize = 12.sp, lineHeight = 17.sp)
+            Text(title, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(subtitle, color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp, lineHeight = 17.sp)
         }
         Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = color)
     }

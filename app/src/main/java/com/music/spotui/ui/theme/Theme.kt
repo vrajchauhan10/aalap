@@ -1,82 +1,99 @@
 package com.music.spotui.ui.theme
 
 import android.app.Activity
-import android.graphics.Color.toArgb
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import com.music.spotui.data.preferences.ThemeMode
+import com.music.spotui.data.preferences.getThemeMode
 
-private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80,
-    background = AppBackground,
-)
+/** Live theme choice, so Settings can switch light/dark without restarting. */
+object ThemeState {
+    private var loaded = false
+    var mode by mutableStateOf(ThemeMode.SYSTEM)
 
-private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40 ,
-    background = AppBackground,
-    /* Other default colors to override
+    fun load(context: android.content.Context) {
+        if (!loaded) { mode = getThemeMode(context); loaded = true }
+    }
 
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    fun set(context: android.content.Context, newMode: ThemeMode) {
+        com.music.spotui.data.preferences.setThemeMode(context, newMode)
+        mode = newMode
+    }
+}
+
+// The scheme only drives Material defaults (dialogs, sheets, switches); screens
+// draw from the Aalap tokens in Color.kt, which flip with [AalapPalette.isLight].
+private fun schemeFor(light: Boolean) = if (light) lightColorScheme(
+    primary = Saffron, onPrimary = OnSaffron,
+    primaryContainer = SurfaceHigh, onPrimaryContainer = Saffron,
+    secondary = SaffronGold, onSecondary = OnSaffron, tertiary = SaffronDeep,
+    background = AppBackground, onBackground = TextPrimary,
+    surface = Surface, onSurface = TextPrimary,
+    surfaceVariant = SurfaceHigh, onSurfaceVariant = TextMuted,
+    surfaceContainer = Surface, surfaceContainerHigh = SurfaceHigh, surfaceContainerLow = AppBackground,
+    outline = TextMuted.copy(alpha = 0.4f),
+) else darkColorScheme(
+    primary = Saffron, onPrimary = OnSaffron,
+    primaryContainer = SurfaceHigh, onPrimaryContainer = SaffronGold,
+    secondary = SaffronGold, onSecondary = OnSaffron, tertiary = SaffronDeep,
+    background = AppBackground, onBackground = TextPrimary,
+    surface = Surface, onSurface = TextPrimary,
+    surfaceVariant = SurfaceHigh, onSurfaceVariant = TextMuted,
+    surfaceContainer = Surface, surfaceContainerHigh = SurfaceHigh, surfaceContainerLow = AppBackground,
+    outline = TextMuted.copy(alpha = 0.4f),
 )
 
 @Composable
 fun SpotuiTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    ThemeState.load(LocalContext.current)
+    val light = when (ThemeState.mode) {
+        ThemeMode.LIGHT -> true
+        ThemeMode.DARK -> false
+        ThemeMode.SYSTEM -> !isSystemInDarkTheme()
     }
+    AalapPalette.isLight = light
+
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = Color.Transparent.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(AppBackground.toArgb()))
+            // Dark status/nav-bar icons on the cream canvas, light ones on indigo.
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = light
+                isAppearanceLightNavigationBars = light
+            }
         }
     }
 
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = schemeFor(light),
         typography = Typography,
     ) {
         // Bare Text() uses LocalTextStyle, which MaterialTheme does NOT derive
-        // from the typography — so provide Montserrat as the global default so
-        // every screen picks it up without touching each Text call.
+        // from the typography — so provide Poppins (and the theme's text colour)
+        // as the global default so every screen picks it up.
         androidx.compose.material3.ProvideTextStyle(
             value = androidx.compose.material3.LocalTextStyle.current.copy(
-                fontFamily = Montserrat,
+                fontFamily = Poppins,
                 letterSpacing = (-0.2).sp,
+                color = TextPrimary,
             ),
             content = content,
         )

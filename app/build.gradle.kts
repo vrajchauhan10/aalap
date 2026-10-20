@@ -17,9 +17,10 @@ android {
         applicationId = "com.music.spotui"
         minSdk = 26
         targetSdk = 34
-        // Must exceed every published build: 1.5 shipped as versionCode 14 ("1.4").
-        versionCode = 16
-        versionName = "1.6"
+        // Must exceed every published build (spotui 1.6 shipped as versionCode 16).
+        // 2.0.0 is the first Aalap release.
+        versionCode = 20
+        versionName = "2.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

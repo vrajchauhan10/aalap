@@ -83,7 +83,7 @@ fun QueueScreen(navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF121212))
+            .background(com.music.spotui.ui.theme.Surface)
             .statusBarsPadding()
     ) {
         Row(
@@ -95,7 +95,7 @@ fun QueueScreen(navController: NavController) {
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = "Close",
-                tint = Color.White,
+                tint = com.music.spotui.ui.theme.TextPrimary,
                 modifier = Modifier
                     .size(28.dp)
                     .clickable(
@@ -104,7 +104,7 @@ fun QueueScreen(navController: NavController) {
                     ) { navController.navigateUp() }
             )
             Spacer(modifier = Modifier.width(12.dp))
-            Text("Queue", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Queue", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
 
         LazyColumn(
@@ -117,7 +117,7 @@ fun QueueScreen(navController: NavController) {
                 item {
                     Text(
                         "Now playing",
-                        color = Color.White,
+                        color = com.music.spotui.ui.theme.TextPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 6.dp)
@@ -129,7 +129,7 @@ fun QueueScreen(navController: NavController) {
                 item {
                     Text(
                         "Next up",
-                        color = Color.White,
+                        color = com.music.spotui.ui.theme.TextPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(16.dp, 18.dp, 16.dp, 6.dp)
@@ -155,7 +155,7 @@ fun QueueScreen(navController: NavController) {
                                     .background(Color(0xFF7A1F1F))
                                     .padding(horizontal = 24.dp),
                             ) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.White)
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = com.music.spotui.ui.theme.TextPrimary)
                             }
                         },
                         content = {
@@ -231,7 +231,7 @@ private fun QueueRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = song.title,
-                color = if (highlight) Color(AppPalette.toArgb()) else Color.White,
+                color = if (highlight) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
@@ -249,7 +249,7 @@ private fun QueueRow(
             Icon(
                 imageVector = Icons.Default.Menu,
                 contentDescription = "Reorder",
-                tint = Color(0xFFB3B3B3),
+                tint = com.music.spotui.ui.theme.TextMuted,
                 modifier = Modifier
                     .size(28.dp)
                     .pointerInput(song.id) {

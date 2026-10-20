@@ -73,7 +73,9 @@ fun YouTubeLoginScreen(navController: NavController, next: String = "") {
             delay(350)
             when (next) {
                 "spotiflac" -> {
-                    navController.navigate("${Routes.SpotiflacVerify.route}?next=home")
+                    navController.navigate(Routes.Home.route) {
+                        popUpTo(Routes.MusicSource.route) { inclusive = true }
+                    }
                 }
                 "home" -> {
                     navController.navigate(Routes.Home.route) {
@@ -85,7 +87,7 @@ fun YouTubeLoginScreen(navController: NavController, next: String = "") {
         }
     }
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    Box(Modifier.fillMaxSize().background(com.music.spotui.ui.theme.AppBackground)) {
         AndroidView(
             modifier = Modifier.fillMaxSize().statusBarsPadding().padding(top = 42.dp),
             factory = { ctx ->
@@ -103,7 +105,7 @@ fun YouTubeLoginScreen(navController: NavController, next: String = "") {
             },
         )
         Box(
-            Modifier.fillMaxWidth().statusBarsPadding().height(42.dp).background(Color.Black),
+            Modifier.fillMaxWidth().statusBarsPadding().height(42.dp).background(com.music.spotui.ui.theme.AppBackground),
             contentAlignment = Alignment.Center,
         ) {
             Text(status, color = if (hasError) Color(0xFFFF5252) else Color(0xFFFF0033),

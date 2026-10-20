@@ -123,14 +123,14 @@ fun LibraryScreen(navController: NavController) {
             Text(
                 text = "Your Library",
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = com.music.spotui.ui.theme.TextPrimary,
                 fontSize = 22.sp,
                 modifier = Modifier.weight(1f),
             )
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = "Search library",
-                tint = if (searchActive) Color(AppPalette.toArgb()) else Color.White,
+                tint = if (searchActive) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary,
                 modifier = Modifier
                     .padding(end = 14.dp)
                     .size(22.dp)
@@ -146,7 +146,7 @@ fun LibraryScreen(navController: NavController) {
                 modifier = Modifier
                     .size(34.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF3A3A3A))
+                    .background(com.music.spotui.ui.theme.SurfaceHigh)
                     .clickable { showAccount = true },
                 contentAlignment = Alignment.Center
             ) {
@@ -154,7 +154,7 @@ fun LibraryScreen(navController: NavController) {
                 if (avatar.isNotBlank()) {
                     AccountAvatar(avatar, 34.dp)
                 } else {
-                    Icon(Icons.Default.Person, contentDescription = "Account", tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Person, contentDescription = "Account", tint = com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(20.dp))
                 }
             }
         }
@@ -170,7 +170,7 @@ fun LibraryScreen(navController: NavController) {
             Icon(
                 painter = painterResource(if (gridView) R.drawable.ic_view_list else R.drawable.ic_view_grid),
                 contentDescription = if (gridView) "Show as list" else "Show as grid",
-                tint = Color.White,
+                tint = com.music.spotui.ui.theme.TextPrimary,
                 modifier = Modifier
                     .size(18.dp)
                     .clickable(
@@ -198,7 +198,7 @@ fun LibraryScreen(navController: NavController) {
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     singleLine = true,
-                    textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+                    textStyle = TextStyle(color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp),
                     modifier = Modifier
                         .weight(1f)
                         .padding(8.dp, 10.dp),
@@ -273,7 +273,7 @@ fun SumUpLibraryScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
-            .background(Color(0xFF0E0E13))
+            .background(com.music.spotui.ui.theme.AppBackground)
     ) {
         // Listening history & stats entry.
         item {
@@ -294,10 +294,10 @@ fun SumUpLibraryScreen(
                         .clip(RoundedCornerShape(4.dp))
                         .background(Color(0xFF27856A)),
                 ) {
-                    Icon(Icons.Default.DateRange, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.DateRange, contentDescription = null, tint = com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(24.dp))
                 }
                 Column(modifier = Modifier.padding(start = 12.dp)) {
-                    Text(text = "Listening history", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "Listening history", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text(text = "Your plays and stats", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                 }
             }
@@ -324,12 +324,12 @@ fun SumUpLibraryScreen(
                     Icon(
                         painter = painterResource(R.drawable.ic_library_big),
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = com.music.spotui.ui.theme.TextPrimary,
                         modifier = Modifier.size(26.dp),
                     )
                 }
                 Column(modifier = Modifier.padding(start = 12.dp)) {
-                    Text(text = "Local files", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "Local files", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     Text(text = "Music imported from this device", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                 }
             }
@@ -355,7 +355,7 @@ fun SumUpLibraryScreen(
                     contentDescription = ""
                 )
                 Column(modifier = Modifier.padding(start = 12.dp)) {
-                    Text(text = entry.name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(text = entry.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(text = entry.subtitle, color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
@@ -365,7 +365,7 @@ fun SumUpLibraryScreen(
             item {
                 Text(
                     text = "Artists you follow",
-                    color = Color.White,
+                    color = com.music.spotui.ui.theme.TextPrimary,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(20.dp, 16.dp, 20.dp, 4.dp),
@@ -391,7 +391,7 @@ fun SumUpLibraryScreen(
                         contentDescription = ""
                     )
                     Column(modifier = Modifier.padding(start = 12.dp)) {
-                        Text(text = artist.name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(text = artist.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(text = "Artist", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
                 }
@@ -429,7 +429,7 @@ fun LibraryGridScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
-            .background(Color(0xFF0E0E13)),
+            .background(com.music.spotui.ui.theme.AppBackground),
         contentPadding = PaddingValues(16.dp, 10.dp, 16.dp, 130.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -450,10 +450,10 @@ fun LibraryGridScreen(
                         .clip(RoundedCornerShape(6.dp))
                         .background(Color(0xFF27856A)),
                 ) {
-                    Icon(Icons.Default.DateRange, contentDescription = null, tint = Color.White, modifier = Modifier.size(32.dp))
+                    Icon(Icons.Default.DateRange, contentDescription = null, tint = com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(32.dp))
                 }
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(text = "Listening history", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(text = "Listening history", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(text = "Your plays and stats", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -476,12 +476,12 @@ fun LibraryGridScreen(
                     Icon(
                         painter = painterResource(R.drawable.ic_library_big),
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = com.music.spotui.ui.theme.TextPrimary,
                         modifier = Modifier.size(32.dp),
                     )
                 }
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(text = "Local files", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(text = "Local files", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(text = "Music on device", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -502,7 +502,7 @@ fun LibraryGridScreen(
                     contentDescription = ""
                 )
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(text = entry.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(text = entry.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(text = entry.subtitle, color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -510,7 +510,7 @@ fun LibraryGridScreen(
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
                     text = "Artists you follow",
-                    color = Color.White,
+                    color = com.music.spotui.ui.theme.TextPrimary,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 6.dp),
@@ -534,7 +534,7 @@ fun LibraryGridScreen(
                         contentDescription = ""
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text(text = artist.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                    Text(text = artist.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                     Text(text = "Artist", color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
                 }
             }
@@ -548,7 +548,7 @@ private fun LibrarySkeleton(padding: PaddingValues) {
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
-            .background(Color(0xFF0E0E13))
+            .background(com.music.spotui.ui.theme.AppBackground)
     ) {
         Spacer(modifier = Modifier.height(10.dp))
         repeat(8) {
@@ -558,11 +558,11 @@ private fun LibrarySkeleton(padding: PaddingValues) {
                     .fillMaxWidth()
                     .padding(20.dp, 6.dp)
             ) {
-                Box(modifier = Modifier.size(55.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF1E1E1E)))
+                Box(modifier = Modifier.size(55.dp).clip(RoundedCornerShape(4.dp)).background(com.music.spotui.ui.theme.Surface))
                 Column(modifier = Modifier.padding(start = 12.dp)) {
-                    Box(modifier = Modifier.height(14.dp).width(160.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF1E1E1E)))
+                    Box(modifier = Modifier.height(14.dp).width(160.dp).clip(RoundedCornerShape(3.dp)).background(com.music.spotui.ui.theme.Surface))
                     Spacer(modifier = Modifier.height(6.dp))
-                    Box(modifier = Modifier.height(11.dp).width(90.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF1E1E1E)))
+                    Box(modifier = Modifier.height(11.dp).width(90.dp).clip(RoundedCornerShape(3.dp)).background(com.music.spotui.ui.theme.Surface))
                 }
             }
         }
@@ -581,7 +581,7 @@ private fun AccountSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFF1A1A1A),
+        containerColor = com.music.spotui.ui.theme.Surface,
     ) {
         Column(modifier = Modifier.navigationBarsPadding()) {
             Row(
@@ -589,27 +589,30 @@ private fun AccountSheet(
                 modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp, 16.dp, 16.dp)
             ) {
                 Box(
-                    modifier = Modifier.size(56.dp).clip(CircleShape).background(Color(0xFF3A3A3A)),
+                    modifier = Modifier.size(56.dp).clip(CircleShape).background(com.music.spotui.ui.theme.SurfaceHigh),
                     contentAlignment = Alignment.Center
                 ) {
                     if (account.imageUrl.isNotBlank()) AccountAvatar(account.imageUrl, 56.dp)
-                    else Icon(Icons.Default.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(30.dp))
+                    else Icon(Icons.Default.Person, contentDescription = null, tint = com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(30.dp))
                 }
                 Spacer(modifier = Modifier.width(14.dp))
                 Column {
-                    Text(account.name.ifBlank { "Spotify user" }, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(account.name.ifBlank { "Spotify user" }, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (account.email.isNotBlank()) Text(account.email, color = Color.Gray, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (account.plan.isNotBlank()) Text("Spotify ${account.plan}", color = Color(0xFF1DB954), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    if (account.plan.isNotBlank()) Text("Spotify ${account.plan} · connected", color = com.music.spotui.ui.theme.Saffron, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                 }
             }
-            HorizontalDivider(color = Color(0xFF2A2A2A))
+            HorizontalDivider(color = com.music.spotui.ui.theme.SurfaceHigh)
 
-            AccountRow("Account") { onDismiss() }
+            AccountRow("Profile and settings") {
+                onDismiss()
+                navController.navigate(Routes.Settings.route)
+            }
             AccountRow("Listening history") {
                 onDismiss()
                 navController.navigate(Routes.History.route)
             }
-            HorizontalDivider(color = Color(0xFF2A2A2A))
+            HorizontalDivider(color = com.music.spotui.ui.theme.SurfaceHigh)
             AccountRow("Log out", tint = Color(0xFFE57373)) {
                 SpotifySession.setSpDc(context, "")
                 Api.HomeCache.clear()
@@ -624,7 +627,7 @@ private fun AccountSheet(
 }
 
 @Composable
-private fun AccountRow(label: String, tint: Color = Color.White, onClick: () -> Unit) {
+private fun AccountRow(label: String, tint: Color = com.music.spotui.ui.theme.TextPrimary, onClick: () -> Unit) {
     Text(
         text = label,
         color = tint,

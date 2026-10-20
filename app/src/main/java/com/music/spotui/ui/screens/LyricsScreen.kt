@@ -145,10 +145,10 @@ fun LyricsScreen(
             .fillMaxSize()
             // Solid base first — the gradient's translucent middle stop let the
             // player screen bleed through, making the lyrics page look transparent.
-            .background(Color(0xFF121212))
+            .background(com.music.spotui.ui.theme.Surface)
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(accentColor, accentColor.copy(alpha = 0.55f), Color.Black),
+                    colors = listOf(accentColor, accentColor.copy(alpha = 0.55f), com.music.spotui.ui.theme.ImmersiveBackground),
                 )
             )
             .clickable(
@@ -392,7 +392,7 @@ private fun TranslateButton(
                 modifier = Modifier
                     .size(28.dp)
                     .background(
-                        color = if (active) Color(0xFF1DB954) else Color.Transparent,
+                        color = if (active) com.music.spotui.ui.theme.Saffron else Color.Transparent,
                         shape = RoundedCornerShape(4.dp),
                     ),
                 contentAlignment = Alignment.Center,

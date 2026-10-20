@@ -106,11 +106,11 @@ fun LikedSongsScreen(
                         },
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "",
-                        tint = Color.White)
+                        tint = com.music.spotui.ui.theme.TextPrimary)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
-                    titleContentColor = Color.White,
+                    titleContentColor = com.music.spotui.ui.theme.TextPrimary,
                 ),
                 title = {
                     Text(text = "")
@@ -176,7 +176,7 @@ fun LikedSongsScreen(
                     ) {
                         Text(modifier = Modifier,
                             text = "Liked Songs",
-                            color = Color.White,
+                            color = com.music.spotui.ui.theme.TextPrimary,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold)
                         Text(modifier = Modifier,
@@ -194,7 +194,7 @@ fun LikedSongsScreen(
                             modifier = Modifier
                                 .size(52.dp)
                                 .clip(RoundedCornerShape(100.dp))
-                                .background(Color.White)
+                                .background(com.music.spotui.ui.theme.Saffron)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
@@ -215,7 +215,7 @@ fun LikedSongsScreen(
                             Icon(
                                 modifier = Modifier
                                     .size(25.dp),
-                                tint = Color.Black,
+                                tint = com.music.spotui.ui.theme.OnSaffron,
                                 painter = painterResource(id = R.drawable.play_svgrepo_com),
                                 contentDescription = "")
                         }
@@ -236,7 +236,7 @@ fun LikedSongsScreen(
                     }
                     val songId = likedSongs[song].id
                     val currentPlayingIndicatorColor = if(songId == albumViewModel.currentSongId.value) Color(
-                        AppPalette.toArgb()) else Color.White
+                        AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary
 
                     Row(
                         horizontalArrangement = Arrangement.SpaceBetween,

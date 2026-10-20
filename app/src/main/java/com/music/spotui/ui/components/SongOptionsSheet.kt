@@ -107,7 +107,7 @@ fun SongOptionsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFF1A1A1A),
+        containerColor = com.music.spotui.ui.theme.Surface,
     ) {
         Column(modifier = Modifier.navigationBarsPadding()) {
             Row(
@@ -126,11 +126,11 @@ fun SongOptionsSheet(
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text(song.title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(song.title, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(song.singer, color = Color.Gray, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            HorizontalDivider(color = Color(0xFF2A2A2A))
+            HorizontalDivider(color = com.music.spotui.ui.theme.SurfaceHigh)
 
             SongMenuRow(Icons.Default.PlayArrow, "Play next") {
                 playerViewModel.playNext(song)
@@ -149,7 +149,7 @@ fun SongOptionsSheet(
             SongMenuRow(
                 icon = if (liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                 label = if (liked) "Remove from Liked Songs" else "Add to Liked Songs",
-                iconTint = if (liked) Color(AppPalette.toArgb()) else Color.White,
+                iconTint = if (liked) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary,
             ) {
                 if (liked) removeLikedSongId(context, song.id.toString())
                 else addLikedSongId(context, song.id.toString())
@@ -164,7 +164,7 @@ fun SongOptionsSheet(
                     downloadingNow -> if (downloadPct in 1..99) "Downloading… $downloadPct%" else "Downloading…"
                     else -> "Download"
                 },
-                iconTint = if (downloaded) Color(AppPalette.toArgb()) else Color.White,
+                iconTint = if (downloaded) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary,
                 enabled = !downloadingNow,
             ) {
                 if (downloaded) {
@@ -192,7 +192,7 @@ fun SongOptionsSheet(
                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                             android.widget.Toast.makeText(
                                 app,
-                                if (ok) "Saved to Music/spotui" else "Export failed",
+                                if (ok) "Saved to Music/Aalap" else "Export failed",
                                 android.widget.Toast.LENGTH_SHORT,
                             ).show()
                         }
@@ -233,7 +233,7 @@ fun SongOptionsSheet(
 private fun SongMenuRow(
     icon: ImageVector,
     label: String,
-    iconTint: Color = Color.White,
+    iconTint: Color = com.music.spotui.ui.theme.TextPrimary,
     enabled: Boolean = true,
     trailingArrow: Boolean = false,
     onClick: () -> Unit,
@@ -255,7 +255,7 @@ private fun SongMenuRow(
         Spacer(modifier = Modifier.width(18.dp))
         Text(
             text = label,
-            color = if (enabled) Color.White else Color.Gray.copy(alpha = 0.4f),
+            color = if (enabled) com.music.spotui.ui.theme.TextPrimary else Color.Gray.copy(alpha = 0.4f),
             fontSize = 15.sp,
             modifier = Modifier.weight(1f)
         )

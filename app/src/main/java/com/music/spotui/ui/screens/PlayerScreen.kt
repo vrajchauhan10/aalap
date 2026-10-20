@@ -1,5 +1,6 @@
 package com.music.spotui.ui.screens
 
+import androidx.compose.animation.togetherWith
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -183,7 +184,7 @@ fun PlayerScreen(navController: NavController) {
 
 
     var dominentColor by remember {
-        mutableStateOf(Color(AppBackground.toArgb()))
+        mutableStateOf(com.music.spotui.ui.theme.ImmersiveBackground)
     }
     Palette().extractSecondColorFromCoverUrl(context = context, songCoverUri){ color ->
         dominentColor = color
@@ -220,7 +221,15 @@ fun PlayerScreen(navController: NavController) {
             artworkPagerState.currentPage != currentIndex &&
             !artworkPagerState.isScrollInProgress
         ) {
-            artworkPagerState.scrollToPage(currentIndex)
+            // Neighbouring track: slide the artwork across. Far jumps (queue taps) snap.
+            if (kotlin.math.abs(artworkPagerState.currentPage - currentIndex) == 1) {
+                artworkPagerState.animateScrollToPage(
+                    currentIndex,
+                    animationSpec = androidx.compose.animation.core.tween(380, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                )
+            } else {
+                artworkPagerState.scrollToPage(currentIndex)
+            }
         }
     }
     // User settled the pager on a different page → play that track. Compare against the
@@ -299,7 +308,7 @@ fun PlayerScreen(navController: NavController) {
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(dominentColor, Color.Black),
+                    colors = listOf(dominentColor, com.music.spotui.ui.theme.ImmersiveBackground),
                     startY = 100f
                 )
             )
@@ -455,9 +464,9 @@ fun PlayerScreen(navController: NavController) {
                         .fillMaxWidth()
                         .padding(16.dp, 20.dp, 16.dp, 0.dp),
                     colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
-                        activeTrackColor = Color.White,
-                        inactiveTrackColor = Color.Gray
+                        thumbColor = com.music.spotui.ui.theme.SaffronGold,
+                        activeTrackColor = com.music.spotui.ui.theme.SaffronGold,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.25f)
                     )
                 )
 
@@ -569,7 +578,7 @@ fun PlayerTopBar(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "PLAYING FROM",
-                color = Color(0xFFB3B3B3),
+                color = com.music.spotui.ui.theme.TextMuted,
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Medium,
             )
@@ -651,6 +660,16 @@ fun PlayerInfo(
 //                            contentScale = ContentScale.Crop,
 //                            contentDescription = ""
 //                        )
+            // Title and artist glide in from below when the track changes.
+            androidx.compose.animation.AnimatedContent(
+                targetState = songId,
+                transitionSpec = {
+                    (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(300, delayMillis = 60)) +
+                        androidx.compose.animation.slideInVertically(androidx.compose.animation.core.tween(300)) { it / 3 })
+                        .togetherWith(androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(150)))
+                },
+                label = "trackInfo",
+            ) { _ ->
             Column {
                 Text(
                     modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
@@ -679,7 +698,7 @@ fun PlayerInfo(
                     // colours made a downloaded or local FLAC show up red.
                     val lossless = source.startsWith("Lossless") || listOf("FLAC", "WAV", "ALAC", "AIFF", "APE")
                         .any { quality.uppercase().contains(it) }
-                    val badgeColor = if (lossless || source == "Spotify") Color(0xFF1ED760) else Color(0xFF9C9C9C)
+                    val badgeColor = if (lossless || source == "Spotify") com.music.spotui.ui.theme.Saffron else Color(0xFF9C9C9C)
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(top = 3.dp),
@@ -705,6 +724,7 @@ fun PlayerInfo(
                     }
                 }
             }
+            } // AnimatedContent(trackInfo)
         }
 
         Icon(
@@ -874,7 +894,7 @@ fun PlayerFull(
                 // constrains height — .size() alone let it get squished into an ellipse.
                 .requiredSize(64.dp)
                 .clip(CircleShape)
-                .background(Color.White)
+                .background(com.music.spotui.ui.theme.Saffron)
                 .clickable {
                     if (songPlayingState) {
                         SongPlayer.pause()
@@ -908,7 +928,7 @@ fun PlayerFull(
                     .size(30.dp)
 
                 ,
-                tint = Color.Black,
+                tint = Color.White,
                 painter = if (songPlayingState)
                     painterResource(id = R.drawable.ic_playing)
                 else
@@ -1001,13 +1021,13 @@ fun PlayerConnectRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 painter = painterResource(id = R.drawable.ic_devices),
-                tint = Color(0xFF1ED760),
+                tint = com.music.spotui.ui.theme.Saffron,
                 modifier = Modifier.size(18.dp),
                 contentDescription = "Device",
             )
             Text(
                 text = routeName,
-                color = Color(0xFF1ED760),
+                color = com.music.spotui.ui.theme.Saffron,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -1111,7 +1131,7 @@ fun PlayerOptionsSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFF1A1A1A),
+        containerColor = com.music.spotui.ui.theme.Surface,
         dragHandle = null
     ) {
         Column(
@@ -1167,11 +1187,11 @@ fun PlayerOptionsSheet(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text(title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text(title, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         Text(singer, color = Color.Gray, fontSize = 13.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                 }
-                androidx.compose.material3.HorizontalDivider(color = Color(0xFF2A2A2A))
+                androidx.compose.material3.HorizontalDivider(color = com.music.spotui.ui.theme.SurfaceHigh)
 
                 PlayerMenuRow(
                     icon = Icons.Default.Share,
@@ -1190,7 +1210,7 @@ fun PlayerOptionsSheet(
                 }
                 PlayerMenuRow(
                     icon = if (downloaded) Icons.Default.CheckCircle else ImageVector.vectorResource(R.drawable.ic_download),
-                    iconTint = if (downloaded) Color(AppPalette.toArgb()) else Color.White,
+                    iconTint = if (downloaded) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary,
                     label = when {
                         downloaded -> "Downloaded — remove"
                         downloadingNow -> "Downloading…"
@@ -1212,7 +1232,7 @@ fun PlayerOptionsSheet(
                 }
                 PlayerMenuRow(
                     icon = Icons.Default.PlayArrow,
-                    iconTint = if (currentAlternative != null) Color(AppPalette.toArgb()) else Color.White,
+                    iconTint = if (currentAlternative != null) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary,
                     label = if (currentAlternative == null) "Alternative stream" else "Alternative stream set",
                     enabled = currentSong != null,
                     trailingArrow = true,
@@ -1221,7 +1241,7 @@ fun PlayerOptionsSheet(
                 }
                 PlayerMenuRow(
                     icon = if (isLiked.value) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    iconTint = if (isLiked.value) Color(AppPalette.toArgb()) else Color.White,
+                    iconTint = if (isLiked.value) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary,
                     label = if (isLiked.value) "Remove from Liked Songs" else "Add to Liked Songs"
                 ) {
                     if (isLiked.value) {
@@ -1279,12 +1299,12 @@ fun PlayerOptionsSheet(
             } else {
                 Text(
                     "Sleep timer",
-                    color = Color.White,
+                    color = com.music.spotui.ui.theme.TextPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(16.dp)
                 )
-                androidx.compose.material3.HorizontalDivider(color = Color(0xFF2A2A2A))
+                androidx.compose.material3.HorizontalDivider(color = com.music.spotui.ui.theme.SurfaceHigh)
                 val options = listOf(
                     "Off" to 0L,
                     "5 minutes" to 5L,
@@ -1322,7 +1342,7 @@ fun AlternativeStreamEditor(
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Icon(
                 imageVector = Icons.Default.KeyboardArrowDown,
-                tint = Color.White,
+                tint = com.music.spotui.ui.theme.TextPrimary,
                 modifier = Modifier
                     .size(24.dp)
                     .clickable { onBack() },
@@ -1331,7 +1351,7 @@ fun AlternativeStreamEditor(
             Spacer(Modifier.width(12.dp))
             Text(
                 "Alternative stream",
-                color = Color.White,
+                color = com.music.spotui.ui.theme.TextPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
             )
@@ -1344,7 +1364,7 @@ fun AlternativeStreamEditor(
                 currentAlternative.isLocal -> "Current: local file ${currentAlternative.label.ifBlank { currentAlternative.value }}"
                 else -> "Current alternative stream"
             },
-            color = if (currentAlternative == null) Color(0xFFB3B3B3) else Color(AppPalette.toArgb()),
+            color = if (currentAlternative == null) com.music.spotui.ui.theme.TextMuted else Color(AppPalette.toArgb()),
             fontSize = 13.sp,
             maxLines = 2,
         )
@@ -1354,8 +1374,8 @@ fun AlternativeStreamEditor(
             onValueChange = { youtubeText = it },
             enabled = enabled,
             singleLine = true,
-            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 14.sp),
-            label = { Text("YouTube link or video ID", color = Color(0xFFB3B3B3)) },
+            textStyle = androidx.compose.ui.text.TextStyle(color = com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp),
+            label = { Text("YouTube link or video ID", color = com.music.spotui.ui.theme.TextMuted) },
             modifier = Modifier.fillMaxWidth(),
         )
         Row(
@@ -1389,7 +1409,7 @@ fun AlternativeStreamEditor(
 fun PlayerMenuRow(
     icon: ImageVector,
     label: String,
-    iconTint: Color = Color.White,
+    iconTint: Color = com.music.spotui.ui.theme.TextPrimary,
     enabled: Boolean = true,
     trailingArrow: Boolean = false,
     onClick: () -> Unit
@@ -1410,7 +1430,7 @@ fun PlayerMenuRow(
         Spacer(modifier = Modifier.width(20.dp))
         Text(
             text = label,
-            color = if (enabled) Color.White else Color.Gray,
+            color = if (enabled) com.music.spotui.ui.theme.TextPrimary else Color.Gray,
             fontSize = 15.sp,
             modifier = Modifier.weight(1f)
         )

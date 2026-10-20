@@ -58,7 +58,7 @@ fun CategoryScreen(navController: NavController, genre: String, title: String) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0E0E13))
+            .background(com.music.spotui.ui.theme.AppBackground)
             .statusBarsPadding()
     ) {
         Row(
@@ -70,7 +70,7 @@ fun CategoryScreen(navController: NavController, genre: String, title: String) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
-                tint = Color.White,
+                tint = com.music.spotui.ui.theme.TextPrimary,
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(20.dp))
@@ -80,7 +80,7 @@ fun CategoryScreen(navController: NavController, genre: String, title: String) {
             Text(
                 text = title,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = com.music.spotui.ui.theme.TextPrimary,
                 fontSize = 22.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -131,7 +131,7 @@ private fun CategoryGrid(entries: List<LibraryEntry>, navController: NavControll
                 )
                 Text(
                     text = entry.name,
-                    color = Color.White,
+                    color = com.music.spotui.ui.theme.TextPrimary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,

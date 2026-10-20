@@ -84,7 +84,7 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
         item {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                tint = Color.White,
+                tint = com.music.spotui.ui.theme.TextPrimary,
                 contentDescription = "Back",
                 modifier = Modifier
                     .padding(16.dp)
@@ -110,14 +110,14 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
                 Spacer(Modifier.height(12.dp))
                 Text(
                     text = show?.name ?: showName,
-                    color = Color.White,
+                    color = com.music.spotui.ui.theme.TextPrimary,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 show?.publisher?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, color = Color(0xFFB3B3B3), fontSize = 13.sp)
+                    Text(it, color = com.music.spotui.ui.theme.TextMuted, fontSize = 13.sp)
                 }
             }
         }
@@ -154,13 +154,13 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
                 Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                     Text(
                         ep.title,
-                        color = if (ep.id == vm.currentSongId.value) Color(0xFF1ED760) else Color.White,
+                        color = if (ep.id == vm.currentSongId.value) com.music.spotui.ui.theme.Saffron else com.music.spotui.ui.theme.TextPrimary,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Text(ep.singer, color = Color(0xFFB3B3B3), fontSize = 12.sp, maxLines = 1)
+                    Text(ep.singer, color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp, maxLines = 1)
                 }
             }
         }

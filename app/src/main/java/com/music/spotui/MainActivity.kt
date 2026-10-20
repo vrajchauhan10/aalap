@@ -60,9 +60,6 @@ class MainActivity : ComponentActivity() {
             SpotuiTheme {
                 // A surface container using the 'background' color from the theme
                     App()
-
-                // New-release check (GitHub): prompts Upgrade / Dismiss / Don't show again.
-                com.music.spotui.ui.components.UpdatePrompt()
             }
         }
 
@@ -77,7 +74,11 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         controllerFuture?.let { MediaController.releaseFuture(it) }
-        SongPlayer.release()
+        // Keep the player across recreation (theme/dark-mode switch) and while music
+        // plays in the background; the PlaybackService owns playback from here.
+        if (isFinishing && !isChangingConfigurations && !SongPlayer.isPlaying()) {
+            SongPlayer.release()
+        }
     }
 }
 

@@ -56,10 +56,10 @@ fun SwipeToQueue(song: SongsModel, content: @Composable () -> Unit) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Start,
-                modifier = Modifier.fillMaxHeight().width(revealed).background(Color(0xFF1ED760))
+                modifier = Modifier.fillMaxHeight().width(revealed).background(com.music.spotui.ui.theme.Saffron)
                     .padding(start = 20.dp).clipToBounds(),
             ) {
-                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Add to queue", tint = Color.Black, modifier = Modifier.size(24.dp))
+                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Add to queue", tint = com.music.spotui.ui.theme.OnSaffron, modifier = Modifier.size(24.dp))
             }
         },
     ) { content() }

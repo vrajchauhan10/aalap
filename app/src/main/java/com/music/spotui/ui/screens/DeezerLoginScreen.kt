@@ -1,5 +1,8 @@
 package com.music.spotui.ui.screens
 
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.clickable
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.webkit.CookieManager
@@ -58,6 +61,14 @@ fun DeezerLoginScreen(navController: NavController, next: String = "") {
     val context = LocalContext.current
 
     var statusMessage by remember { mutableStateOf("Log in to Deezer") }
+    // Google / Apple / Facebook sign-in opens as a popup window. It gets its own WebView
+    // on top of the Deezer page; without this the popup replaced the Deezer page and the
+    // login could never complete.
+    var popup by remember { mutableStateOf<WebView?>(null) }
+    androidx.activity.compose.BackHandler(enabled = popup != null) {
+        popup?.destroy()
+        popup = null
+    }
     var hasError by remember { mutableStateOf(false) }
     val captured = remember { AtomicBoolean(false) }
 
@@ -85,7 +96,9 @@ fun DeezerLoginScreen(navController: NavController, next: String = "") {
                         delay(400)
                         when (next) {
                             "spotiflac" -> {
-                                navController.navigate("${Routes.SpotiflacVerify.route}?next=home")
+                                navController.navigate(Routes.Home.route) {
+                                    popUpTo(Routes.MusicSource.route) { inclusive = true }
+                                }
                             }
                             "home" -> {
                                 navController.navigate(Routes.Home.route) {
@@ -100,7 +113,7 @@ fun DeezerLoginScreen(navController: NavController, next: String = "") {
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    Box(modifier = Modifier.fillMaxSize().background(com.music.spotui.ui.theme.AppBackground)) {
         AndroidView(
             modifier = Modifier.fillMaxSize().statusBarsPadding().padding(top = 40.dp),
             factory = { ctx ->
@@ -108,23 +121,61 @@ fun DeezerLoginScreen(navController: NavController, next: String = "") {
                 cookieManager.setAcceptCookie(true)
                 WebView(ctx).apply {
                     cookieManager.setAcceptThirdPartyCookies(this, true)
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.databaseEnabled = true
-                    settings.loadWithOverviewMode = true
-                    settings.useWideViewPort = true
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                    configureLoginWebView(this)
+                    settings.setSupportMultipleWindows(true)
+                    settings.javaScriptCanOpenWindowsAutomatically = true
                     webViewClient = object : WebViewClient() {
                         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {}
                         override fun onPageFinished(view: WebView?, url: String?) {}
+                    }
+                    webChromeClient = object : android.webkit.WebChromeClient() {
+                        override fun onCreateWindow(
+                            view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message?,
+                        ): Boolean {
+                            val child = WebView(ctx).apply {
+                                cookieManager.setAcceptThirdPartyCookies(this, true)
+                                configureLoginWebView(this)
+                                webViewClient = WebViewClient()
+                                webChromeClient = object : android.webkit.WebChromeClient() {
+                                    // The provider closes its popup when sign-in finishes.
+                                    override fun onCloseWindow(window: WebView?) {
+                                        window?.destroy()
+                                        popup = null
+                                    }
+                                }
+                            }
+                            popup?.destroy()
+                            popup = child
+                            (resultMsg?.obj as? WebView.WebViewTransport)?.webView = child
+                            resultMsg?.sendToTarget()
+                            return true
+                        }
                     }
                     loadUrl(DEEZER_LOGIN_URL)
                 }
             },
         )
 
+        popup?.let { child ->
+            Column(Modifier.fillMaxSize().statusBarsPadding().padding(top = 40.dp).background(Color.White)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().background(com.music.spotui.ui.theme.Surface).padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Text("Sign in", color = com.music.spotui.ui.theme.TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Text(
+                        "✕",
+                        color = com.music.spotui.ui.theme.TextPrimary,
+                        fontSize = 18.sp,
+                        modifier = Modifier.clickable { child.destroy(); popup = null }.padding(6.dp),
+                    )
+                }
+                AndroidView(factory = { child }, modifier = Modifier.fillMaxSize())
+            }
+        }
+
         Box(
-            modifier = Modifier.fillMaxWidth().statusBarsPadding().height(40.dp).background(Color.Black),
+            modifier = Modifier.fillMaxWidth().statusBarsPadding().height(40.dp).background(com.music.spotui.ui.theme.AppBackground),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -146,4 +197,17 @@ private fun extractDeezerCookie(name: String): String? {
         }
         .firstOrNull { it.first == name && it.second.isNotBlank() }
         ?.second
+}
+
+/** Shared settings for the Deezer page and its sign-in popups. */
+@SuppressLint("SetJavaScriptEnabled")
+private fun configureLoginWebView(view: WebView) {
+    view.settings.javaScriptEnabled = true
+    view.settings.domStorageEnabled = true
+    view.settings.databaseEnabled = true
+    view.settings.loadWithOverviewMode = true
+    view.settings.useWideViewPort = true
+    view.settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+    // Google refuses sign-in inside an app WebView ("; wv" in the user agent marks one).
+    view.settings.userAgentString = view.settings.userAgentString.replace("; wv", "")
 }

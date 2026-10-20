@@ -33,6 +33,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -119,7 +124,7 @@ fun MiniPlayer(navController: NavHostController) {
     val context = LocalContext.current
 
     var darkVibrantColor by remember {
-        mutableStateOf(Color(GridBackground.toArgb()))
+        mutableStateOf(com.music.spotui.ui.theme.Surface)
     }
     Palette().extractFirstColorFromImageUrl(context = context, songCoverUri){ color ->
         darkVibrantColor = color
@@ -147,15 +152,29 @@ fun MiniPlayer(navController: NavHostController) {
     }
 
 
+    // Swipe the track info sideways to skip: left = next, right = previous.
+    val swipe = remember { androidx.compose.animation.core.Animatable(0f) }
+    val swipeScope = androidx.compose.runtime.rememberCoroutineScope()
+    val swipeThreshold = with(androidx.compose.ui.platform.LocalDensity.current) { 72.dp.toPx() }
+    // New track (from a swipe, the buttons, or the queue moving on): fade its info in.
+    val enter = remember { androidx.compose.animation.core.Animatable(1f) }
+    LaunchedEffect(songId) {
+        enter.snapTo(0f)
+        enter.animateTo(1f, androidx.compose.animation.core.tween(320))
+    }
+
+    // Floating card tinted by the artwork, over the theme surface (lighter wash in light mode).
+    val cardColor = androidx.compose.ui.graphics.lerp(
+        com.music.spotui.ui.theme.Surface, darkVibrantColor, if (com.music.spotui.ui.theme.AalapPalette.isLight) 0.22f else 0.55f)
+    val cardShape = RoundedCornerShape(20.dp)
     Column(
         modifier = Modifier
-
-            .padding(13.dp, 0.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(darkVibrantColor)
-            .padding(8.dp, 0.dp)
+            .padding(horizontal = 16.dp)
+            .shadow(10.dp, cardShape)
+            .clip(cardShape)
+            .background(cardColor)
+            .padding(start = 10.dp, end = 10.dp, top = 4.dp)
             .clipToBounds()
-
     ) {
         Row(horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
@@ -169,19 +188,50 @@ fun MiniPlayer(navController: NavHostController) {
                 ) {
                     navController.navigate(Routes.Player.route)
                 }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            swipeScope.launch { swipe.snapTo(swipe.value + dragAmount) }
+                        },
+                        onDragCancel = { swipeScope.launch { swipe.animateTo(0f) } },
+                        onDragEnd = {
+                            swipeScope.launch {
+                                val offset = swipe.value
+                                if (kotlin.math.abs(offset) < swipeThreshold) {
+                                    swipe.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.7f))
+                                    return@launch
+                                }
+                                val queue = miniPlayerViewModel.queue.value
+                                val dir = if (offset < 0) -1f else 1f
+                                // Slide the old track out, switch, then bring the new one in from the other side.
+                                swipe.animateTo(dir * size.width, androidx.compose.animation.core.tween(160))
+                                if (queue.isNotEmpty()) {
+                                    if (dir < 0) miniPlayerViewModel.playNextSongs(queue, context)
+                                    else miniPlayerViewModel.playPreviousSong(queue, context)
+                                }
+                                swipe.snapTo(-dir * size.width * 0.5f)
+                                swipe.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 400f))
+                            }
+                        },
+                    )
+                }
         ){
 
             Row(horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .width(260.dp)
-                    .clipToBounds()
+                    .graphicsLayer {
+                        translationX = swipe.value
+                        alpha = enter.value * (1f - (kotlin.math.abs(swipe.value) / (size.width * 1.2f))).coerceIn(0f, 1f)
+                    }
             ) {
                 GlideImage(
                     modifier = Modifier
-                        .padding(0.dp, 0.dp, 10.dp, 0.dp)
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(6.dp))
+                        .padding(0.dp, 0.dp, 12.dp, 0.dp)
+                        .size(46.dp)
+                        .clip(RoundedCornerShape(12.dp))
                     ,
                     model = songCoverUri,
                     contentScale = ContentScale.Crop,
@@ -193,15 +243,15 @@ fun MiniPlayer(navController: NavHostController) {
                     modifier = Modifier
                         .widthIn(Dp.Unspecified, 200.dp)
                 ) {
-                    Text(text = songTitle, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis )
-                    Text(text = songSinger, color = Color.LightGray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text(text = songTitle, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis )
+                    Text(text = songSinger, color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             }
 
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.width(70.dp)
+                modifier = Modifier.width(84.dp)
             ) {
 
                 // Plus = save; green check = already saved. A second tap opens the
@@ -209,7 +259,7 @@ fun MiniPlayer(navController: NavHostController) {
                 if (isLiked) {
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
-                        tint = Color(0xFF1ED760),
+                        tint = com.music.spotui.ui.theme.Saffron,
                         modifier = Modifier
                             .size(22.dp)
                             .clickable(
@@ -234,7 +284,7 @@ fun MiniPlayer(navController: NavHostController) {
                                     context, currentTrack?.spotifyTrackId.orEmpty(), true)
                             },
                         painter = painterResource(id = R.drawable.ic_add),
-                        tint = Color.White,
+                        tint = com.music.spotui.ui.theme.TextPrimary,
                         contentDescription = "Add",
                     )
                 }
@@ -246,11 +296,13 @@ fun MiniPlayer(navController: NavHostController) {
                     else
                         painterResource(id = R.drawable.play_svgrepo_com)
                     ,
-                    contentDescription = "",
-                    tint = Color.White,
+                    contentDescription = if (songPlayingState) "Pause" else "Play",
+                    tint = com.music.spotui.ui.theme.OnSaffron,
+                    // Round saffron play button: Aalap's signature control.
                     modifier = Modifier
-                        .size(36.dp)
-                        .padding(5.dp, 0.dp)
+                        .size(40.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(com.music.spotui.ui.theme.Saffron)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -279,6 +331,8 @@ fun MiniPlayer(navController: NavHostController) {
                                 )
                             }
                         }
+                        // Inset the glyph after clickable so the whole 40dp circle is tappable.
+                        .padding(11.dp)
                 )
             }
 
@@ -297,9 +351,9 @@ fun MiniPlayer(navController: NavHostController) {
                 .fillMaxWidth()
             ,
             colors = SliderDefaults.colors(
-                thumbColor = Color.White,
-                activeTrackColor = Color.White,
-                inactiveTrackColor = Color.Gray
+                thumbColor = com.music.spotui.ui.theme.Saffron,
+                activeTrackColor = com.music.spotui.ui.theme.Saffron,
+                inactiveTrackColor = com.music.spotui.ui.theme.TextMuted.copy(alpha = 0.3f)
             )
         )
     }

@@ -63,7 +63,7 @@ import com.music.spotui.data.preferences.removeLikedSongId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private val SpotifyGreen = Color(0xFF1ED760)
+private val SpotifyGreen get() = com.music.spotui.ui.theme.Saffron
 
 /**
  * Spotify's "Saved in" sheet: Liked Songs plus every user playlist, each row
@@ -103,7 +103,7 @@ fun SavedInSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color(0xFF1A1A1A),
+        containerColor = com.music.spotui.ui.theme.Surface,
     ) {
         Column(modifier = Modifier.navigationBarsPadding().imePadding()) {
             Row(
@@ -113,7 +113,7 @@ fun SavedInSheet(
                     .fillMaxWidth()
                     .padding(20.dp, 4.dp, 20.dp, 12.dp),
             ) {
-                Text("Saved in", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Saved in", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text(
                     "New playlist",
                     color = SpotifyGreen,
@@ -135,10 +135,10 @@ fun SavedInSheet(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { createNow() }),
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFF2A2A2A),
-                        unfocusedContainerColor = Color(0xFF2A2A2A),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
+                        focusedContainerColor = com.music.spotui.ui.theme.SurfaceHigh,
+                        unfocusedContainerColor = com.music.spotui.ui.theme.SurfaceHigh,
+                        focusedTextColor = com.music.spotui.ui.theme.TextPrimary,
+                        unfocusedTextColor = com.music.spotui.ui.theme.TextPrimary,
                         cursorColor = SpotifyGreen,
                         focusedIndicatorColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent,
@@ -187,7 +187,7 @@ fun SavedInSheet(
                                 Brush.linearGradient(listOf(Color(0xFF4A39EA), Color(0xFF868AE1)))
                             ),
                     ) {
-                        Icon(Icons.Default.Favorite, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Favorite, contentDescription = null, tint = com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(20.dp))
                     }
                 },
             ) {
@@ -266,7 +266,7 @@ private fun SavedInRow(
                 .weight(1f)
                 .padding(start = 14.dp, end = 8.dp),
         ) {
-            Text(name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (subtitle.isNotBlank()) {
                 Text(subtitle, color = Color.Gray, fontSize = 13.sp, maxLines = 1)
             }
@@ -274,7 +274,7 @@ private fun SavedInRow(
         if (saved) {
             Icon(Icons.Default.CheckCircle, contentDescription = "Saved", tint = SpotifyGreen, modifier = Modifier.size(26.dp))
         } else {
-            Icon(Icons.Default.Add, contentDescription = "Add", tint = Color(0xFFB3B3B3), modifier = Modifier.size(26.dp))
+            Icon(Icons.Default.Add, contentDescription = "Add", tint = com.music.spotui.ui.theme.TextMuted, modifier = Modifier.size(26.dp))
         }
     }
 }

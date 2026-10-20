@@ -4,9 +4,11 @@ import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -100,12 +102,12 @@ fun SettingsScreen(navController: NavController) {
         containerColor = AppBackground,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Settings", color = Color.White, fontWeight = FontWeight.Bold) },
+                title = { Text("Profile", color = com.music.spotui.ui.theme.TextPrimary, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = Color.White,
+                        tint = com.music.spotui.ui.theme.TextPrimary,
                         modifier = Modifier
                             .padding(start = 8.dp)
                             .size(26.dp)
@@ -124,6 +126,21 @@ fun SettingsScreen(navController: NavController) {
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
+            ProfileHeader(navController)
+            SectionTitle("Appearance")
+            // Applies instantly: ThemeState drives the Aalap palette app-wide.
+            com.music.spotui.data.preferences.ThemeMode.entries.forEach { mode ->
+                SourceSettingRow(
+                    title = mode.label,
+                    subtitle = when (mode) {
+                        com.music.spotui.data.preferences.ThemeMode.SYSTEM -> "Match your phone's dark mode"
+                        com.music.spotui.data.preferences.ThemeMode.LIGHT -> "Warm cream background"
+                        com.music.spotui.data.preferences.ThemeMode.DARK -> "Deep indigo background"
+                    },
+                    selected = com.music.spotui.ui.theme.ThemeState.mode == mode,
+                ) { com.music.spotui.ui.theme.ThemeState.set(context, mode) }
+            }
+
             SectionTitle("Audio quality")
             QualityPicker(
                 title = "Streaming over Wi-Fi",
@@ -149,21 +166,10 @@ fun SettingsScreen(navController: NavController) {
             }
             Text(
                 losslessNote,
-                color = Color(0xFFB3B3B3),
+                color = com.music.spotui.ui.theme.TextMuted,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 4.dp, top = 6.dp),
             )
-
-            Spacer(Modifier.height(12.dp))
-            SectionTitle("Matching")
-            SettingsSwitchRow(
-                title = "Allow video fallback",
-                subtitle = "Use regular YouTube videos only after Music song results fail",
-                checked = videoFallback,
-            ) {
-                videoFallback = it
-                setVideoFallbackEnabled(context, it)
-            }
 
             Spacer(Modifier.height(12.dp))
             SectionTitle("Lyrics")
@@ -192,16 +198,16 @@ fun SettingsScreen(navController: NavController) {
                 },
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                 singleLine = true,
-                label = { Text("Translate lyrics to", color = Color(0xFFB3B3B3)) },
+                label = { Text("Translate lyrics to", color = com.music.spotui.ui.theme.TextMuted) },
                 placeholder = { Text("Search languages", color = Color(0xFF72728A)) },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
+                    focusedTextColor = com.music.spotui.ui.theme.TextPrimary,
+                    unfocusedTextColor = com.music.spotui.ui.theme.TextPrimary,
                     cursorColor = AppPalette,
                     focusedBorderColor = AppPalette,
                     unfocusedBorderColor = Color(0xFF3A3A46),
                     focusedLabelColor = AppPalette,
-                    unfocusedLabelColor = Color(0xFFB3B3B3),
+                    unfocusedLabelColor = com.music.spotui.ui.theme.TextMuted,
                     focusedContainerColor = AppBackground,
                     unfocusedContainerColor = AppBackground,
                 ),
@@ -211,7 +217,7 @@ fun SettingsScreen(navController: NavController) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF1A1A20))
+                        .background(com.music.spotui.ui.theme.Surface)
                         .clickable {
                             selectedLanguage = code
                             setLyricTranslateLang(context, code)
@@ -220,7 +226,7 @@ fun SettingsScreen(navController: NavController) {
                         .padding(horizontal = 12.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(name, color = Color.White, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Text(name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
                     Text(code, color = AppPalette, fontSize = 13.sp)
                 }
             }
@@ -230,7 +236,7 @@ fun SettingsScreen(navController: NavController) {
                 } else {
                     "Selected: ${translateLanguages.firstOrNull { it.first == selectedLanguage }?.second ?: selectedLanguage} ($selectedLanguage)"
                 },
-                color = Color(0xFFB3B3B3),
+                color = com.music.spotui.ui.theme.TextMuted,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 4.dp, top = 4.dp),
             )
@@ -241,17 +247,17 @@ fun SettingsScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Crossfade", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text("Crossfade", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Text(
                     if (crossfadeMs <= 0f) "Off" else "${(crossfadeMs / 1000f).let { String.format("%.0f", it) }}s",
-                    color = if (crossfadeMs <= 0f) Color(0xFFB3B3B3) else AppPalette,
+                    color = if (crossfadeMs <= 0f) com.music.spotui.ui.theme.TextMuted else AppPalette,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
             Text(
                 "Blend the end of a song into the start of the next",
-                color = Color(0xFFB3B3B3),
+                color = com.music.spotui.ui.theme.TextMuted,
                 fontSize = 13.sp,
             )
             Slider(
@@ -263,7 +269,7 @@ fun SettingsScreen(navController: NavController) {
                 colors = SliderDefaults.colors(
                     thumbColor = AppPalette,
                     activeTrackColor = AppPalette,
-                    inactiveTrackColor = Color(0xFF333333),
+                    inactiveTrackColor = com.music.spotui.ui.theme.SurfaceHigh,
                 ),
             )
             Spacer(Modifier.height(12.dp))
@@ -337,60 +343,56 @@ fun SettingsScreen(navController: NavController) {
             }
 
             Spacer(Modifier.height(12.dp))
-            SectionTitle("SpotiFLAC (experimental)")
-            val sfConnected = com.music.spotui.data.preferences.hasSpotiflacSession(context)
-            Text(
-                text = "Gives access to SpotiFLAC's own FLAC servers. You solve one quick check yourself — no auto-bypass. Experimental: may fail if their servers change.",
-                color = Color(0xFFB3B3B3),
-                fontSize = 12.sp,
-                modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 6.dp),
-            )
-            Text(
-                text = if (sfConnected) "Re-verify SpotiFLAC" else "Set up SpotiFLAC verification",
-                color = AppPalette,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
+            // Power-user options, folded away so the page stays about everyday choices.
+            var showAdvanced by remember { mutableStateOf(false) }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable {
-                        navController.navigate(com.music.spotui.ui.navigation.Routes.SpotiflacVerify.route)
-                    }
-                    .padding(vertical = 14.dp),
-            )
-            if (sfConnected) {
-                Text(
-                    text = "Session active ✓",
-                    color = Color(0xFF00C7B7),
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(start = 4.dp),
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-            SectionTitle("Soulseek (experimental)")
-            var soulseekOn by remember { mutableStateOf(com.music.spotui.data.preferences.isSoulseekEnabled(context)) }
-            SettingsSwitchRow(
-                title = "Soulseek lossless fallback",
-                subtitle = "When the FLAC servers miss, fetch FLACs from Soulseek (peer-to-peer). Uses data and shows your IP to peers.",
-                checked = soulseekOn,
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { showAdvanced = !showAdvanced }
+                    .padding(top = 16.dp, bottom = 4.dp),
             ) {
-                soulseekOn = it
-                com.music.spotui.data.preferences.setSoulseekEnabled(context, it)
-                // Off: leave the network now and close the listening port.
-                if (!it) Thread { com.music.spotui.soulseek.SoulseekClient.disconnect() }.start()
+                Text("Advanced", color = AppPalette, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(if (showAdvanced) "Hide" else "Show", color = com.music.spotui.ui.theme.TextMuted, fontSize = 13.sp)
+            }
+            androidx.compose.animation.AnimatedVisibility(visible = showAdvanced) {
+                Column {
+                    Spacer(Modifier.height(12.dp))
+                    SubTitle("Song matching")
+                    SettingsSwitchRow(
+                        title = "Allow video fallback",
+                        subtitle = "Use regular YouTube videos only after Music song results fail",
+                        checked = videoFallback,
+                    ) {
+                        videoFallback = it
+                        setVideoFallbackEnabled(context, it)
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    SubTitle("Soulseek (experimental)")
+                    var soulseekOn by remember { mutableStateOf(com.music.spotui.data.preferences.isSoulseekEnabled(context)) }
+                    SettingsSwitchRow(
+                        title = "Soulseek lossless fallback",
+                        subtitle = "When the FLAC servers miss, fetch FLACs from Soulseek (peer-to-peer). Uses data and shows your IP to peers.",
+                        checked = soulseekOn,
+                    ) {
+                        soulseekOn = it
+                        com.music.spotui.data.preferences.setSoulseekEnabled(context, it)
+                        // Off: leave the network now and close the listening port.
+                        if (!it) Thread { com.music.spotui.soulseek.SoulseekClient.disconnect() }.start()
+                    }
+
+                }
             }
 
-            Spacer(Modifier.height(12.dp))
-            SectionTitle("Account")
-            Text(
-                text = "Log out",
-                color = Color(0xFFE57373),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
+            Spacer(Modifier.height(28.dp))
+            Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, Color(0xFFE57373).copy(alpha = 0.6f), RoundedCornerShape(16.dp))
                     .clickable {
                         com.music.spotui.data.api.SpotifySession.setSpDc(context, "")
                         com.music.spotui.data.api.Api.HomeCache.clear()
@@ -398,9 +400,19 @@ fun SettingsScreen(navController: NavController) {
                             popUpTo(0) { inclusive = true }
                         }
                     }
-                    .padding(vertical = 14.dp)
+                    .padding(vertical = 14.dp),
+            ) {
+                Text("Log out", color = Color(0xFFE57373), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Text(
+                "Aalap ${com.music.spotui.BuildConfig.VERSION_NAME}",
+                color = com.music.spotui.ui.theme.TextMuted,
+                fontSize = 12.sp,
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
-            Spacer(Modifier.height(40.dp))
+            // Clears the floating mini player + tab bar so Log out can scroll fully into view.
+            Spacer(Modifier.height(190.dp))
         }
     }
 }
@@ -416,18 +428,29 @@ private fun SourceSettingRow(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
-            .background(if (selected) Color(0xFF1A1A20) else Color.Transparent)
+            .background(if (selected) com.music.spotui.ui.theme.Surface else Color.Transparent)
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = Color(0xFFB3B3B3), fontSize = 12.sp)
+            Text(title, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
         }
         if (selected) {
             Icon(Icons.Filled.Check, contentDescription = "Selected", tint = AppPalette, modifier = Modifier.size(20.dp))
         }
     }
+}
+
+@Composable
+private fun SubTitle(text: String) {
+    Text(
+        text = text,
+        color = com.music.spotui.ui.theme.TextMuted,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(top = 12.dp, bottom = 2.dp)
+    )
 }
 
 @Composable
@@ -455,17 +478,17 @@ private fun SettingsSwitchRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = Color(0xFFB3B3B3), fontSize = 12.sp)
+            Text(title, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
         }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
+                checkedThumbColor = com.music.spotui.ui.theme.OnSaffron,
                 checkedTrackColor = AppPalette,
-                uncheckedThumbColor = Color(0xFFB3B3B3),
-                uncheckedTrackColor = Color(0xFF333333),
+                uncheckedThumbColor = com.music.spotui.ui.theme.TextMuted,
+                uncheckedTrackColor = com.music.spotui.ui.theme.SurfaceHigh,
             ),
         )
     }
@@ -478,33 +501,123 @@ private fun QualityPicker(
     onSelect: (StreamQuality) -> Unit
 ) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
-        Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Text(title, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))
-        StreamQuality.entries.forEach { q ->
-            val isSel = q == selected
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable { onSelect(q) }
-                    .background(if (isSel) Color(0xFF1A1A20) else Color.Transparent)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(q.label, color = Color.White, fontSize = 15.sp)
-                    Text(q.detail, color = Color(0xFFB3B3B3), fontSize = 12.sp)
-                }
-                if (isSel) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = "Selected",
-                        tint = AppPalette,
-                        modifier = Modifier.size(20.dp)
+        // One compact row of choices instead of a four-item list per setting.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StreamQuality.entries.forEach { q ->
+                val isSel = q == selected
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(50))
+                        .background(if (isSel) AppPalette else com.music.spotui.ui.theme.SurfaceHigh)
+                        .clickable { onSelect(q) }
+                        .padding(vertical = 9.dp),
+                ) {
+                    Text(
+                        q.label,
+                        color = if (isSel) com.music.spotui.ui.theme.OnSaffron else com.music.spotui.ui.theme.TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = if (isSel) FontWeight.SemiBold else FontWeight.Normal,
+                        maxLines = 1,
                     )
                 }
             }
-            Spacer(Modifier.height(2.dp))
         }
+        Text(selected.detail, color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, top = 6.dp))
+    }
+}
+
+/** Profile card: who is signed in, at-a-glance listening stats, and shortcuts. */
+@OptIn(com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi::class)
+@Composable
+private fun ProfileHeader(navController: NavController) {
+    val context = LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { com.music.spotui.data.api.ProfileCache.ensure(context) }
+    val name = com.music.spotui.data.api.ProfileCache.name
+    val avatar = com.music.spotui.data.api.ProfileCache.imageUrl
+    val liked = remember { com.music.spotui.data.preferences.getLikedSongIds(context).size }
+    val downloads = remember { com.music.spotui.data.preferences.getDownloadedSongs(context).size }
+    val plays = remember { com.music.spotui.data.preferences.getListeningHistory(context).size }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 8.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                androidx.compose.ui.graphics.Brush.linearGradient(
+                    listOf(AppPalette.copy(alpha = 0.28f), com.music.spotui.ui.theme.Surface)
+                )
+            )
+            .border(1.dp, com.music.spotui.ui.theme.Hairline, RoundedCornerShape(24.dp))
+            .padding(18.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(AppPalette),
+            ) {
+                if (avatar != null) {
+                    com.bumptech.glide.integration.compose.GlideImage(
+                        model = avatar,
+                        contentDescription = "Profile photo",
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.size(64.dp),
+                    )
+                } else {
+                    Text(
+                        name?.trim()?.firstOrNull()?.uppercase() ?: "A",
+                        color = com.music.spotui.ui.theme.OnSaffron,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    name ?: "Your profile",
+                    color = com.music.spotui.ui.theme.TextPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+                Text("Connected to Spotify", color = com.music.spotui.ui.theme.TextMuted, fontSize = 13.sp)
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ProfileStat("$liked", "Liked", Modifier.weight(1f)) {
+                navController.navigate(com.music.spotui.ui.navigation.Routes.Liked.route)
+            }
+            ProfileStat("$downloads", "Downloads", Modifier.weight(1f)) {
+                navController.navigate(com.music.spotui.ui.navigation.Routes.Downloads.route)
+            }
+            ProfileStat("$plays", "Plays", Modifier.weight(1f)) {
+                navController.navigate(com.music.spotui.ui.navigation.Routes.History.route)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileStat(value: String, label: String, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(com.music.spotui.ui.theme.AppBackground.copy(alpha = 0.55f))
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+    ) {
+        Text(value, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
     }
 }
