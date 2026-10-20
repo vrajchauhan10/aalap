@@ -81,16 +81,51 @@
             android:textColor="@color/widget_text_muted"
             android:textSize="11sp" />
 
-        <!-- Wavy progress, drawn by AalapWidgets.waveBitmap (moves while playing). -->
-        <ImageView
-            android:id="@+id/widget_wave"
+        <!-- Progress bar with 20 invisible tap zones on top: tapping anywhere on the
+             bar seeks to that point (widgets can't report the exact tap position). -->
+        <FrameLayout
             android:layout_width="0dp"
-            android:layout_height="26dp"
+            android:layout_height="28dp"
             android:layout_marginStart="10dp"
             android:layout_marginEnd="10dp"
-            android:layout_weight="1"
-            android:importantForAccessibility="no"
-            android:scaleType="fitXY" />
+            android:layout_weight="1">
+
+            <ProgressBar
+                android:id="@+id/widget_progress"
+                style="@android:style/Widget.ProgressBar.Horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="8dp"
+                android:layout_gravity="center_vertical"
+                android:max="1000"
+                android:progress="0"
+                android:progressDrawable="@drawable/widget_progress" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="horizontal">
+                <FrameLayout android:id="@+id/widget_seek_0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_6" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_7" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_8" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_9" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_10" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_11" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_12" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_13" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_14" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_15" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_16" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_17" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_18" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                <FrameLayout android:id="@+id/widget_seek_19" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+            </LinearLayout>
+        </FrameLayout>
 
         <TextView
             android:id="@+id/widget_duration"

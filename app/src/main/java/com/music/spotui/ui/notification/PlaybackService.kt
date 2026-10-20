@@ -109,11 +109,11 @@ class PlaybackService : MediaLibraryService() {
                 )
             }.collect { pushWidgets() }
         }
-        // While playing with the screen on, move the widget progress bar every second.
+        // While playing with the screen on, move the widget progress bar twice a second.
         serviceScope.launch {
             val power = getSystemService(POWER_SERVICE) as android.os.PowerManager
             while (true) {
-                kotlinx.coroutines.delay(1_000)
+                kotlinx.coroutines.delay(500)
                 if (currentSongState.playingState.value && power.isInteractive &&
                     com.music.spotui.ui.widget.AalapWidgets.anyPlaced(this@PlaybackService)
                 ) pushWidgets()

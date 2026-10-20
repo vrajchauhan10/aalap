@@ -54,7 +54,7 @@ abstract class AalapWidgetBase(private val layout: Int, private val large: Boole
         super.onReceive(context, intent)
         val action = intent.action ?: return
         if (action !in AalapWidgets.ACTIONS) return
-        AalapWidgets.control(context, action)
+        AalapWidgets.control(context, action, intent.getFloatExtra(AalapWidgets.EXTRA_FRACTION, -1f))
     }
 }
 
@@ -63,7 +63,16 @@ object AalapWidgets {
     const val ACTION_NEXT = "com.music.spotui.widget.NEXT"
     const val ACTION_PREV = "com.music.spotui.widget.PREV"
     const val ACTION_LIKE = "com.music.spotui.widget.LIKE"
-    val ACTIONS = setOf(ACTION_PLAY_PAUSE, ACTION_NEXT, ACTION_PREV, ACTION_LIKE)
+    const val ACTION_SEEK = "com.music.spotui.widget.SEEK"
+    const val EXTRA_FRACTION = "fraction"
+    val ACTIONS = setOf(ACTION_PLAY_PAUSE, ACTION_NEXT, ACTION_PREV, ACTION_LIKE, ACTION_SEEK)
+
+    private val SEEK_ZONES = listOf(
+        R.id.widget_seek_0, R.id.widget_seek_1, R.id.widget_seek_2, R.id.widget_seek_3, R.id.widget_seek_4,
+        R.id.widget_seek_5, R.id.widget_seek_6, R.id.widget_seek_7, R.id.widget_seek_8, R.id.widget_seek_9,
+        R.id.widget_seek_10, R.id.widget_seek_11, R.id.widget_seek_12, R.id.widget_seek_13, R.id.widget_seek_14,
+        R.id.widget_seek_15, R.id.widget_seek_16, R.id.widget_seek_17, R.id.widget_seek_18, R.id.widget_seek_19,
+    )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile private var current = WidgetState()
@@ -139,7 +148,11 @@ object AalapWidgets {
             setOnClickPendingIntent(R.id.widget_next, action(context, ACTION_NEXT, large))
             if (large) {
                 setTextViewText(R.id.widget_artist, if (idle) context.getString(R.string.widget_idle_subtitle) else s.artist)
-                setImageViewBitmap(R.id.widget_wave, waveBitmap(context, s.progress, s.playing && !idle, s.title.hashCode()))
+                setProgressBar(R.id.widget_progress, 1000, (s.progress * 1000).toInt(), false)
+                // Tap zones along the bar: each seeks to the middle of its slice.
+                if (!idle) SEEK_ZONES.forEachIndexed { i, id ->
+                    setOnClickPendingIntent(id, seekAction(context, (i + 0.5f) / SEEK_ZONES.size))
+                }
                 // The elapsed time ticks by itself while playing (no redraw needed).
                 setChronometer(
                     R.id.widget_elapsed,
@@ -151,77 +164,6 @@ object AalapWidgets {
                 setOnClickPendingIntent(R.id.widget_like, action(context, ACTION_LIKE, large))
             }
         }
-
-    /**
-     * The progress line as an image, in the style of the system media player: a soft,
-     * mirrored waveform whose shape is fixed per song (seeded by [seed]), so only the
-     * playhead moves between redraws. Played part is gold-to-saffron, the rest dimmed;
-     * paused, it flattens to a plain line.
-     */
-    private fun waveBitmap(context: Context, progress: Float, playing: Boolean, seed: Int): Bitmap {
-        val w = 720; val h = 84
-        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val c = android.graphics.Canvas(bmp)
-        val mid = h / 2f
-        val pad = 14f
-        val span = w - 2 * pad
-        val head = pad + span * progress.coerceIn(0f, 1f)
-
-        // Smooth amplitude envelope: a few slow sines with per-song phases/weights,
-        // tapered towards both ends so the wave rises out of and falls into the line.
-        val rnd = java.util.Random(seed.toLong())
-        val waves = List(4) { Triple(1.2f + rnd.nextFloat() * 3.5f, rnd.nextFloat() * 6.283f, 0.4f + rnd.nextFloat() * 0.6f) }
-        fun amp(x: Float): Float {
-            if (!playing) return 0f
-            val t = (x - pad) / span
-            val sum = waves.sumOf { (f, ph, wt) -> (wt * (0.5f + 0.5f * kotlin.math.sin(t * f * 6.283f + ph))).toDouble() }.toFloat()
-            val norm = sum / waves.sumOf { it.third.toDouble() }.toFloat()
-            val taper = kotlin.math.sin(Math.PI.toFloat() * t.coerceIn(0f, 1f)).let { 0.35f + 0.65f * it }
-            return (4f + 26f * norm) * taper
-        }
-        fun band(from: Float, to: Float): android.graphics.Path = android.graphics.Path().apply {
-            moveTo(from, mid)
-            var x = from
-            while (x <= to) { lineTo(x, mid - amp(x)); x += 3f }
-            lineTo(to, mid - amp(to))
-            x = to
-            while (x >= from) { lineTo(x, mid + amp(x)); x -= 3f }
-            close()
-        }
-        val trackColor = context.getColor(R.color.widget_track)
-        val accent = context.getColor(R.color.widget_play)
-        // Unplayed part (and the thin centre line under everything).
-        val line = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = trackColor; strokeWidth = 4f; strokeCap = android.graphics.Paint.Cap.ROUND
-        }
-        c.drawLine(pad, mid, w - pad, mid, line)
-        if (playing && head < w - pad) {
-            // Soft version of the text colour, so the upcoming wave reads on either theme.
-            val muted = context.getColor(R.color.widget_text_muted)
-            c.drawPath(band(head, w - pad), android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                color = (muted and 0x00FFFFFF) or (0x5C shl 24)
-            })
-        }
-        // Played part.
-        if (head > pad) {
-            val played = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                shader = android.graphics.LinearGradient(
-                    pad, 0f, head.coerceAtLeast(pad + 1f), 0f,
-                    0xFFFFC56B.toInt(), accent, android.graphics.Shader.TileMode.CLAMP,
-                )
-            }
-            if (playing) c.drawPath(band(pad, head), played)
-            else c.drawLine(pad, mid, head, mid, android.graphics.Paint(played).apply {
-                strokeWidth = 6f; strokeCap = android.graphics.Paint.Cap.ROUND
-            })
-        }
-        // Playhead.
-        c.drawCircle(head, mid, 13f, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = accent })
-        c.drawCircle(head, mid, 5f, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = context.getColor(R.color.widget_on_play)
-        })
-        return bmp
-    }
 
     private fun formatTime(ms: Long): String {
         val total = ms / 1000
@@ -235,6 +177,17 @@ object AalapWidgets {
             m.getAppWidgetIds(ComponentName(context, AalapWidgetCompact::class.java)).isNotEmpty()
     }
 
+    private fun seekAction(context: Context, fraction: Float): PendingIntent {
+        val intent = Intent(context, AalapWidgetLarge::class.java)
+            .setAction(ACTION_SEEK)
+            .putExtra(EXTRA_FRACTION, fraction)
+        // Distinct request code per zone, or the extras would be shared.
+        return PendingIntent.getBroadcast(
+            context, 5_000 + (fraction * 1000).toInt(), intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
+
     private fun action(context: Context, action: String, large: Boolean): PendingIntent {
         val cls = if (large) AalapWidgetLarge::class.java else AalapWidgetCompact::class.java
         val intent = Intent(context, cls).setAction(action)
@@ -245,7 +198,7 @@ object AalapWidgets {
     }
 
     /** Sends a widget button press to the media session (same path as the notification). */
-    fun control(context: Context, action: String) {
+    fun control(context: Context, action: String, fraction: Float = -1f) {
         val app = context.applicationContext
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         val future = MediaController.Builder(app, token).buildAsync()
@@ -255,6 +208,9 @@ object AalapWidgets {
                 ACTION_PLAY_PAUSE -> if (controller.isPlaying) controller.pause() else controller.play()
                 ACTION_NEXT -> controller.seekToNext()
                 ACTION_PREV -> controller.seekToPrevious()
+                ACTION_SEEK -> if (fraction in 0f..1f && controller.duration > 0) {
+                    controller.seekTo((controller.duration * fraction).toLong())
+                }
                 ACTION_LIKE -> controller.sendCustomCommand(
                     SessionCommand(PlaybackService.ACTION_LIKE, android.os.Bundle.EMPTY), android.os.Bundle.EMPTY,
                 )
