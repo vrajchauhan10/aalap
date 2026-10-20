@@ -761,26 +761,26 @@ object SongPlayer {
         }
 
         // Lossless FLAC: SpotiFLAC gated (if verified) + Tidal/community, ISRC-matched.
-        if (losslessStreaming && quality.lossless) {
-            (trackIdRegistry[song] ?: spotifyTrackIdForPlayback(song))?.let { spotifyId ->
-                val r = kotlinx.coroutines.withTimeoutOrNull(15_000) {
-                    com.music.spotui.lossless.LosslessSource.resolve(appContext, spotifyId, losslessTrackInfo(song), losslessHiRes)
-                }
-                if (r is com.music.spotui.lossless.LosslessSource.Result.Success) {
-                    val flacQuality = "FLAC ${r.track.quality}-bit"
-                    if (forPlayback) {
-                        currentSource = "Lossless • ${r.track.provider}"
-                        currentQuality = flacQuality
-                    }
-                    streamCache[song] = r.track.url
-                    sourceCache[song] = "Lossless • ${r.track.provider}"
-                    qualityCache[song] = flacQuality
-                    return r.track.url
-                } else {
-                    Log.d(TAG, "lossless miss ($r) for: $song")
-                }
+        suspend fun tryLossless(): String? {
+            val spotifyId = trackIdRegistry[song] ?: spotifyTrackIdForPlayback(song) ?: return null
+            val r = kotlinx.coroutines.withTimeoutOrNull(15_000) {
+                com.music.spotui.lossless.LosslessSource.resolve(appContext, spotifyId, losslessTrackInfo(song), losslessHiRes)
             }
+            if (r !is com.music.spotui.lossless.LosslessSource.Result.Success) {
+                Log.d(TAG, "lossless miss ($r) for: $song")
+                return null
+            }
+            val flacQuality = "FLAC ${r.track.quality}-bit"
+            if (forPlayback) {
+                currentSource = "Lossless • ${r.track.provider}"
+                currentQuality = flacQuality
+            }
+            streamCache[song] = r.track.url
+            sourceCache[song] = "Lossless • ${r.track.provider}"
+            qualityCache[song] = flacQuality
+            return r.track.url
         }
+        if (losslessStreaming && quality.lossless) tryLossless()?.let { return it }
 
         // Soulseek (P2P) when the lossless servers have nothing. A peer can take a
         // minute, so only for the background upgrade, while another stream plays.
@@ -811,8 +811,15 @@ object SongPlayer {
             // a stale "FLAC 24-bit" badge on a YouTube stream.
             currentQuality = ""
         }
-        val playback = resolveYtPlayback(song, quality.audioQuality, appContext)
-            ?: return null
+        val playback = resolveYtPlayback(song, quality.audioQuality, appContext) ?: run {
+            // YouTube gave nothing (e.g. it changed its player and streams can't be
+            // decoded yet): fall back to the lossless servers rather than failing.
+            if (losslessStreaming && !quality.lossless) {
+                Log.w(TAG, "YouTube failed — trying lossless fallback for: $song")
+                tryLossless()?.let { return it }
+            }
+            return null
+        }
         val ytQuality = ytQualityLabel(playback)
         if (forPlayback) currentQuality = ytQuality
         streamCache[song] = playback.streamUrl
@@ -1324,6 +1331,7 @@ object SongPlayer {
                 ),
             )
             .setRenderersFactory(renderers)
+            .setLoadControl(buildLoadControl(context))
             .setAudioAttributes(buildAudioAttributes(), handleAudioFocus)
             .setHandleAudioBecomingNoisy(handleAudioFocus)
             .build()
@@ -1334,8 +1342,37 @@ object SongPlayer {
         return p to filter
     }
 
+    /**
+     * Buffering policy. Fast loading starts after ~0.5 s of audio and keeps fetching up
+     * to 10 minutes ahead (the whole song), so playback starts sooner and survives patchy
+     * mobile data. Otherwise ExoPlayer's defaults (2.5 s to start, ~50 s ahead).
+     */
+    private fun buildLoadControl(context: Context): androidx.media3.exoplayer.LoadControl {
+        val fast = com.music.spotui.data.preferences.isFastLoading(context)
+        playerFastLoading = fast
+        return if (fast) {
+            androidx.media3.exoplayer.DefaultLoadControl.Builder()
+                .setBufferDurationsMs(60_000, 600_000, 500, 1_500)
+                .setPrioritizeTimeOverSizeThresholds(true)
+                .build()
+        } else {
+            androidx.media3.exoplayer.DefaultLoadControl()
+        }
+    }
+
+    /** The fast-loading setting the current player was built with. */
+    @Volatile private var playerFastLoading: Boolean? = null
+
     private fun ensurePlayer(context: Context) {
         appCtx = context.applicationContext
+        // The setting changed since this player was built: rebuild it now, at a song
+        // change (the old item is being replaced anyway). The session re-binds via
+        // onPlayerCreated, and the shared audio session keeps the Sound effects.
+        val wantFast = com.music.spotui.data.preferences.isFastLoading(appCtx!!)
+        if (player != null && playerFastLoading != null && playerFastLoading != wantFast && !isCrossfading) {
+            runCatching { player?.release() }
+            player = null
+        }
         if (player == null) {
             val (p, filter) = createPlayerWithFilter(context, handleAudioFocus = true)
             player = p
@@ -1512,12 +1549,13 @@ object SongPlayer {
 
     fun getDuration(): Long {
         if (webPlaybackActive()) return SpotifyWebPlayer.durationMs
-        return player?.duration ?: 0L
+        // ExoPlayer reports C.TIME_UNSET (a huge negative) while a stream loads.
+        return (player?.duration ?: 0L).coerceAtLeast(0L)
     }
 
     fun getCurrentPosition(): Long {
         if (webPlaybackActive()) return SpotifyWebPlayer.positionMs
-        return player?.currentPosition ?: 0L
+        return (player?.currentPosition ?: 0L).coerceAtLeast(0L)
     }
 
     fun isPrepared(): Boolean {

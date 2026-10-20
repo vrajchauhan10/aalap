@@ -1,5 +1,7 @@
 package com.music.spotui.ui.screens
 
+import com.music.spotui.ui.components.swipeDownToDismiss
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.animation.togetherWith
@@ -308,6 +310,8 @@ fun PlayerScreen(navController: NavController) {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            // Pull down from the top of the player to close it.
+            .swipeDownToDismiss { navController.navigateUp() }
             .background(
                 Brush.verticalGradient(
                     colors = listOf(dominentColor, com.music.spotui.ui.theme.ImmersiveBackground),
@@ -1005,6 +1009,24 @@ private fun currentAudioRoute(context: Context): String {
     }
 }
 
+/** Shares a story-sized "now listening" image card plus the Spotify link. */
+fun shareSongCard(context: Context, scope: kotlinx.coroutines.CoroutineScope, track: SongsModel?, onDone: () -> Unit = {}) {
+    val title = track?.title.orEmpty()
+    val artist = track?.singer.orEmpty()
+    val link = track?.spotifyTrackId?.takeIf { it.isNotBlank() }?.let { "https://open.spotify.com/track/$it" }
+    val message = "Listening to $title by $artist on Aalap" + (link?.let { "\n$it" } ?: "")
+    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        val art = runCatching {
+            com.bumptech.glide.Glide.with(context).asBitmap().load(track?.coverUri.orEmpty()).submit(900, 900).get()
+        }.getOrNull()
+        val card = com.music.spotui.ui.share.ShareCards.songCard(context, art, title, artist)
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+            com.music.spotui.ui.share.ShareCards.share(context, card, "aalap-song", message)
+            onDone()
+        }
+    }
+}
+
 @Composable
 fun PlayerConnectRow(
     navController: NavController,
@@ -1040,6 +1062,37 @@ fun PlayerConnectRow(
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // Playback speed: tap to cycle 0.75× → 1× → 1.25× → 1.5× → 2×.
+            var speed by remember { mutableStateOf(com.music.spotui.data.preferences.getPlaybackSpeed(context)) }
+            Text(
+                speedLabel(speed),
+                color = if (speed != 1f) com.music.spotui.ui.theme.OnSaffron else Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (speed != 1f) com.music.spotui.ui.theme.Saffron else Color.White.copy(alpha = 0.16f))
+                    .clickable {
+                        val all = com.music.spotui.data.preferences.PLAYBACK_SPEEDS
+                        speed = all[(all.indexOf(speed).coerceAtLeast(0) + 1) % all.size]
+                        SongPlayer.setSpeed(context, speed)
+                    }
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+            )
+            Spacer(modifier = Modifier.width(18.dp))
+            Icon(
+                painter = painterResource(id = R.drawable.ic_equalizer),
+                tint = if (com.music.spotui.data.preferences.isEqEnabled(context)) com.music.spotui.ui.theme.Saffron else Color.White,
+                modifier = Modifier
+                    .size(22.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { navController.navigate(Routes.Sound.route) },
+                contentDescription = "Sound and equalizer",
+            )
+            Spacer(modifier = Modifier.width(20.dp))
+            val shareScope = androidx.compose.runtime.rememberCoroutineScope()
             Icon(
                 painter = painterResource(id = R.drawable.ic_share),
                 tint = Color.White,
@@ -1048,20 +1101,10 @@ fun PlayerConnectRow(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                    ) {
-                        val link = currentTrack?.spotifyTrackId
-                            ?.takeIf { it.isNotBlank() }
-                            ?.let { "https://open.spotify.com/track/$it" }
-                            ?: "${currentTrack?.title ?: ""} ${currentTrack?.singer ?: ""}".trim()
-                        val send = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, link)
-                        }
-                        context.startActivity(Intent.createChooser(send, "Share"))
-                    },
-                contentDescription = "Share",
+                    ) { shareSongCard(context, shareScope, currentTrack) },
+                contentDescription = "Share song",
             )
-            Spacer(modifier = Modifier.width(22.dp))
+            Spacer(modifier = Modifier.width(20.dp))
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.List,
                 tint = Color.White,
@@ -1195,21 +1238,11 @@ fun PlayerOptionsSheet(
                 }
                 androidx.compose.material3.HorizontalDivider(color = com.music.spotui.ui.theme.SurfaceHigh)
 
+                val shareScope = androidx.compose.runtime.rememberCoroutineScope()
                 PlayerMenuRow(
                     icon = Icons.Default.Share,
-                    label = "Share"
-                ) {
-                    // Share the real Spotify track link when we know the id.
-                    val shareText = currentSong?.spotifyTrackId?.takeIf { it.isNotBlank() }
-                        ?.let { "https://open.spotify.com/track/$it" }
-                        ?: "Listening to $title by $singer"
-                    val send = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, shareText)
-                    }
-                    context.startActivity(Intent.createChooser(send, "Share"))
-                    onDismiss()
-                }
+                    label = "Share song"
+                ) { shareSongCard(context, shareScope, currentSong, onDismiss) }
                 PlayerMenuRow(
                     icon = if (downloaded) Icons.Default.CheckCircle else ImageVector.vectorResource(R.drawable.ic_download),
                     iconTint = if (downloaded) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary,
@@ -1298,22 +1331,6 @@ fun PlayerOptionsSheet(
                     label = "Sleep timer",
                     trailingArrow = true
                 ) { showSleep = true }
-                // Tap to cycle 0.75× → 1× → 1.25× → 1.5× → 2× (pitch preserved).
-                var speed by remember { mutableStateOf(com.music.spotui.data.preferences.getPlaybackSpeed(context)) }
-                PlayerMenuRow(
-                    icon = Icons.Default.Refresh,
-                    label = "Playback speed · ${speedLabel(speed)}",
-                    iconTint = if (speed != 1f) com.music.spotui.ui.theme.Saffron else com.music.spotui.ui.theme.TextPrimary,
-                ) {
-                    val all = com.music.spotui.data.preferences.PLAYBACK_SPEEDS
-                    speed = all[(all.indexOf(speed).coerceAtLeast(0) + 1) % all.size]
-                    SongPlayer.setSpeed(context, speed)
-                }
-                PlayerMenuRow(
-                    icon = Icons.Default.Settings,
-                    label = "Sound and equalizer",
-                    trailingArrow = true,
-                ) { onDismiss(); navController.navigate(com.music.spotui.ui.navigation.Routes.Sound.route) }
             } else {
                 Text(
                     "Sleep timer",

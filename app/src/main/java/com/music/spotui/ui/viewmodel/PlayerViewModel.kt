@@ -262,6 +262,8 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
         }
     }
     fun formatDuration(durationMillis: Long): String {
+        // Unknown/unset lengths arrive as large negatives; never print those.
+        if (durationMillis <= 0L) return "0:00"
         val minutes = TimeUnit.MILLISECONDS.toMinutes(durationMillis)
         val seconds = TimeUnit.MILLISECONDS.toSeconds(durationMillis) - TimeUnit.MINUTES.toSeconds(minutes)
         return String.format("%01d:%02d", minutes, seconds)

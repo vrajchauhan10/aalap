@@ -100,6 +100,8 @@ class PlaybackService : MediaLibraryService() {
             }
         }
 
+        refreshNotificationButtons = { mediaSession?.setCustomLayout(customLayout()) }
+
         // Home-screen widgets mirror the current track, play state and like.
         serviceScope.launch {
             androidx.compose.runtime.snapshotFlow {
@@ -173,6 +175,7 @@ class PlaybackService : MediaLibraryService() {
         com.music.spotui.data.preferences.isSongLiked(this, currentSongState.songId.value.toString())
 
     private fun customLayout(): ImmutableList<CommandButton> {
+        if (!com.music.spotui.data.preferences.isNotificationExtraButtons(this)) return ImmutableList.of()
         val liked = currentTrackLiked()
         val shuffled = currentSongState.shuffle.value
         return ImmutableList.of(
@@ -384,6 +387,8 @@ class PlaybackService : MediaLibraryService() {
     // ── Android Auto browse tree ──────────────────────────────────────────
 
     companion object {
+        /** Re-sends the notification's extra buttons (after the setting changes). */
+        @Volatile var refreshNotificationButtons: (() -> Unit)? = null
         const val ROOT = "root"
         const val NODE_LIKED = "liked"
         const val NODE_DOWNLOADS = "downloads"
@@ -582,6 +587,7 @@ class PlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         serviceScope.cancel()
         snapshotObserver?.dispose()
+        refreshNotificationButtons = null
         SongPlayer.onPlayerSwapped = null
         SongPlayer.onPlayerCreated = null
         SongPlayer.onStreamFailed = null

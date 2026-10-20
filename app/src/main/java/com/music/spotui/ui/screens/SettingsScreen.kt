@@ -146,6 +146,31 @@ fun SettingsScreen(navController: NavController) {
                 navController.navigate(com.music.spotui.ui.navigation.Routes.Wrapped.route)
             }
 
+            SectionTitle("Playback")
+            var fastLoading by remember { mutableStateOf(com.music.spotui.data.preferences.isFastLoading(context)) }
+            SettingsSwitchRow(
+                title = "Fast loading",
+                subtitle = "Start songs sooner, load the whole song ahead and prepare the next two. Uses more data when you skip a lot.",
+                checked = fastLoading,
+            ) { fastLoading = it; com.music.spotui.data.preferences.setFastLoading(context, it) }
+
+            SectionTitle("Notifications")
+            var notifButtons by remember { mutableStateOf(com.music.spotui.data.preferences.isNotificationExtraButtons(context)) }
+            SettingsSwitchRow(
+                title = "Like and shuffle in notification",
+                subtitle = "Extra buttons next to previous / play / next",
+                checked = notifButtons,
+            ) {
+                notifButtons = it
+                com.music.spotui.data.preferences.setNotificationExtraButtons(context, it)
+                com.music.spotui.ui.notification.PlaybackService.refreshNotificationButtons?.invoke()
+            }
+            NavRow("Notification settings", "Allow notifications, lock screen and sound options") {
+                val intent = android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                runCatching { context.startActivity(intent) }
+            }
+
             SectionTitle("Offline")
             val offline = com.music.spotui.data.preferences.OfflineState
             SettingsSwitchRow(

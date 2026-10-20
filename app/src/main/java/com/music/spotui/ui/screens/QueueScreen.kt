@@ -1,5 +1,6 @@
 package com.music.spotui.ui.screens
 
+import com.music.spotui.ui.components.swipeDownToDismiss
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -83,6 +84,8 @@ fun QueueScreen(navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // Pull the list down from its top to close the queue.
+            .swipeDownToDismiss { navController.navigateUp() }
             .background(com.music.spotui.ui.theme.Surface)
             .statusBarsPadding()
     ) {

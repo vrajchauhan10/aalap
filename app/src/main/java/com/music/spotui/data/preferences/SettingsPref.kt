@@ -165,3 +165,18 @@ fun getThemeMode(c: Context): ThemeMode =
 
 fun setThemeMode(c: Context, mode: ThemeMode) =
     prefs(c).edit().putString(KEY_THEME_MODE, mode.name).apply()
+
+private const val KEY_FAST_LOADING = "fast_loading"
+
+/**
+ * Fast loading: start a song after ~0.5 s of audio, keep buffering up to the whole
+ * track, and prepare the next two queue songs ahead. Uses more data on heavy skipping.
+ */
+fun isFastLoading(c: Context): Boolean = prefs(c).getBoolean(KEY_FAST_LOADING, true)
+fun setFastLoading(c: Context, v: Boolean) = prefs(c).edit().putBoolean(KEY_FAST_LOADING, v).apply()
+
+private const val KEY_NOTIF_BUTTONS = "notification_extra_buttons"
+
+/** Show Like and Shuffle next to the transport buttons in the media notification. */
+fun isNotificationExtraButtons(c: Context): Boolean = prefs(c).getBoolean(KEY_NOTIF_BUTTONS, true)
+fun setNotificationExtraButtons(c: Context, v: Boolean) = prefs(c).edit().putBoolean(KEY_NOTIF_BUTTONS, v).apply()

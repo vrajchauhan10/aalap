@@ -78,6 +78,41 @@ object ShareCards {
         return bmp
     }
 
+    /**
+     * A "now listening" card: the artwork large and rounded on a gradient taken from
+     * the artwork itself, with the title, artist and the Aalap mark.
+     */
+    fun songCard(ctx: Context, artwork: Bitmap?, title: String, artist: String): Bitmap {
+        val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
+        val accent = artwork?.let {
+            runCatching { androidx.palette.graphics.Palette.from(it).generate().getDarkVibrantColor(0xFF3A1A08.toInt()) }.getOrNull()
+        } ?: 0xFF3A1A08.toInt()
+        Canvas(bmp).apply {
+            background(accent)
+            drawText("NOW LISTENING", 110f, 260f, text(ctx, 40f, GOLD, true))
+            val size = 860f
+            val left = (W - size) / 2f
+            val top = 340f
+            val rect = RectF(left, top, left + size, top + size)
+            if (artwork != null) {
+                val shader = android.graphics.BitmapShader(artwork, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+                val scale = maxOf(size / artwork.width, size / artwork.height)
+                shader.setLocalMatrix(android.graphics.Matrix().apply {
+                    setScale(scale, scale)
+                    postTranslate(left + (size - artwork.width * scale) / 2f, top + (size - artwork.height * scale) / 2f)
+                })
+                drawRoundRect(rect, 48f, 48f, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.shader = shader })
+            } else {
+                drawRoundRect(rect, 48f, 48f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF2A2140.toInt() })
+            }
+            var y = top + size + 70f
+            y += block(title, text(ctx, 78f, 0xFFFFFFFF.toInt(), true), 110f, y, W - 220, maxLines = 2)
+            block(artist, text(ctx, 44f, MUTED, false), 110f, y + 10f, W - 220, maxLines = 2)
+            footer(ctx)
+        }
+        return bmp
+    }
+
     /** The Wrapped summary card. */
     fun wrappedCard(
         ctx: Context, period: String, minutes: Long, plays: Int, topArtist: String,

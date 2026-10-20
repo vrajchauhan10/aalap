@@ -153,6 +153,13 @@ class CurrentSongState @Inject constructor() {
                     com.music.spotui.MyApplication.instance, track)
             }
         }
+        // Fast loading: resolve the next two queue songs now so skipping to them starts at once.
+        if (playingState && com.music.spotui.data.preferences.isFastLoading(com.music.spotui.MyApplication.instance)) {
+            val idx = _queue.value.indexOfFirst { it.id == songId }
+            if (idx >= 0) _queue.value.drop(idx + 1).take(2).forEach {
+                SongPlayer.prefetch(it.url, com.music.spotui.MyApplication.instance)
+            }
+        }
         // Warm the lyrics cache in the background so they're already loaded by the
         // time the user opens the player / scrolls to the lyrics card.
         if (playingState && title.isNotBlank()) {
