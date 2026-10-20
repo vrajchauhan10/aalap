@@ -37,21 +37,42 @@ val CHARTS = listOf(
 )
 
 /**
- * Daily discovery for Home: mood mixes, fresh picks and all-time favourites.
- * Results are cached per calendar day, so the page changes every day and stays
- * instant within a day (pull-to-refresh forces a rebuild).
+ * Discovery for Home: mood mixes, fresh picks and all-time favourites. Results are
+ * cached per 6-hour window (so they change four times a day and stay instant within
+ * a window); pull-to-refresh moves to a new mix straight away.
  */
 object Discover {
     private const val TAG = "Discover"
     private const val PREF = "discover_cache"
 
-    private fun today() = LocalDate.now().toString()
+    private const val SLOT_HOURS = 6
+    private const val KEY_GEN = "refresh_gen"
+
     private fun prefs(c: Context) = c.getSharedPreferences(PREF, Context.MODE_PRIVATE)
 
-    /** Forget today's results so the next load rebuilds them. */
+    /** Current 6-hour window: mixes rebuild four times a day. */
+    private fun slot() = "${LocalDate.now()}-${java.time.LocalTime.now().hour / SLOT_HOURS}"
+
+    /** Bumped by pull-to-refresh, so a refresh always gives a different mix. */
+    private fun gen(c: Context) = prefs(c).getInt(KEY_GEN, 0)
+
+    /** The current 6-hour window, e.g. "2026-10-20-3" (Home rebuilds when it changes). */
+    fun currentWindow(): String = slot()
+
+    /** Cache prefix for the current window + refresh generation. */
+    private fun prefix(c: Context) = "${slot()}#${gen(c)}"
+
+    /** Seed for shuffles/rotations: changes every window and on every refresh. */
+    private fun salt(c: Context, extra: Int = 0): Long =
+        (slot().hashCode().toLong() shl 16) + gen(c) * 7919L + extra
+
+    /** Pull-to-refresh: drop cached mixes and move to a new generation. */
     fun clearToday(context: Context) {
         val p = prefs(context)
-        p.edit().apply { p.all.keys.filter { it.startsWith(today()) }.forEach { remove(it) } }.apply()
+        p.edit().apply {
+            p.all.keys.filter { it != KEY_GEN }.forEach { remove(it) }
+            putInt(KEY_GEN, gen(context) + 1)
+        }.apply()
     }
 
     /** Artists you play most (main credit), most-played first. */
@@ -75,14 +96,16 @@ object Discover {
      * your most-played artists first, the rest in a different order each day.
      */
     suspend fun moodMix(context: Context, mood: Mood): List<SongsModel> {
-        val key = "${today()}:mood:${mood.name}"
+        val key = "${prefix(context)}:mood:${mood.name}"
         read(context, key)?.let { return it }
         val api = Api(context)
         val playlists = runCatching {
             api.getCategoryPlaylists(mood.query).toList()
                 .filterIsInstance<Response.Success<List<com.music.spotui.data.entity.LibraryEntry>>>()
                 .lastOrNull()?.data
-        }.getOrNull().orEmpty().take(3)
+        }.getOrNull().orEmpty().take(6)
+            // Rotate which three of the mood's top playlists feed the mix each window/refresh.
+            .shuffled(java.util.Random(salt(context, mood.ordinal))).take(3)
         val tracks = playlists.flatMap { pl ->
             runCatching {
                 api.getPlaylistSongs(pl.spotifyId).toList()
@@ -90,25 +113,20 @@ object Discover {
                     .firstOrNull()?.data
             }.getOrNull().orEmpty().take(40)
         }.distinctBy { it.spotifyTrackId.ifBlank { it.title + it.singer } }
-        val mine = topArtists(context).map { it.lowercase() }.toSet()
-        val (yours, rest) = tracks.partition { t -> t.singer.lowercase().split(",").any { it.trim() in mine } }
-        val dayShuffle = java.util.Random(LocalDate.now().toEpochDay() + mood.ordinal)
-        val result = (yours.shuffled(dayShuffle) + rest.shuffled(dayShuffle)).take(60)
-        Log.d(TAG, "mood ${mood.name}: ${playlists.size} playlists, ${tracks.size} tracks, ${yours.size} by your artists")
+        // Same engine as everywhere else: a fresh order each window, then ranked for your taste.
+        val taste = com.music.spotui.data.recommendation.Recommender.taste(context)
+        val shuffled = tracks.shuffled(java.util.Random(salt(context, 100 + mood.ordinal)))
+        val result = com.music.spotui.data.recommendation.Recommender.rerank(taste, shuffled, familiar = 0.3f).take(60)
+        Log.d(TAG, "mood ${mood.name}: ${playlists.size} playlists, ${tracks.size} tracks")
         if (result.isNotEmpty()) write(context, key, result)
         return result
     }
 
-    /** Recommendations seeded by one of your favourite songs, a different one each day. */
+    /** New-to-you songs mixed from several favourites' radios; changes every window and refresh. */
     suspend fun dailyPicks(context: Context): List<SongsModel> {
-        val key = "${today()}:picks"
+        val key = "${prefix(context)}:picks"
         read(context, key)?.let { return it }
-        val seeds = getListeningHistory(context).filter { it.spotifyTrackId.isNotBlank() }
-            .groupBy { it.spotifyTrackId }.entries.sortedByDescending { it.value.size }
-            .take(10).map { it.key }
-        if (seeds.isEmpty()) return emptyList()
-        val seed = seeds[(LocalDate.now().toEpochDay() % seeds.size).toInt()]
-        val picks = runCatching { Api(context).getRecommendations(listOf(seed)) }.getOrDefault(emptyList()).take(30)
+        val picks = com.music.spotui.data.recommendation.Recommender.freshPicks(context, salt(context, 999))
         if (picks.isNotEmpty()) write(context, key, picks)
         return picks
     }
@@ -140,7 +158,7 @@ object Discover {
         }
         val p = prefs(context)
         p.edit().apply {
-            p.all.keys.filter { !it.startsWith(today()) }.forEach { remove(it) } // drop older days
+            p.all.keys.filter { it != KEY_GEN && !it.startsWith(prefix(context)) }.forEach { remove(it) } // drop older windows
             putString(key, a.toString())
         }.apply()
     }

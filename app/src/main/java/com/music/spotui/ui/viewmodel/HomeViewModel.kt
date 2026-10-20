@@ -27,8 +27,8 @@ class HomeViewModel @Inject constructor(
     val favourites: StateFlow<List<com.music.spotui.data.entity.SongsModel>> = _favourites
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing
-    /** Day the page was last built for; a new day triggers a rebuild. */
-    private var loadedDay: java.time.LocalDate? = null
+    /** 6-hour window the page was last built for; a new window triggers a rebuild. */
+    private var loadedWindow: String? = null
 
 
     private val _albums : MutableStateFlow<Response<List<AlbumsModel>>> = MutableStateFlow(Response.Loading())
@@ -49,14 +49,14 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun loadDiscovery() = viewModelScope.launch(Dispatchers.IO) {
-        loadedDay = java.time.LocalDate.now()
+        loadedWindow = com.music.spotui.data.api.Discover.currentWindow()
         _favourites.value = com.music.spotui.data.api.Discover.allTimeFavourites(appContext)
         _dailyPicks.value = com.music.spotui.data.api.Discover.dailyPicks(appContext)
     }
 
-    /** Called when Home comes back on screen: rebuild if the date changed since. */
+    /** Called when Home comes back on screen: rebuild if a new window started since. */
     fun refreshIfNewDay() {
-        if (loadedDay != java.time.LocalDate.now()) refresh(force = false)
+        if (loadedWindow != com.music.spotui.data.api.Discover.currentWindow()) refresh(force = false)
     }
 
     /** Pull-to-refresh: reload the Spotify feed and rebuild today's discovery. */

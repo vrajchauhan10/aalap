@@ -235,6 +235,26 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
      * No-op if [index] is already the current track (prevents a feedback replay when
      * the pager is merely snapping to reflect an external track change).
      */
+    /**
+     * Plays [song] on its own, then continues with recommendations for it (the shared
+     * engine), instead of playing the list it was tapped from in order.
+     */
+    fun playWithRadio(song: SongsModel, context: Context) {
+        updateQueue(listOf(song))
+        updateSongState(song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
+        SongPlayer.playSong(song.url, context)
+        val seed = song.spotifyTrackId.ifBlank { return }
+        viewModelScope.launch(Dispatchers.IO) {
+            val recs = runCatching { repository.provideRecommendations(listOf(seed)) }.getOrDefault(emptyList())
+            val current = currentSongState.queue.value
+            // Only if that song is still the whole queue (the user didn't start something else).
+            if (current.size == 1 && current.first().id == song.id) {
+                val fresh = recs.filter { it.id != song.id }
+                if (fresh.isNotEmpty()) currentSongState.updateQueue(current + fresh)
+            }
+        }
+    }
+
     fun playSongAt(queueSongs: List<SongsModel>, index: Int, context: Context) {
         if (index !in queueSongs.indices) return
         val song = queueSongs[index]

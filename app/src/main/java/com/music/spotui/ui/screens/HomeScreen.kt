@@ -1035,13 +1035,14 @@ private fun DailySongRows() {
     val homeViewModel: HomeViewModel = hiltViewModel()
     val picks by homeViewModel.dailyPicks.collectAsState()
     val favourites by homeViewModel.favourites.collectAsState()
-    if (picks.isNotEmpty()) SongTileRow("Fresh picks for you today", picks)
+    // Each fresh pick starts its own radio; favourites play as a list.
+    if (picks.isNotEmpty()) SongTileRow("Fresh picks for you", picks, radio = true)
     if (favourites.isNotEmpty()) SongTileRow("Your all-time favourites", favourites)
 }
 
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
-private fun SongTileRow(title: String, songs: List<com.music.spotui.data.entity.SongsModel>) {
+private fun SongTileRow(title: String, songs: List<com.music.spotui.data.entity.SongsModel>, radio: Boolean = false) {
     val context = LocalContext.current
     val playerViewModel: com.music.spotui.ui.viewmodel.PlayerViewModel = hiltViewModel()
     SectionHeader(title)
@@ -1055,8 +1056,12 @@ private fun SongTileRow(title: String, songs: List<com.music.spotui.data.entity.
                 modifier = Modifier
                     .width(132.dp)
                     .clickable {
-                        playerViewModel.updateQueue(songs)
-                        playerViewModel.playSongAt(songs, i, context)
+                        if (radio) {
+                            playerViewModel.playWithRadio(song, context)
+                        } else {
+                            playerViewModel.updateQueue(songs)
+                            playerViewModel.playSongAt(songs, i, context)
+                        }
                     },
             ) {
                 GlideImage(
