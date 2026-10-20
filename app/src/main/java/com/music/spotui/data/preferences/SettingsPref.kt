@@ -180,3 +180,9 @@ private const val KEY_NOTIF_BUTTONS = "notification_extra_buttons"
 /** Show Like and Shuffle next to the transport buttons in the media notification. */
 fun isNotificationExtraButtons(c: Context): Boolean = prefs(c).getBoolean(KEY_NOTIF_BUTTONS, true)
 fun setNotificationExtraButtons(c: Context, v: Boolean) = prefs(c).edit().putBoolean(KEY_NOTIF_BUTTONS, v).apply()
+
+private const val KEY_JIOSAAVN = "jiosaavn_enabled"
+
+/** JioSaavn as an audio source (raced with YouTube; used when it has the exact song). */
+fun isJioSaavnEnabled(c: Context): Boolean = prefs(c).getBoolean(KEY_JIOSAAVN, true)
+fun setJioSaavnEnabled(c: Context, v: Boolean) = prefs(c).edit().putBoolean(KEY_JIOSAAVN, v).apply()

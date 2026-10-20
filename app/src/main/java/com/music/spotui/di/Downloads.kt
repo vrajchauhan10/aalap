@@ -234,6 +234,26 @@ object Downloads {
                 runCatching { tmpFile.delete() }
             }
         }
+        // JioSaavn 320 kbps AAC when it has the exact song (independent of YouTube).
+        if (com.music.spotui.data.preferences.isJioSaavnEnabled(appContext)) {
+            val m = kotlinx.coroutines.withTimeoutOrNull(15_000) {
+                com.music.spotui.saavn.JioSaavnSource.resolve(
+                    song.title, song.singer, song.durationMs / 1000, "${song.title} ${song.singer}",
+                )
+            }
+            if (m != null) {
+                val dir = java.io.File(appContext.filesDir, "downloads").apply { mkdirs() }
+                val outFile = java.io.File(dir, "${song.id}.m4a")
+                val tmpFile = java.io.File(dir, "${song.id}.part")
+                if (httpDownloadRanged(m.url, tmpFile, song.url) && tmpFile.renameTo(outFile)) {
+                    com.music.spotui.data.preferences.addDownload(appContext, song, outFile.absolutePath)
+                    Log.d(TAG, "JioSaavn downloaded (${m.kbps} kbps): ${song.title}")
+                    return true
+                }
+                runCatching { tmpFile.delete() }
+            }
+        }
+
         if (!SongPlayer.youtubeEnabled) {
             lastDownloadError = "Track not available for download"
             return false

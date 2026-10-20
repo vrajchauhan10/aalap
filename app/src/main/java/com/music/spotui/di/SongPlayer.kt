@@ -805,31 +805,55 @@ object SongPlayer {
             }
         }
 
-        if (!youtubeEnabled || !allowYouTube) {
-            if (!youtubeEnabled) Log.w(TAG, "YouTube fallback disabled — no stream for: $song")
-            return null
-        }
+        // The background lossless upgrade only wants lossless sources.
+        if (!allowYouTube) return null
         if (forPlayback) {
-            currentSource = "YouTube"
-            // Clear the previous track's quality so a failed resolve can't leave
-            // a stale "FLAC 24-bit" badge on a YouTube stream.
+            // Clear the previous track's badge so a failed resolve can't leave it showing.
             currentQuality = ""
         }
-        val playback = resolveYtPlayback(song, quality.audioQuality, appContext) ?: run {
-            // YouTube gave nothing (e.g. it changed its player and streams can't be
-            // decoded yet): fall back to the lossless servers rather than failing.
-            if (losslessStreaming && !quality.lossless) {
-                Log.w(TAG, "YouTube failed — trying lossless fallback for: $song")
-                tryLossless()?.let { return it }
-            }
-            return null
+
+        // JioSaavn: exact-match AAC up to 320 kbps, independent of YouTube.
+        val saavnOn = com.music.spotui.data.preferences.isJioSaavnEnabled(appContext)
+        val info = losslessTrackInfo(song)
+        val fullArtist = metadataRegistry[song]?.artist?.ifBlank { null } ?: info.artist
+        suspend fun trySaavn(relaxed: Boolean): String? {
+            if (!saavnOn) return null
+            val m = kotlinx.coroutines.withTimeoutOrNull(if (relaxed) 12_000L else 9_000L) {
+                com.music.spotui.saavn.JioSaavnSource.resolve(
+                    info.title, fullArtist, info.durationSec, searchTextForPlayback(song), relaxed,
+                )
+            } ?: return null
+            val label = "AAC ${m.kbps} kbps"
+            if (forPlayback) { currentSource = "JioSaavn"; currentQuality = label }
+            streamCache[song] = m.url
+            sourceCache[song] = "JioSaavn"
+            qualityCache[song] = label
+            return m.url
         }
-        val ytQuality = ytQualityLabel(playback)
-        if (forPlayback) currentQuality = ytQuality
-        streamCache[song] = playback.streamUrl
-        sourceCache[song] = "YouTube"
-        qualityCache[song] = ytQuality
-        return playback.streamUrl
+
+        // Race both sources: YouTube starts at the same time as JioSaavn; when JioSaavn
+        // has the exact song it wins (and YouTube is cancelled), else YouTube's answer is used.
+        val ytJob = if (youtubeEnabled) scope.async {
+            runCatching { resolveYtPlayback(song, quality.audioQuality, appContext) }.getOrNull()
+        } else null
+        trySaavn(relaxed = false)?.let { ytJob?.cancel(); return it }
+        val playback = ytJob?.await()
+        if (playback != null) {
+            val ytQuality = ytQualityLabel(playback)
+            if (forPlayback) { currentSource = "YouTube"; currentQuality = ytQuality }
+            streamCache[song] = playback.streamUrl
+            sourceCache[song] = "YouTube"
+            qualityCache[song] = ytQuality
+            return playback.streamUrl
+        }
+
+        // YouTube gave nothing (player change, throttling, region): every other source
+        // gets a turn before the song is reported unplayable.
+        Log.w(TAG, "YouTube failed — trying the other sources for: $song")
+        if (losslessStreaming && !quality.lossless) tryLossless()?.let { return it }
+        trySaavn(relaxed = true)?.let { return it }
+        if (!youtubeEnabled) Log.w(TAG, "YouTube disabled and no other source had: $song")
+        return null
     }
 
     // e.g. "OPUS 141 kbps" from the chosen adaptive format.

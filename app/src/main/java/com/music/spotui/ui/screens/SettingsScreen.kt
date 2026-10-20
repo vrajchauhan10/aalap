@@ -330,6 +330,12 @@ fun SettingsScreen(navController: NavController) {
                     navController.navigate(com.music.spotui.ui.navigation.Routes.YouTubeLogin.route)
                 }
             }
+            var saavnOn by remember { mutableStateOf(com.music.spotui.data.preferences.isJioSaavnEnabled(context)) }
+            SettingsSwitchRow(
+                title = "JioSaavn",
+                subtitle = "Raced with YouTube for every song: plays in 320 kbps when JioSaavn has the exact track, and keeps music playing when YouTube fails",
+                checked = saavnOn,
+            ) { saavnOn = it; com.music.spotui.data.preferences.setJioSaavnEnabled(context, it) }
             Text(
                 text = if (youtubeConnected) "Reconnect YouTube Music" else "Log in to YouTube Music",
                 color = AppPalette,
