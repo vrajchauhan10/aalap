@@ -73,6 +73,10 @@ class HomeViewModel @Inject constructor(
 
     private fun fetchHome() = viewModelScope.launch(Dispatchers.IO) {
         repository.provideHomeFeed().collect { feed ->
+            // While refreshing, keep the page on screen instead of flashing the skeleton;
+            // a failed refresh also keeps what was there.
+            val showing = _home.value is Response.Success
+            if (showing && feed !is Response.Success) return@collect
             _home.value = feed
         }
     }

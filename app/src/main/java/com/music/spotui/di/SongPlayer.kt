@@ -82,6 +82,10 @@ object SongPlayer {
     private val trackIdRegistry = java.util.concurrent.ConcurrentHashMap<String, String>()
     private val alternativeKeyRegistry = java.util.concurrent.ConcurrentHashMap<String, String>()
 
+    /** The play query registered for a Spotify track id (reverse of [registerLossless]). */
+    fun queryForTrackId(spotifyId: String): String? =
+        trackIdRegistry.entries.firstOrNull { it.value == spotifyId }?.key
+
     /** Register query→spotifyTrackId pairs so lossless can be resolved by query. */
     fun registerLossless(pairs: List<Pair<String, String>>) {
         pairs.forEach { (query, spotifyId) ->
@@ -1249,6 +1253,17 @@ object SongPlayer {
             resolveYtPlaybackUnbounded(query, audioQuality, appContext)
         } ?: null.also { Log.w(TAG, "YouTube resolve failed or timed out for: ${searchTextForPlayback(query)}") }
 
+    /** The YouTube video each play query was matched to (feeds "Up next" recommendations). */
+    private val matchedVideoIds = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /**
+     * YouTube video id for a song: the one playback used, else the best match from a
+     * search (the same matching playback uses). Null if YouTube has no match.
+     */
+    suspend fun youTubeIdFor(query: String): String? =
+        matchedVideoIds[query] ?: runCatching { resolveVideoCandidates(query).firstOrNull() }.getOrNull()
+            ?.also { matchedVideoIds[query] = it }
+
     private suspend fun resolveYtPlaybackUnbounded(
         query: String,
         audioQuality: com.metrolist.music.constants.AudioQuality,
@@ -1268,7 +1283,7 @@ object SongPlayer {
                         connectivityManager = connectivityManager,
                     )
                 } ?: Result.failure(java.io.IOException("timed out"))).fold(
-                    onSuccess = { return it },
+                    onSuccess = { matchedVideoIds[query] = videoId; return it },
                     onFailure = { Log.w(TAG, "stream failed for $videoId (${it.message}) — trying next candidate for: ${searchTextForPlayback(query)}") },
                 )
             }

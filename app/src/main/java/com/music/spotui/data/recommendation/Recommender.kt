@@ -6,6 +6,7 @@ import com.music.spotui.data.entity.SongsModel
 import com.music.spotui.data.preferences.HistoryEntry
 import com.music.spotui.data.preferences.getLikedSongIds
 import com.music.spotui.data.preferences.getListeningHistory
+import kotlinx.coroutines.async
 
 /**
  * The one recommendation engine every surface uses (autoplay, queue top-ups, search
@@ -95,22 +96,89 @@ object Recommender {
         songId, title, album, singer, image, url, spotifyTrackId, durationMs = durationMs,
     )
 
+    /** Matching key across services: simplified title + first artist. */
+    private fun matchKey(title: String, singer: String): String {
+        val t = title.lowercase()
+            .substringBefore(" (").substringBefore(" [").substringBefore(" - ").substringBefore(" | ")
+            .filter { it.isLetterOrDigit() }
+        val a = singer.lowercase().substringBefore(",").substringBefore("&").filter { it.isLetterOrDigit() }
+        return "$t|$a"
+    }
+
+    private fun upNextToSong(u: com.metrolist.innertube.YouTube.UpNextSong) = SongsModel(
+        id = "yt:${u.videoId}".hashCode() and 0x7fffffff,
+        title = u.title,
+        album = "",
+        singer = u.artists,
+        coverUri = u.thumbnail,
+        url = "${u.title} ${u.artists}".trim(),
+        durationMs = u.durationSec * 1000,
+    )
+
     /**
-     * What to play next after [seeds] (oldest → newest): your usual follow-ups for the
-     * latest seed, then Spotify's radio ranked for you. Used by autoplay and queue top-ups.
+     * What to play next after [seeds] (oldest → newest). Two global signals — Spotify's
+     * song radio and YouTube Music's "Up next" for the same song (what listeners there
+     * play after it) — are blended; songs both services pick rank highest. Your habits
+     * (songs you usually play next) lead, your taste lifts the rest, and the final order
+     * is sampled from the best candidates so every play gets a different good queue.
      */
-    suspend fun next(context: Context, seeds: List<String>): List<SongsModel> {
+    suspend fun next(context: Context, seeds: List<String>): List<SongsModel> = kotlinx.coroutines.coroutineScope {
         val t = taste(context)
-        val radio = runCatching { Api(context).getRecommendations(seeds) }.getOrDefault(emptyList())
         val last = seeds.lastOrNull().orEmpty()
+        val spotifyJob = async(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { Api(context).getRecommendations(seeds) }.getOrDefault(emptyList())
+        }
+        val youTubeJob = async(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val query = com.music.spotui.di.SongPlayer.queryForTrackId(last) ?: return@runCatching emptyList()
+                val videoId = com.music.spotui.di.SongPlayer.youTubeIdFor(query) ?: return@runCatching emptyList()
+                com.metrolist.innertube.YouTube.upNext(videoId).getOrNull().orEmpty()
+            }.getOrDefault(emptyList())
+        }
+        val spotify = spotifyJob.await()
+        val youTube = youTubeJob.await()
+
+        val ytRank = youTube.mapIndexed { i, u -> matchKey(u.title, u.artists) to i }.toMap()
+        fun rankScore(i: Int, n: Int) = 1f - i.toFloat() / n.coerceAtLeast(1)
+        val scored = LinkedHashMap<String, Pair<SongsModel, Float>>()
+        spotify.forEachIndexed { i, s ->
+            val key = matchKey(s.title, s.singer)
+            val both = ytRank[key]
+            var score = rankScore(i, spotify.size)
+            if (both != null) score += 1f + rankScore(both, youTube.size) // both services agree
+            scored.putIfAbsent(key, s to score)
+        }
+        youTube.forEachIndexed { i, u ->
+            val key = matchKey(u.title, u.artists)
+            if (key !in scored) scored[key] = upNextToSong(u) to rankScore(i, youTube.size) * 0.9f
+        }
+        val ranked = scored.values.map { (s, base) ->
+            val liked = if (s.id in t.likedSongIds) 1f else 0f
+            val known = if (s.spotifyTrackId in t.playedTrackIds || s.id in t.playedSongIds) 1f else 0f
+            s to (base + artistAffinity(t, s) * 0.55f + liked * 0.35f + known * 0.2f)
+        }
+        val seedKeys = seeds.mapNotNull { id -> spotify.firstOrNull { it.spotifyTrackId == id } }.map { matchKey(it.title, it.singer) }.toSet()
+
+        // Weighted sampling (no replacement): strong songs usually come early, but the
+        // order — and which songs make the top — changes on every play.
+        val rnd = java.util.Random()
+        val pool = ranked.filter { it.first.spotifyTrackId !in seeds && matchKey(it.first.title, it.first.singer) !in seedKeys }
+            .toMutableList()
+        val sampled = ArrayList<SongsModel>(pool.size)
+        while (pool.isNotEmpty()) {
+            val weights = pool.map { kotlin.math.exp(it.second / 0.35f.toDouble()) }
+            var r = rnd.nextDouble() * weights.sum()
+            var idx = 0
+            while (idx < weights.size - 1 && r > weights[idx]) { r -= weights[idx]; idx++ }
+            sampled += pool.removeAt(idx).first
+        }
+
         val habits = t.nextAfter[last].orEmpty().entries
-            .filter { it.value >= 1 }
-            .sortedByDescending { it.value }
-            .take(3)
+            .sortedByDescending { it.value }.take(2)
             .mapNotNull { t.entryById[it.key]?.toSong() }
-        val ranked = rerank(t, radio, familiar = 0.5f)
-        return (habits + ranked).distinctBy { it.spotifyTrackId.ifBlank { it.id.toString() } }
-            .filter { it.spotifyTrackId !in seeds }
+        android.util.Log.d("Recommender", "next: spotify=${spotify.size} youtube=${youTube.size} " +
+            "agree=${spotify.count { matchKey(it.title, it.singer) in ytRank }} habits=${habits.size}")
+        spreadArtists((habits + sampled).distinctBy { matchKey(it.title, it.singer) })
     }
 
     /**

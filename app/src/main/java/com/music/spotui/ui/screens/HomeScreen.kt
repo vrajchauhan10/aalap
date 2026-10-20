@@ -1035,9 +1035,22 @@ private fun DailySongRows() {
     val homeViewModel: HomeViewModel = hiltViewModel()
     val picks by homeViewModel.dailyPicks.collectAsState()
     val favourites by homeViewModel.favourites.collectAsState()
-    // Each fresh pick starts its own radio; favourites play as a list.
-    if (picks.isNotEmpty()) SongTileRow("Fresh picks for you", picks, radio = true)
-    if (favourites.isNotEmpty()) SongTileRow("Your all-time favourites", favourites)
+    // Each fresh pick starts its own radio; favourites play as a list. New picks
+    // cross-fade in after a refresh instead of snapping.
+    androidx.compose.animation.Crossfade(
+        targetState = picks,
+        animationSpec = androidx.compose.animation.core.tween(450),
+        label = "freshPicks",
+    ) { list ->
+        if (list.isNotEmpty()) Column { SongTileRow("Fresh picks for you", list, radio = true) }
+    }
+    androidx.compose.animation.Crossfade(
+        targetState = favourites,
+        animationSpec = androidx.compose.animation.core.tween(450),
+        label = "favourites",
+    ) { list ->
+        if (list.isNotEmpty()) Column { SongTileRow("Your all-time favourites", list) }
+    }
 }
 
 @OptIn(ExperimentalGlideComposeApi::class)

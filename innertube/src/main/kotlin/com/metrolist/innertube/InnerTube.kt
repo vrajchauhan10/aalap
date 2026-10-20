@@ -216,6 +216,20 @@ class InnerTube {
         }
     }
 
+    /** YouTube Music's watch-next data, including the automatic "Up next" radio queue. */
+    suspend fun next(client: YouTubeClient, videoId: String, playlistId: String?) = withRetry {
+        httpClient.post("next") {
+            ytClient(client, setLogin = useLoginForBrowse)
+            setBody(
+                com.metrolist.innertube.models.body.NextBody(
+                    context = client.toContext(locale, visitorData, null),
+                    videoId = videoId,
+                    playlistId = playlistId,
+                )
+            )
+        }
+    }
+
     suspend fun player(
         client: YouTubeClient,
         videoId: String,

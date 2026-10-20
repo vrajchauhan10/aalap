@@ -1,5 +1,9 @@
 package com.metrolist.innertube
 
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonArray
 import com.metrolist.innertube.models.YouTubeClient
 import com.metrolist.innertube.models.YouTubeClient.Companion.WEB_REMIX
 import com.metrolist.innertube.models.YouTubeLocale
@@ -94,6 +98,50 @@ object YouTube {
 
     suspend fun player(videoId: String, playlistId: String? = null, client: YouTubeClient, signatureTimestamp: Int? = null, poToken: String? = null, authenticated: Boolean = false): Result<PlayerResponse> = runCatching {
         innerTube.player(client, videoId, playlistId, signatureTimestamp, poToken, authenticated).body<PlayerResponse>()
+    }
+
+    /** One song from YouTube Music's "Up next" radio for a video. */
+    data class UpNextSong(
+        val videoId: String,
+        val title: String,
+        val artists: String,
+        val durationSec: Int,
+        val thumbnail: String,
+    )
+
+    /**
+     * YouTube Music's automatic "Up next" queue after [videoId] (its RDAMVM radio):
+     * what YouTube Music listeners play after this song, in YouTube's order.
+     */
+    suspend fun upNext(videoId: String): Result<List<UpNextSong>> = runCatching {
+        val json = Json.parseToJsonElement(
+            innerTube.next(WEB_REMIX, videoId, "RDAMVM$videoId").bodyAsText()
+        ).jsonObject
+        fun JsonElement?.obj() = (this as? JsonObject)
+        fun JsonElement?.arr() = (this as? JsonArray)
+        fun JsonElement?.str() = (this as? JsonPrimitive)?.contentOrNull
+        fun runsText(e: JsonElement?) = e.obj()?.get("runs").arr()?.joinToString("") { it.obj()?.get("text").str().orEmpty() }.orEmpty()
+        val panel = json["contents"].obj()
+            ?.get("singleColumnMusicWatchNextResultsRenderer").obj()
+            ?.get("tabbedRenderer").obj()
+            ?.get("watchNextTabbedResultsRenderer").obj()
+            ?.get("tabs").arr()?.firstOrNull().obj()
+            ?.get("tabRenderer").obj()?.get("content").obj()
+            ?.get("musicQueueRenderer").obj()?.get("content").obj()
+            ?.get("playlistPanelRenderer").obj()
+            ?.get("contents").arr().orEmpty()
+        panel.mapNotNull { item ->
+            val r = item.obj()?.get("playlistPanelVideoRenderer").obj() ?: return@mapNotNull null
+            val id = r["videoId"].str() ?: return@mapNotNull null
+            // Byline is "Artist • Album • Year" (or "Artist & Artist • …"): keep the artists.
+            val byline = r["longBylineText"].obj()?.get("runs").arr().orEmpty()
+                .mapNotNull { it.obj()?.get("text").str() }
+            val artists = byline.joinToString("").substringBefore(" • ").replace(" & ", ", ")
+            val length = r["lengthText"].let(::runsText).split(":").mapNotNull { it.trim().toIntOrNull() }
+                .fold(0) { acc, n -> acc * 60 + n }
+            val thumb = r["thumbnail"].obj()?.get("thumbnails").arr()?.lastOrNull().obj()?.get("url").str().orEmpty()
+            UpNextSong(id, runsText(r["title"]), artists, length, thumb)
+        }.filter { it.videoId != videoId }
     }
 
     suspend fun visitorData(): Result<String> = runCatching {
