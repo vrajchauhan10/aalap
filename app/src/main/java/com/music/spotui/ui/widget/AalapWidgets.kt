@@ -139,7 +139,7 @@ object AalapWidgets {
             setOnClickPendingIntent(R.id.widget_next, action(context, ACTION_NEXT, large))
             if (large) {
                 setTextViewText(R.id.widget_artist, if (idle) context.getString(R.string.widget_idle_subtitle) else s.artist)
-                setProgressBar(R.id.widget_progress, 1000, (s.progress * 1000).toInt(), false)
+                setImageViewBitmap(R.id.widget_wave, waveBitmap(context, s.progress, s.playing && !idle, s.positionMs))
                 // The elapsed time ticks by itself while playing (no redraw needed).
                 setChronometer(
                     R.id.widget_elapsed,
@@ -151,6 +151,51 @@ object AalapWidgets {
                 setOnClickPendingIntent(R.id.widget_like, action(context, ACTION_LIKE, large))
             }
         }
+
+    /**
+     * The progress line as an image: the played part is a sine wave (flat when
+     * paused), the rest a straight track, with a dot at the playhead. The wave's
+     * phase follows the playback position, so each per-second redraw shifts it and
+     * the line appears to flow.
+     */
+    private fun waveBitmap(context: Context, progress: Float, playing: Boolean, positionMs: Long): Bitmap {
+        val w = 720; val h = 54
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(bmp)
+        val mid = h / 2f
+        val pad = 10f
+        val end = pad + (w - 2 * pad) * progress.coerceIn(0f, 1f)
+        val track = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = context.getColor(R.color.widget_track)
+            strokeWidth = 8f; strokeCap = android.graphics.Paint.Cap.ROUND; style = android.graphics.Paint.Style.STROKE
+        }
+        c.drawLine(end, mid, w - pad, mid, track)
+        if (end > pad) {
+            val amp = if (playing) 9f else 0f
+            val wavelength = 64f
+            val phase = (positionMs % 2_000L) / 2_000f * (2 * Math.PI).toFloat()
+            val path = android.graphics.Path().apply {
+                moveTo(pad, mid + amp * kotlin.math.sin(phase))
+                var x = pad
+                while (x < end) {
+                    x = (x + 4f).coerceAtMost(end)
+                    lineTo(x, mid + amp * kotlin.math.sin(x / wavelength * 2 * Math.PI.toFloat() + phase))
+                }
+            }
+            val played = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                shader = android.graphics.LinearGradient(
+                    pad, 0f, end.coerceAtLeast(pad + 1f), 0f,
+                    0xFFFFC56B.toInt(), context.getColor(R.color.widget_play), android.graphics.Shader.TileMode.CLAMP,
+                )
+                strokeWidth = 8f; strokeCap = android.graphics.Paint.Cap.ROUND; style = android.graphics.Paint.Style.STROKE
+            }
+            c.drawPath(path, played)
+        }
+        c.drawCircle(end, mid, 11f, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = context.getColor(R.color.widget_play)
+        })
+        return bmp
+    }
 
     private fun formatTime(ms: Long): String {
         val total = ms / 1000

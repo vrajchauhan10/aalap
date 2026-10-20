@@ -81,17 +81,16 @@
             android:textColor="@color/widget_text_muted"
             android:textSize="11sp" />
 
-        <ProgressBar
-            android:id="@+id/widget_progress"
-            style="@android:style/Widget.ProgressBar.Horizontal"
+        <!-- Wavy progress, drawn by AalapWidgets.waveBitmap (moves while playing). -->
+        <ImageView
+            android:id="@+id/widget_wave"
             android:layout_width="0dp"
-            android:layout_height="6dp"
+            android:layout_height="18dp"
             android:layout_marginStart="10dp"
             android:layout_marginEnd="10dp"
             android:layout_weight="1"
-            android:max="1000"
-            android:progress="0"
-            android:progressDrawable="@drawable/widget_progress" />
+            android:importantForAccessibility="no"
+            android:scaleType="fitXY" />
 
         <TextView
             android:id="@+id/widget_duration"

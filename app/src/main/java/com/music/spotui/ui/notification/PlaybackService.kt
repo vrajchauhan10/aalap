@@ -62,6 +62,7 @@ class PlaybackService : MediaLibraryService() {
     private val trackById = java.util.concurrent.ConcurrentHashMap<String, SongsModel>()
     private val queueByTrackId = java.util.concurrent.ConcurrentHashMap<String, List<SongsModel>>()
     private var webPlayer: WebMediaPlayer? = null
+    private var snapshotObserver: androidx.compose.runtime.snapshots.ObserverHandle? = null
     private var showingWeb = false
 
     override fun onCreate() {
@@ -86,6 +87,18 @@ class PlaybackService : MediaLibraryService() {
             .setSessionActivity(sessionActivity)
             .setCustomLayout(customLayout())
             .build()
+
+        // Compose only delivers state-change notifications once a UI has started. When
+        // playback is driven from the widget/notification with no screen open, nothing
+        // would, and the snapshotFlows below never fired. Deliver them here too.
+        val mainHandler = android.os.Handler(mainLooper)
+        val applyPending = java.util.concurrent.atomic.AtomicBoolean(false)
+        snapshotObserver = androidx.compose.runtime.snapshots.Snapshot.registerGlobalWriteObserver {
+            if (applyPending.compareAndSet(false, true)) mainHandler.post {
+                applyPending.set(false)
+                androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+            }
+        }
 
         // Home-screen widgets mirror the current track, play state and like.
         serviceScope.launch {
@@ -568,6 +581,7 @@ class PlaybackService : MediaLibraryService() {
 
     override fun onDestroy() {
         serviceScope.cancel()
+        snapshotObserver?.dispose()
         SongPlayer.onPlayerSwapped = null
         SongPlayer.onPlayerCreated = null
         SongPlayer.onStreamFailed = null
