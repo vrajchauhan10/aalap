@@ -139,7 +139,7 @@ object AalapWidgets {
             setOnClickPendingIntent(R.id.widget_next, action(context, ACTION_NEXT, large))
             if (large) {
                 setTextViewText(R.id.widget_artist, if (idle) context.getString(R.string.widget_idle_subtitle) else s.artist)
-                setImageViewBitmap(R.id.widget_wave, waveBitmap(context, s.progress, s.playing && !idle, s.positionMs))
+                setImageViewBitmap(R.id.widget_wave, waveBitmap(context, s.progress, s.playing && !idle, s.title.hashCode()))
                 // The elapsed time ticks by itself while playing (no redraw needed).
                 setChronometer(
                     R.id.widget_elapsed,
@@ -153,46 +153,72 @@ object AalapWidgets {
         }
 
     /**
-     * The progress line as an image: the played part is a sine wave (flat when
-     * paused), the rest a straight track, with a dot at the playhead. The wave's
-     * phase follows the playback position, so each per-second redraw shifts it and
-     * the line appears to flow.
+     * The progress line as an image, in the style of the system media player: a soft,
+     * mirrored waveform whose shape is fixed per song (seeded by [seed]), so only the
+     * playhead moves between redraws. Played part is gold-to-saffron, the rest dimmed;
+     * paused, it flattens to a plain line.
      */
-    private fun waveBitmap(context: Context, progress: Float, playing: Boolean, positionMs: Long): Bitmap {
-        val w = 720; val h = 54
+    private fun waveBitmap(context: Context, progress: Float, playing: Boolean, seed: Int): Bitmap {
+        val w = 720; val h = 84
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val c = android.graphics.Canvas(bmp)
         val mid = h / 2f
-        val pad = 10f
-        val end = pad + (w - 2 * pad) * progress.coerceIn(0f, 1f)
-        val track = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = context.getColor(R.color.widget_track)
-            strokeWidth = 8f; strokeCap = android.graphics.Paint.Cap.ROUND; style = android.graphics.Paint.Style.STROKE
+        val pad = 14f
+        val span = w - 2 * pad
+        val head = pad + span * progress.coerceIn(0f, 1f)
+
+        // Smooth amplitude envelope: a few slow sines with per-song phases/weights,
+        // tapered towards both ends so the wave rises out of and falls into the line.
+        val rnd = java.util.Random(seed.toLong())
+        val waves = List(4) { Triple(1.2f + rnd.nextFloat() * 3.5f, rnd.nextFloat() * 6.283f, 0.4f + rnd.nextFloat() * 0.6f) }
+        fun amp(x: Float): Float {
+            if (!playing) return 0f
+            val t = (x - pad) / span
+            val sum = waves.sumOf { (f, ph, wt) -> (wt * (0.5f + 0.5f * kotlin.math.sin(t * f * 6.283f + ph))).toDouble() }.toFloat()
+            val norm = sum / waves.sumOf { it.third.toDouble() }.toFloat()
+            val taper = kotlin.math.sin(Math.PI.toFloat() * t.coerceIn(0f, 1f)).let { 0.35f + 0.65f * it }
+            return (4f + 26f * norm) * taper
         }
-        c.drawLine(end, mid, w - pad, mid, track)
-        if (end > pad) {
-            val amp = if (playing) 9f else 0f
-            val wavelength = 64f
-            val phase = (positionMs % 2_000L) / 2_000f * (2 * Math.PI).toFloat()
-            val path = android.graphics.Path().apply {
-                moveTo(pad, mid + amp * kotlin.math.sin(phase))
-                var x = pad
-                while (x < end) {
-                    x = (x + 4f).coerceAtMost(end)
-                    lineTo(x, mid + amp * kotlin.math.sin(x / wavelength * 2 * Math.PI.toFloat() + phase))
-                }
-            }
+        fun band(from: Float, to: Float): android.graphics.Path = android.graphics.Path().apply {
+            moveTo(from, mid)
+            var x = from
+            while (x <= to) { lineTo(x, mid - amp(x)); x += 3f }
+            lineTo(to, mid - amp(to))
+            x = to
+            while (x >= from) { lineTo(x, mid + amp(x)); x -= 3f }
+            close()
+        }
+        val trackColor = context.getColor(R.color.widget_track)
+        val accent = context.getColor(R.color.widget_play)
+        // Unplayed part (and the thin centre line under everything).
+        val line = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = trackColor; strokeWidth = 4f; strokeCap = android.graphics.Paint.Cap.ROUND
+        }
+        c.drawLine(pad, mid, w - pad, mid, line)
+        if (playing && head < w - pad) {
+            // Soft version of the text colour, so the upcoming wave reads on either theme.
+            val muted = context.getColor(R.color.widget_text_muted)
+            c.drawPath(band(head, w - pad), android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = (muted and 0x00FFFFFF) or (0x5C shl 24)
+            })
+        }
+        // Played part.
+        if (head > pad) {
             val played = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                 shader = android.graphics.LinearGradient(
-                    pad, 0f, end.coerceAtLeast(pad + 1f), 0f,
-                    0xFFFFC56B.toInt(), context.getColor(R.color.widget_play), android.graphics.Shader.TileMode.CLAMP,
+                    pad, 0f, head.coerceAtLeast(pad + 1f), 0f,
+                    0xFFFFC56B.toInt(), accent, android.graphics.Shader.TileMode.CLAMP,
                 )
-                strokeWidth = 8f; strokeCap = android.graphics.Paint.Cap.ROUND; style = android.graphics.Paint.Style.STROKE
             }
-            c.drawPath(path, played)
+            if (playing) c.drawPath(band(pad, head), played)
+            else c.drawLine(pad, mid, head, mid, android.graphics.Paint(played).apply {
+                strokeWidth = 6f; strokeCap = android.graphics.Paint.Cap.ROUND
+            })
         }
-        c.drawCircle(end, mid, 11f, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = context.getColor(R.color.widget_play)
+        // Playhead.
+        c.drawCircle(head, mid, 13f, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = accent })
+        c.drawCircle(head, mid, 5f, android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = context.getColor(R.color.widget_on_play)
         })
         return bmp
     }
