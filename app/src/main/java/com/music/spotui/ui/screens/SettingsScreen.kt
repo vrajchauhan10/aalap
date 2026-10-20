@@ -138,6 +138,33 @@ fun SettingsScreen(navController: NavController) {
                 ) { com.music.spotui.ui.theme.ThemeState.set(context, mode) }
             }
 
+            SectionTitle("Sound")
+            NavRow("Sound and equalizer", "Presets, bass boost, normalize volume, playback speed") {
+                navController.navigate(com.music.spotui.ui.navigation.Routes.Sound.route)
+            }
+            NavRow("Your Aalap Wrapped", "Your month in music, ready to share") {
+                navController.navigate(com.music.spotui.ui.navigation.Routes.Wrapped.route)
+            }
+
+            SectionTitle("Offline")
+            val offline = com.music.spotui.data.preferences.OfflineState
+            SettingsSwitchRow(
+                title = "Offline mode",
+                subtitle = "Only play downloads, no data used",
+                checked = offline.manual,
+            ) { offline.setManual(context, it) }
+            SettingsSwitchRow(
+                title = "Auto-download Liked Songs",
+                subtitle = "On Wi-Fi only, in your download quality",
+                checked = offline.autoDownloadLiked,
+            ) { offline.setAutoDownloadLiked(context, it) }
+            SettingsSwitchRow(
+                title = "Go offline automatically",
+                subtitle = "When there's no internet",
+                checked = offline.autoWhenNoInternet,
+            ) { offline.setAutoWhenNoInternet(context, it) }
+            OfflineStorageCard()
+
             SectionTitle("Audio quality")
             QualityPicker(
                 title = "Streaming over Wi-Fi",
@@ -386,6 +413,60 @@ private fun SourceSettingRow(
         if (selected) {
             Icon(Icons.Filled.Check, contentDescription = "Selected", tint = AppPalette, modifier = Modifier.size(20.dp))
         }
+    }
+}
+
+/** A tappable row that opens another screen. */
+@Composable
+private fun NavRow(title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 10.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
+        }
+        Text("›", color = com.music.spotui.ui.theme.TextMuted, fontSize = 22.sp)
+    }
+}
+
+/** Downloads on this phone: count, size, and liked songs still waiting for Wi-Fi. */
+@Composable
+private fun OfflineStorageCard() {
+    val context = LocalContext.current
+    val (count, bytes) = remember { com.music.spotui.data.preferences.downloadStorage(context) }
+    val pending = com.music.spotui.data.preferences.AutoDownloader.pendingCount
+    val gb = bytes / 1_073_741_824.0
+    val sizeLabel = if (gb >= 1) String.format("%.1f GB", gb) else "${bytes / 1_048_576} MB"
+    // Bar relative to the phone's free space + what Aalap already uses.
+    val free = remember { runCatching { context.filesDir.usableSpace }.getOrDefault(0L) }
+    val fraction = if (free + bytes > 0) (bytes.toFloat() / (free + bytes)).coerceIn(0.02f, 1f) else 0f
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(com.music.spotui.ui.theme.Surface)
+            .padding(14.dp),
+    ) {
+        Row(Modifier.fillMaxWidth()) {
+            Text("Storage used", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text(sizeLabel, color = AppPalette, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.height(8.dp))
+        Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(com.music.spotui.ui.theme.SurfaceHigh)) {
+            Box(Modifier.fillMaxWidth(fraction).height(6.dp).clip(RoundedCornerShape(3.dp)).background(AppPalette))
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "$count songs" + if (pending > 0) " · $pending waiting for Wi-Fi" else "",
+            color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp,
+        )
     }
 }
 

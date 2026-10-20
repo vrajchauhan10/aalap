@@ -1,3 +1,12 @@
 <resources>
     <string name="app_name">Aalap</string>
+    <string name="widget_large_desc">Now playing with artwork and controls</string>
+    <string name="widget_compact_desc">Compact now-playing bar</string>
+    <string name="widget_idle_title">Aalap</string>
+    <string name="widget_idle_subtitle">Tap to play</string>
+    <string name="widget_open">Open Aalap</string>
+    <string name="widget_like">Like</string>
+    <string name="widget_prev">Previous</string>
+    <string name="widget_play">Play or pause</string>
+    <string name="widget_next">Next</string>
 </resources>

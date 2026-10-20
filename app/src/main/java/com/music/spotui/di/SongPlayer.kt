@@ -233,6 +233,28 @@ object SongPlayer {
         // fade-out (instead of a hard cut) makes skipping feel smooth.
         fadeOutThenClear()
 
+        // Offline: only downloaded / local songs can play. Skip past the rest of the
+        // queue (bounded, so a queue with nothing downloaded stops instead of looping).
+        if (com.music.spotui.data.preferences.OfflineState.isOffline && !playableOffline(song, appContext)) {
+            offlineSkips++
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                if (offlineSkips == 1) android.widget.Toast.makeText(
+                    appContext, "You're offline — skipping songs that aren't downloaded", android.widget.Toast.LENGTH_SHORT,
+                ).show()
+                if (offlineSkips <= MAX_OFFLINE_SKIPS) {
+                    onStreamFailed?.invoke(song)
+                } else {
+                    offlineSkips = 0
+                    boundState?.updatePlayingState(false)
+                    android.widget.Toast.makeText(
+                        appContext, "Nothing else here is downloaded", android.widget.Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+            return
+        }
+        offlineSkips = 0
+
         // Podcast episodes are encoded as "episode:<id>" queries — play them via the
         // Spotify web player's episode page (same engine as tracks).
         if (song.startsWith("episode:") && webPlayerEnabled && SpotifyWebPlayer.canPlay &&
@@ -314,6 +336,15 @@ object SongPlayer {
         // Quick-start songs trigger it after their own upgrade instead.
         if (!wantsQuickStart(song, appContext)) soulseekLookahead(appContext)
     }
+
+    // ── Offline ──
+    private const val MAX_OFFLINE_SKIPS = 40
+    @Volatile private var offlineSkips = 0
+
+    /** True when [song] can play with no network: a local file or a finished download. */
+    fun playableOffline(song: String, ctx: Context): Boolean =
+        song.startsWith("content://") || song.startsWith("file://") ||
+            com.music.spotui.data.preferences.downloadedPathForQuery(ctx, song) != null
 
     // ── Smooth track changes ──
     // Manual skips fade the outgoing track out and the incoming one in, instead of
@@ -582,6 +613,7 @@ object SongPlayer {
     /** Warm the cache for an upcoming track (e.g. the next/previous queue item). */
     fun prefetch(song: String, context: Context) {
         if (song.isBlank() || streamCache.containsKey(song)) return
+        if (com.music.spotui.data.preferences.OfflineState.isOffline) return
         val appContext = context.applicationContext
         // No point resolving YouTube streams while Spotify web is the engine — it's
         // wasted network/CPU that competes with the streaming audio (caused stutter).
@@ -1295,6 +1327,10 @@ object SongPlayer {
             .setAudioAttributes(buildAudioAttributes(), handleAudioFocus)
             .setHandleAudioBecomingNoisy(handleAudioFocus)
             .build()
+        // One shared session for every player so the Sound effects (EQ, bass,
+        // normalise) follow crossfades and lossless swaps without re-attaching.
+        p.audioSessionId = com.music.spotui.audio.AudioEffects.sessionId(context)
+        p.setPlaybackSpeed(com.music.spotui.data.preferences.getPlaybackSpeed(context))
         return p to filter
     }
 
@@ -1758,6 +1794,13 @@ object SongPlayer {
     @Volatile private var sleepJob: kotlinx.coroutines.Job? = null
     @Volatile var sleepTimerEndAt: Long = 0L
         private set
+
+    /** Playback speed (pitch preserved). Mostly for podcasts; saved for new players too. */
+    fun setSpeed(context: Context, speed: Float) {
+        com.music.spotui.data.preferences.setPlaybackSpeedPref(context, speed)
+        player?.setPlaybackSpeed(speed)
+        secondaryPlayer?.setPlaybackSpeed(speed)
+    }
 
     fun setSleepTimer(durationMillis: Long) {
         sleepJob?.cancel()

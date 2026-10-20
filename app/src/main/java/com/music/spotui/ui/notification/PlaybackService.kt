@@ -87,6 +87,23 @@ class PlaybackService : MediaLibraryService() {
             .setCustomLayout(customLayout())
             .build()
 
+        // Home-screen widgets mirror the current track, play state and like.
+        serviceScope.launch {
+            androidx.compose.runtime.snapshotFlow {
+                listOf(
+                    currentSongState.title.value, currentSongState.singer.value, currentSongState.coverUri.value,
+                    currentSongState.playingState.value, currentSongState.likeState.value, currentSongState.songId.value,
+                )
+            }.collect { pushWidgets() }
+        }
+        // While playing, move the widget progress bar along every 10 s.
+        serviceScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(10_000)
+                if (currentSongState.playingState.value) pushWidgets()
+            }
+        }
+
         // Keep the notification's Like / Shuffle buttons in step with the app, whichever
         // side (notification, player screen, mini player) changed them.
         serviceScope.launch {
@@ -153,6 +170,21 @@ class PlaybackService : MediaLibraryService() {
                 .setIconResId(if (shuffled) com.music.spotui.R.drawable.ic_notif_shuffle_on else com.music.spotui.R.drawable.ic_notif_shuffle)
                 .setSessionCommand(cmdShuffle)
                 .build(),
+        )
+    }
+
+    private fun pushWidgets() {
+        val dur = SongPlayer.getDuration()
+        com.music.spotui.ui.widget.AalapWidgets.update(
+            this,
+            com.music.spotui.ui.widget.WidgetState(
+                title = currentSongState.title.value,
+                artist = currentSongState.singer.value,
+                coverUri = currentSongState.coverUri.value,
+                playing = currentSongState.playingState.value,
+                liked = currentTrackLiked(),
+                progress = if (dur > 0) (SongPlayer.getCurrentPosition().toFloat() / dur).coerceIn(0f, 1f) else 0f,
+            ),
         )
     }
 
@@ -228,6 +260,12 @@ class PlaybackService : MediaLibraryService() {
 
         override fun removeListener(listener: Player.Listener) {
             super.removeListener(wrappedListeners.remove(listener) ?: listener)
+        }
+
+        // Nothing loaded yet (fresh start): resume the restored session track instead
+        // of a no-op. Covers the widget, the notification and headset buttons.
+        override fun play() {
+            if (mediaItemCount == 0) SongPlayer.play() else super.play()
         }
 
         override fun hasNextMediaItem() = true
@@ -310,7 +348,7 @@ class PlaybackService : MediaLibraryService() {
 
     // ── Android Auto browse tree ──────────────────────────────────────────
 
-    private companion object {
+    companion object {
         const val ROOT = "root"
         const val NODE_LIKED = "liked"
         const val NODE_DOWNLOADS = "downloads"

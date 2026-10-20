@@ -157,6 +157,22 @@ fun MyNavHost(
             SettingsScreen(navHostController)
         }
 
+        composable(Routes.Sound.route){
+            LaunchedEffect(playerState) {
+                bottomBarState.value = true
+                bottomBarPlayerState.value = playerState != ""
+            }
+            com.music.spotui.ui.screens.SoundScreen(navHostController)
+        }
+
+        composable(Routes.Wrapped.route){
+            LaunchedEffect(Unit) {
+                bottomBarState.value = false
+                bottomBarPlayerState.value = false
+            }
+            com.music.spotui.ui.screens.WrappedScreen(navHostController)
+        }
+
         composable(Routes.History.route){
             LaunchedEffect(playerState) {
                 bottomBarState.value = true

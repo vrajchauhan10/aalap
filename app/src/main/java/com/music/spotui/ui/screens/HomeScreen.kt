@@ -101,6 +101,11 @@ fun HomeScreen(navController: NavController){
         val artistsList = (artists as? Response.Success)?.data.orEmpty()
 
         when {
+            // Offline: no feed, just what's on the phone.
+            com.music.spotui.data.preferences.OfflineState.isOffline -> {
+                OfflineHome(navController)
+            }
+
             // Preferred: the real personalized Spotify home feed.
             feed != null && feed.sections.isNotEmpty() -> {
                 HomeFeedContent(navController, feed)
@@ -821,23 +826,114 @@ fun ImageCard(
     }
 }
 
+/** Offline banner, shown on Home and Library while offline. */
+@Composable
+fun OfflineBanner(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val count = remember { com.music.spotui.data.preferences.getDownloadedSongs(context).size }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(com.music.spotui.ui.theme.SaffronDeep.copy(alpha = 0.22f))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Text("●", color = com.music.spotui.ui.theme.Saffron, fontSize = 10.sp)
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "Offline · showing $count downloaded songs",
+            color = com.music.spotui.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+        )
+    }
+}
 
+/** Home while offline: your downloads, ready to play. */
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun OfflineHome(navController: NavController) {
+    val context = LocalContext.current
+    val playerViewModel: com.music.spotui.ui.viewmodel.PlayerViewModel = hiltViewModel()
+    val songs = remember { com.music.spotui.data.preferences.getDownloadedSongs(context) }
+    val offline = com.music.spotui.data.preferences.OfflineState
 
+    fun playFrom(list: List<com.music.spotui.data.entity.SongsModel>, index: Int) {
+        if (list.isEmpty()) return
+        playerViewModel.updateQueue(list)
+        playerViewModel.playSongAt(list, index, context)
+    }
 
+    LazyColumn(
+        contentPadding = PaddingValues(bottom = 190.dp),
+        modifier = Modifier.fillMaxSize().background(com.music.spotui.ui.theme.AppBackground),
+    ) {
+        item {
+            Text(
+                "You're offline",
+                color = com.music.spotui.ui.theme.TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp),
+            )
+            Text(
+                if (offline.manual) "Offline mode is on. Only downloaded music plays." else "No internet. Only downloaded music plays.",
+                color = com.music.spotui.ui.theme.TextMuted, fontSize = 14.sp,
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
+            OfflineBanner(Modifier.padding(top = 8.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            ) {
+                if (songs.isNotEmpty()) {
+                    OfflineAction("Play", filled = true) { playFrom(songs, 0) }
+                    OfflineAction("Shuffle") { playFrom(songs.shuffled(), 0) }
+                }
+                if (offline.manual) OfflineAction("Go online") { offline.setManual(context, false) }
+            }
+        }
+        if (songs.isEmpty()) {
+            item {
+                Text(
+                    "Nothing downloaded yet. Go online and tap the download button on any song, album or playlist.",
+                    color = com.music.spotui.ui.theme.TextMuted, fontSize = 14.sp,
+                    modifier = Modifier.padding(20.dp),
+                )
+            }
+        }
+        items(songs.size) { i ->
+            val song = songs[i]
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { playFrom(songs, i) }
+                    .padding(horizontal = 20.dp, vertical = 7.dp),
+            ) {
+                GlideImage(
+                    model = song.coverUri, contentDescription = null, contentScale = ContentScale.Crop,
+                    loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+                    modifier = Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)),
+                )
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text(song.title, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text(song.singer, color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+@Composable
+private fun OfflineAction(label: String, filled: Boolean = false, onClick: () -> Unit) {
+    Text(
+        label,
+        color = if (filled) com.music.spotui.ui.theme.OnSaffron else com.music.spotui.ui.theme.TextPrimary,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (filled) com.music.spotui.ui.theme.Saffron else com.music.spotui.ui.theme.SurfaceHigh)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+    )
+}
