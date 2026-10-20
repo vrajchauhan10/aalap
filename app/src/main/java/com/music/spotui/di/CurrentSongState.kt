@@ -160,7 +160,11 @@ class CurrentSongState @Inject constructor() {
             val durationSec = (_queue.value.firstOrNull { it.id == songId }?.durationMs ?: 0) / 1000
             com.music.spotui.data.api.LyricsApi.prefetch(title, singer, album, durationSec)
             // Log the play into the local listening history (History & stats screen).
-            com.music.spotui.data.preferences.addListeningHistory(
+            // Not for songs the offline skip passes over: those never actually play.
+            val trackUrl = _queue.value.firstOrNull { it.id == songId }?.url.orEmpty()
+            val skippedOffline = com.music.spotui.data.preferences.OfflineState.isOffline &&
+                !SongPlayer.playableOffline(trackUrl, com.music.spotui.MyApplication.instance)
+            if (!skippedOffline) com.music.spotui.data.preferences.addListeningHistory(
                 com.music.spotui.MyApplication.instance,
                 com.music.spotui.data.preferences.HistoryEntry(
                     ts = System.currentTimeMillis(),

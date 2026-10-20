@@ -113,7 +113,8 @@ fun HistoryScreen(navController: NavController) {
         val from = today.minusDays(days - 1)
         history.filter { !it.day().isBefore(from) }
     }
-    val minutes = remember(inRange) { inRange.sumOf { it.durationMs.toLong() } / 60_000 }
+    // Plays logged before 2.0 have no length; count those at a typical song length.
+    val minutes = remember(inRange) { inRange.sumOf { if (it.durationMs > 0) it.durationMs.toLong() else 210_000L } / 60_000 }
     val artistCount = remember(inRange) { inRange.map { it.mainArtist() }.filter { it.isNotBlank() }.toSet().size }
     val topArtists = remember(inRange) {
         inRange.filter { it.mainArtist().isNotBlank() }
@@ -256,7 +257,7 @@ fun HistoryScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             ) {
                 StatCard("${inRange.size}", "Plays", Modifier.weight(1f))
-                StatCard(if (minutes > 0) "$minutes" else "–", "Minutes", Modifier.weight(1f))
+                StatCard("$minutes", "Minutes", Modifier.weight(1f))
                 StatCard("$artistCount", "Artists", Modifier.weight(1f))
             }
         }

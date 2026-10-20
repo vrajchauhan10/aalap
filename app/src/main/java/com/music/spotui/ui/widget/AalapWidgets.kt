@@ -23,6 +23,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 
 /** What the widgets show. Pushed by [PlaybackService] whenever playback changes. */
 data class WidgetState(
@@ -32,6 +33,8 @@ data class WidgetState(
     val playing: Boolean = false,
     val liked: Boolean = false,
     val progress: Float = 0f, // 0..1
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
 )
 
 /** 4×2 widget: artwork, title, progress, like + previous / play / next. */
@@ -70,14 +73,17 @@ object AalapWidgets {
     /** Current state, falling back to the last session's track (paused) after a restart. */
     fun lastState(context: Context): WidgetState {
         if (current.title.isNotBlank()) return current
-        val saved = com.music.spotui.data.preferences.loadLastPlayback(context)?.first ?: return current
-        return WidgetState(saved.title, saved.singer, saved.coverUri, playing = false)
+        val saved = com.music.spotui.data.preferences.loadLastPlayback(context)?.first
+            ?: return current.copy(playing = false)
+        val liked = com.music.spotui.data.preferences.isSongLiked(context, saved.id.toString())
+        return WidgetState(saved.title, saved.singer, saved.coverUri, playing = false, liked = liked)
     }
 
     /** Called by the playback service when anything shown on the widget changes. */
     fun update(context: Context, state: WidgetState) {
         current = state
-        render(context.applicationContext, state)
+        // Nothing loaded yet (fresh start): keep showing the last session's track.
+        render(context.applicationContext, if (state.title.isBlank()) lastState(context) else state)
     }
 
     fun render(context: Context, state: WidgetState) {
@@ -86,12 +92,21 @@ object AalapWidgets {
         val largeIds = manager.getAppWidgetIds(ComponentName(app, AalapWidgetLarge::class.java))
         val compactIds = manager.getAppWidgetIds(ComponentName(app, AalapWidgetCompact::class.java))
         if (largeIds.isEmpty() && compactIds.isEmpty()) return
+        latest = state
         scope.launch {
-            val (rounded, round) = artwork(app, state.coverUri)
-            if (largeIds.isNotEmpty()) manager.updateAppWidget(largeIds, views(app, R.layout.widget_large, true, state, rounded))
-            if (compactIds.isNotEmpty()) manager.updateAppWidget(compactIds, views(app, R.layout.widget_compact, false, state, round))
+            // One redraw at a time, always of the newest state: parallel redraws could
+            // finish out of order and leave the widget showing an older state.
+            renderLock.withLock {
+                val s = latest
+                val (rounded, round) = artwork(app, s.coverUri)
+                if (largeIds.isNotEmpty()) manager.updateAppWidget(largeIds, views(app, R.layout.widget_large, true, s, rounded))
+                if (compactIds.isNotEmpty()) manager.updateAppWidget(compactIds, views(app, R.layout.widget_compact, false, s, round))
+            }
         }
     }
+
+    private val renderLock = kotlinx.coroutines.sync.Mutex()
+    @Volatile private var latest = WidgetState()
 
     private fun artwork(context: Context, uri: String): Pair<Bitmap?, Bitmap?> {
         if (uri.isBlank()) return null to null
@@ -125,11 +140,29 @@ object AalapWidgets {
             if (large) {
                 setTextViewText(R.id.widget_artist, if (idle) context.getString(R.string.widget_idle_subtitle) else s.artist)
                 setProgressBar(R.id.widget_progress, 1000, (s.progress * 1000).toInt(), false)
+                // The elapsed time ticks by itself while playing (no redraw needed).
+                setChronometer(
+                    R.id.widget_elapsed,
+                    android.os.SystemClock.elapsedRealtime() - s.positionMs, null, s.playing && !idle,
+                )
+                setTextViewText(R.id.widget_duration, if (s.durationMs > 0) formatTime(s.durationMs) else "")
                 setImageViewResource(R.id.widget_like, if (s.liked) R.drawable.ic_notif_heart_filled else R.drawable.ic_notif_heart)
                 setOnClickPendingIntent(R.id.widget_prev, action(context, ACTION_PREV, large))
                 setOnClickPendingIntent(R.id.widget_like, action(context, ACTION_LIKE, large))
             }
         }
+
+    private fun formatTime(ms: Long): String {
+        val total = ms / 1000
+        return "%d:%02d".format(total / 60, total % 60)
+    }
+
+    /** True when at least one Aalap widget is on the home screen. */
+    fun anyPlaced(context: Context): Boolean {
+        val m = AppWidgetManager.getInstance(context)
+        return m.getAppWidgetIds(ComponentName(context, AalapWidgetLarge::class.java)).isNotEmpty() ||
+            m.getAppWidgetIds(ComponentName(context, AalapWidgetCompact::class.java)).isNotEmpty()
+    }
 
     private fun action(context: Context, action: String, large: Boolean): PendingIntent {
         val cls = if (large) AalapWidgetLarge::class.java else AalapWidgetCompact::class.java

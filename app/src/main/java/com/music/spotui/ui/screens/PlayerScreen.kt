@@ -1,5 +1,7 @@
 package com.music.spotui.ui.screens
 
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.animation.togetherWith
 import android.content.Context
 import android.content.Intent
@@ -1296,6 +1298,22 @@ fun PlayerOptionsSheet(
                     label = "Sleep timer",
                     trailingArrow = true
                 ) { showSleep = true }
+                // Tap to cycle 0.75× → 1× → 1.25× → 1.5× → 2× (pitch preserved).
+                var speed by remember { mutableStateOf(com.music.spotui.data.preferences.getPlaybackSpeed(context)) }
+                PlayerMenuRow(
+                    icon = Icons.Default.Refresh,
+                    label = "Playback speed · ${speedLabel(speed)}",
+                    iconTint = if (speed != 1f) com.music.spotui.ui.theme.Saffron else com.music.spotui.ui.theme.TextPrimary,
+                ) {
+                    val all = com.music.spotui.data.preferences.PLAYBACK_SPEEDS
+                    speed = all[(all.indexOf(speed).coerceAtLeast(0) + 1) % all.size]
+                    SongPlayer.setSpeed(context, speed)
+                }
+                PlayerMenuRow(
+                    icon = Icons.Default.Settings,
+                    label = "Sound and equalizer",
+                    trailingArrow = true,
+                ) { onDismiss(); navController.navigate(com.music.spotui.ui.navigation.Routes.Sound.route) }
             } else {
                 Text(
                     "Sleep timer",

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home-screen widget colours, dark phone theme. -->
+<resources>
+    <color name="widget_bg">#F21C1530</color>
+    <color name="widget_stroke">#22FFFFFF</color>
+    <color name="widget_text">#FFFFFFFF</color>
+    <color name="widget_text_muted">#FFB8AFC9</color>
+    <color name="widget_icon">#FFFFFFFF</color>
+    <color name="widget_track">#FF2A2140</color>
+    <color name="widget_play">#FFFF8A3D</color>
+    <color name="widget_on_play">#FF1A0E05</color>
+</resources>

@@ -843,7 +843,7 @@ fun OfflineBanner(modifier: Modifier = Modifier) {
         Text("●", color = com.music.spotui.ui.theme.Saffron, fontSize = 10.sp)
         Spacer(Modifier.width(8.dp))
         Text(
-            "Offline · showing $count downloaded songs",
+            "Offline · showing $count downloaded ${if (count == 1) "song" else "songs"}",
             color = com.music.spotui.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
         )
     }

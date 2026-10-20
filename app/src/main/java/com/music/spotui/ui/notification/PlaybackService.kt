@@ -96,11 +96,14 @@ class PlaybackService : MediaLibraryService() {
                 )
             }.collect { pushWidgets() }
         }
-        // While playing, move the widget progress bar along every 10 s.
+        // While playing with the screen on, move the widget progress bar every second.
         serviceScope.launch {
+            val power = getSystemService(POWER_SERVICE) as android.os.PowerManager
             while (true) {
-                kotlinx.coroutines.delay(10_000)
-                if (currentSongState.playingState.value) pushWidgets()
+                kotlinx.coroutines.delay(1_000)
+                if (currentSongState.playingState.value && power.isInteractive &&
+                    com.music.spotui.ui.widget.AalapWidgets.anyPlaced(this@PlaybackService)
+                ) pushWidgets()
             }
         }
 
@@ -184,8 +187,22 @@ class PlaybackService : MediaLibraryService() {
                 playing = currentSongState.playingState.value,
                 liked = currentTrackLiked(),
                 progress = if (dur > 0) (SongPlayer.getCurrentPosition().toFloat() / dur).coerceIn(0f, 1f) else 0f,
+                positionMs = SongPlayer.getCurrentPosition().coerceAtLeast(0L),
+                durationMs = dur.coerceAtLeast(0L),
             ),
         )
+    }
+
+    /**
+     * Play pressed with nothing loaded and the app UI never opened (widget, headset,
+     * notification after a restart): bring back the last session's track so play works.
+     */
+    private fun resumeLastSessionIfIdle() {
+        if (currentSongState.title.value.isNotBlank()) return
+        val (song, positionMs) = com.music.spotui.data.preferences.loadLastPlayback(this) ?: return
+        if (currentSongState.queue.value.isEmpty()) currentSongState.updateQueue(listOf(song))
+        currentSongState.updateSongState(song.coverUri, song.title, song.singer, false, song.id, 0, song.album)
+        SongPlayer.setRestorePoint(song.url, positionMs)
     }
 
     /** Like/unlike the current track locally and on the Spotify account. */
@@ -265,7 +282,12 @@ class PlaybackService : MediaLibraryService() {
         // Nothing loaded yet (fresh start): resume the restored session track instead
         // of a no-op. Covers the widget, the notification and headset buttons.
         override fun play() {
-            if (mediaItemCount == 0) SongPlayer.play() else super.play()
+            if (mediaItemCount == 0) {
+                resumeLastSessionIfIdle()
+                SongPlayer.play()
+            } else {
+                super.play()
+            }
         }
 
         override fun hasNextMediaItem() = true

@@ -1,5 +1,12 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.music.spotui.ui.screens
 
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Easing
@@ -139,6 +146,15 @@ fun LyricsScreen(
     val targetLanguage = getLyricTranslateLang(context).ifBlank {
         Locale.getDefault().language.ifBlank { "en" }
     }
+    // Karaoke: big centred lines, the current one filling with saffron as it's sung.
+    var karaoke by remember { mutableStateOf(false) }
+    fun shareLine(line: String) {
+        if (line.isBlank()) return
+        val card = com.music.spotui.ui.share.ShareCards.lyricCard(
+            context, line.trim(), title, artist, accentColor.copy(alpha = 1f).toArgb(),
+        )
+        com.music.spotui.ui.share.ShareCards.share(context, card, "aalap-lyric", "\"${line.trim()}\" — $title, $artist")
+    }
 
     Column(
         modifier = Modifier
@@ -182,7 +198,7 @@ fun LyricsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .padding(horizontal = 64.dp),
+                    .padding(start = 64.dp, end = 124.dp),
             ) {
                 Text(
                     title,
@@ -199,6 +215,34 @@ fun LyricsScreen(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+            val loaded = state as? LyricsViewModel.State.Loaded
+            if (loaded != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
+                ) {
+                    if (loaded.lyrics.synced) {
+                        Text(
+                            "Karaoke",
+                            color = if (karaoke) Color(0xFF1A0E05) else Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(if (karaoke) com.music.spotui.ui.theme.Saffron else Color.White.copy(alpha = 0.15f))
+                                .clickable { karaoke = !karaoke }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                        )
+                    }
+                    IconButton(onClick = {
+                        val lines = loaded.lyrics.lines
+                        val idx = activeIndexFor(loaded.lyrics, positionMs).coerceAtLeast(0)
+                        shareLine(lines.getOrNull(idx)?.text?.takeIf { it.isNotBlank() } ?: lines.firstOrNull { it.text.isNotBlank() }?.text.orEmpty())
+                    }) {
+                        Icon(Icons.Default.Share, contentDescription = "Share lyric", tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+                }
             }
         }
 
@@ -218,9 +262,9 @@ fun LyricsScreen(
                 LaunchedEffect(lyrics, targetLanguage) {
                     vm.prepareTranslation(targetLanguage)
                 }
-                LaunchedEffect(activeIndex) {
+                LaunchedEffect(activeIndex, karaoke) {
                     if (activeIndex >= 0) {
-                        listState.animateScrollToItem(activeIndex.coerceAtLeast(0), scrollOffset = -260)
+                        listState.animateScrollToItem(activeIndex.coerceAtLeast(0), scrollOffset = if (karaoke) -520 else -260)
                     }
                 }
                 Box(
@@ -250,14 +294,21 @@ fun LyricsScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         itemsIndexed(lyrics.lines) { index, line ->
+                            // How far through the active line we are, for the karaoke fill.
+                            val next = lyrics.lines.getOrNull(index + 1)?.timeMs
+                            val progress = if (index == activeIndex && next != null && next > line.timeMs)
+                                ((positionMs - line.timeMs).toFloat() / (next - line.timeMs)).coerceIn(0f, 1f) else 1f
                             LyricLineText(
                                 text = line.text,
                                 translation = s.translations?.getOrNull(index),
                                 showTranslation = s.showTranslation,
                                 isActive = index == activeIndex,
                                 synced = lyrics.synced,
-                                fontSize = 20.sp,
+                                fontSize = if (karaoke) 30.sp else 20.sp,
                                 onTap = if (lyrics.synced) ({ jumpTo(line.timeMs) }) else null,
+                                karaoke = karaoke,
+                                progress = progress,
+                                onLongPress = { shareLine(line.text) },
                             )
                         }
                     }
@@ -458,14 +509,14 @@ private fun LyricsControlPanel(
                 .padding(top = 4.dp, bottom = 4.dp)
                 .size(64.dp)
                 .offset(y = (-8).dp)
-                .background(Color.White, CircleShape),
+                .background(com.music.spotui.ui.theme.Saffron, CircleShape),
         ) {
             Icon(
                 painter = painterResource(
                     if (isPlaying) R.drawable.ic_playing else R.drawable.play_svgrepo_com
                 ),
                 contentDescription = if (isPlaying) "Pause" else "Play",
-                tint = Color.Black,
+                tint = Color(0xFF1A0E05),
                 modifier = Modifier.size(36.dp),
             )
         }
@@ -538,12 +589,12 @@ private fun LyricsSeekBar(
             cornerRadius = androidx.compose.ui.geometry.CornerRadius(corner),
         )
         drawRoundRect(
-            color = Color.White,
+            color = Color(0xFFFFC56B),
             topLeft = Offset(0f, centerY - trackHeight / 2f),
             size = Size(size.width * value, trackHeight),
             cornerRadius = androidx.compose.ui.geometry.CornerRadius(corner),
         )
-        drawCircle(Color.White, radius = 4.dp.toPx(), center = Offset(size.width * value, centerY))
+        drawCircle(Color(0xFFFFC56B), radius = 4.dp.toPx(), center = Offset(size.width * value, centerY))
     }
 }
 
@@ -561,6 +612,9 @@ private fun LyricLineText(
     synced: Boolean,
     fontSize: androidx.compose.ui.unit.TextUnit,
     onTap: (() -> Unit)?,
+    karaoke: Boolean = false,
+    progress: Float = 1f,
+    onLongPress: (() -> Unit)? = null,
 ) {
     if (text.isBlank() && translation.isNullOrBlank()) {
         Box(modifier = Modifier.size(1.dp))
@@ -585,20 +639,42 @@ private fun LyricLineText(
         ),
         label = "lyricSpacing",
     )
+    val glow = if (isActive && synced) androidx.compose.ui.graphics.Shadow(
+        color = com.music.spotui.ui.theme.Saffron.copy(alpha = 0.55f), blurRadius = 28f,
+    ) else null
     Column(
-        modifier = if (onTap != null) Modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-        ) { onTap() } else Modifier,
+        horizontalAlignment = if (karaoke) Alignment.CenterHorizontally else Alignment.Start,
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { onTap?.invoke() },
+                onLongClick = onLongPress,
+            ),
     ) {
         if (text.isNotBlank()) {
-            Text(
-                text = text,
-                color = color,
+            // Karaoke: the sung part of the active line is saffron, the rest white.
+            val style = androidx.compose.ui.text.TextStyle(
                 fontSize = fontSize,
                 letterSpacing = 0.1.sp,
                 fontWeight = FontWeight.Bold,
+                textAlign = if (karaoke) androidx.compose.ui.text.style.TextAlign.Center else androidx.compose.ui.text.style.TextAlign.Start,
+                shadow = glow,
+                lineHeight = fontSize * 1.2f,
             )
+            if (karaoke && isActive && synced) {
+                val sungChars = (text.length * progress).toInt().coerceIn(0, text.length)
+                Text(
+                    text = androidx.compose.ui.text.buildAnnotatedString {
+                        withStyle(androidx.compose.ui.text.SpanStyle(color = Color(0xFFFFC56B))) { append(text.substring(0, sungChars)) }
+                        withStyle(androidx.compose.ui.text.SpanStyle(color = Color.White)) { append(text.substring(sungChars)) }
+                    },
+                    style = style,
+                )
+            } else {
+                Text(text = text, color = if (isActive && synced && !karaoke) Color(0xFFFFE2C4) else color, style = style)
+            }
         }
         AnimatedVisibility(
             visible = showTranslation == true && !translation.isNullOrBlank(),

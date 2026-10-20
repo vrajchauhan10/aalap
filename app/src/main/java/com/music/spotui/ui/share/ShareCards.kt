@@ -55,7 +55,7 @@ object ShareCards {
 
     /** Small Aalap mark + name at the bottom of every card. */
     private fun Canvas.footer(ctx: Context) {
-        val cx = 150f; val cy = H - 150f
+        val cx = 150f; val cy = H - 110f
         val arc = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 10f; color = GOLD; strokeCap = Paint.Cap.ROUND }
         drawArc(RectF(cx - 46, cy - 46, cx + 46, cy + 46), 31f, 298f, false, arc)
         val play = android.graphics.Path().apply { moveTo(cx - 12, cy - 20); lineTo(cx + 20, cy); lineTo(cx - 12, cy + 20); close() }
@@ -88,12 +88,11 @@ object ShareCards {
             background(0xFF7A3A12.toInt())
             var y = 150f
             y += block("MY $period IN MUSIC".uppercase(), text(ctx, 40f, GOLD, true), 100f, y, W - 200)
-            y += 20f
-            y += block("$minutes", text(ctx, 220f, 0xFFFFFFFF.toInt(), true), 90f, y, W - 200, maxLines = 1)
+            y += block("$minutes", text(ctx, 170f, 0xFFFFFFFF.toInt(), true), 90f, y, W - 200, maxLines = 1)
             y += block("minutes · $plays plays", text(ctx, 50f, MUTED, false), 100f, y, W - 200)
-            y += 70f
+            y += 50f
             y += block("TOP ARTIST", text(ctx, 36f, SAFFRON, true), 100f, y, W - 200)
-            y += block(topArtist, text(ctx, 92f, 0xFFFFFFFF.toInt(), true), 100f, y, W - 200, maxLines = 2)
+            y += block(topArtist, text(ctx, 84f, 0xFFFFFFFF.toInt(), true), 100f, y, W - 200, maxLines = 1)
             y += 70f
             val half = (W - 260) / 2
             val songsTop = y
@@ -101,11 +100,12 @@ object ShareCards {
             block("TOP ARTISTS", text(ctx, 36f, SAFFRON, true), 160f + half, y, half)
             y += 70f
             var ys = y; var ya = y
-            topSongs.take(5).forEachIndexed { i, s -> ys += block("${i + 1}  $s", text(ctx, 42f, 0xFFFFFFFF.toInt(), false), 100f, ys, half, 2) + 16f }
-            topArtists.take(5).forEachIndexed { i, a -> ya += block("${i + 1}  $a", text(ctx, 42f, 0xFFFFFFFF.toInt(), false), 160f + half, ya, half, 2) + 16f }
-            y = maxOf(ys, ya, songsTop + 200f) + 60f
+            // One line per item so long titles can't push the list into the footer.
+            topSongs.take(5).forEachIndexed { i, s -> ys += block("${i + 1}  $s", text(ctx, 40f, 0xFFFFFFFF.toInt(), false), 100f, ys, half, 1) + 18f }
+            topArtists.take(5).forEachIndexed { i, a -> ya += block("${i + 1}  $a", text(ctx, 40f, 0xFFFFFFFF.toInt(), false), 160f + half, ya, half, 1) + 18f }
+            y = maxOf(ys, ya, songsTop + 200f) + 50f
             y += block("YOU'RE A", text(ctx, 36f, SAFFRON, true), 100f, y, W - 200)
-            block(personality, text(ctx, 74f, GOLD, true), 100f, y, W - 200, maxLines = 2)
+            block(personality, text(ctx, 70f, GOLD, true), 100f, y, W - 200, maxLines = 1)
             footer(ctx)
         }
         return bmp

@@ -69,7 +69,6 @@ private data class WrappedData(
     val periodLabel: String,
     val plays: Int,
     val minutes: Long,
-    val estimated: Boolean,
     val topArtist: Pair<String, String>?, // name to cover image
     val topSongs: List<Pair<HistoryEntry, Int>>,
     val topArtists: List<Pair<String, Int>>,
@@ -108,7 +107,6 @@ private fun buildWrapped(all: List<HistoryEntry>, month: YearMonth): WrappedData
         periodLabel = "${month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${month.year}",
         plays = plays.size,
         minutes = (known + unknown.toLong() * ESTIMATED_SONG_MS) / 60_000,
-        estimated = unknown > 0,
         topArtist = artists.firstOrNull()?.let { (a, p) -> a to p.first().image },
         topSongs = plays.groupBy { it.songId }.map { (_, p) -> p.first() to p.size }.sortedByDescending { it.second }.take(5),
         topArtists = artists.take(5).map { (a, p) -> a to p.size },
@@ -174,7 +172,7 @@ fun WrappedScreen(navController: NavController) {
 
             Text("${data.minutes}", color = Color.White, fontSize = 76.sp, fontWeight = FontWeight.Bold, lineHeight = 80.sp)
             Text(
-                (if (data.estimated) "about " else "") + "minutes · ${data.plays} plays · ${data.streakDays}-day streak",
+                "minutes · ${data.plays} plays · ${data.streakDays}-day streak",
                 color = MutedC, fontSize = 15.sp,
             )
 

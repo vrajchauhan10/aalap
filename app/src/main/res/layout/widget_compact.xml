@@ -27,12 +27,13 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:text="@string/widget_idle_title"
-        android:textColor="#FFFFFFFF"
+        android:textColor="@color/widget_text"
         android:textSize="14sp"
         android:textStyle="bold" />
 
     <ImageView
         android:id="@+id/widget_play"
+                android:tint="@color/widget_on_play"
         android:layout_width="38dp"
         android:layout_height="38dp"
         android:background="@drawable/widget_play_bg"
@@ -42,6 +43,7 @@
 
     <ImageView
         android:id="@+id/widget_next"
+                android:tint="@color/widget_icon"
         android:layout_width="38dp"
         android:layout_height="38dp"
         android:layout_marginStart="4dp"
