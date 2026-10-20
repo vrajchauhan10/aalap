@@ -1,5 +1,7 @@
 package com.music.spotui.ui.navigation
 
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.EnterTransition
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
@@ -83,10 +85,15 @@ fun MyNavHost(
     NavHost(
         navController = navHostController,
         startDestination = startDestination,
-        // Quick fade between screens instead of the default slide/scale animations.
+        // Quick fade between screens. The screen under the player/queue stays put
+        // (no fade) so the sheet visibly slides over it and back down into the mini player.
         enterTransition = { fadeIn(animationSpec = tween(150)) },
-        exitTransition = { fadeOut(animationSpec = tween(150)) },
-        popEnterTransition = { fadeIn(animationSpec = tween(150)) },
+        exitTransition = {
+            if (targetState.destination.route in SheetRoutes) ExitTransition.None else fadeOut(animationSpec = tween(150))
+        },
+        popEnterTransition = {
+            if (initialState.destination.route in SheetRoutes) EnterTransition.None else fadeIn(animationSpec = tween(150))
+        },
         popExitTransition = { fadeOut(animationSpec = tween(150)) },
     ){
         composable(Routes.Login.route){
@@ -117,7 +124,13 @@ fun MyNavHost(
             }
             LibraryScreen(navHostController)
         }
-        composable(Routes.Player.route){
+        composable(
+            Routes.Player.route,
+            enterTransition = { sheetEnter },
+            exitTransition = { fadeOut(animationSpec = tween(150)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(150)) },
+            popExitTransition = { sheetExit },
+        ){
             LaunchedEffect(playerState) {
                 bottomBarState.value = false
                 bottomBarPlayerState.value = playerState != ""
@@ -125,7 +138,13 @@ fun MyNavHost(
             PlayerScreen(navHostController)
         }
 
-        composable(Routes.Queue.route){
+        composable(
+            Routes.Queue.route,
+            enterTransition = { sheetEnter },
+            exitTransition = { fadeOut(animationSpec = tween(150)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(150)) },
+            popExitTransition = { sheetExit },
+        ){
             LaunchedEffect(playerState) {
                 bottomBarState.value = false
                 bottomBarPlayerState.value = false
@@ -307,3 +326,21 @@ fun MyNavHost(
         }
     }
 }
+
+/** Full-screen sheets that rise out of / sink back into the mini player. */
+private val SheetRoutes = setOf(Routes.Player.route, Routes.Queue.route)
+
+private val SheetEasing = androidx.compose.animation.core.FastOutSlowInEasing
+private val SheetOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+
+/** Opening: rise from the bottom while growing out of the mini-player box. */
+private val sheetEnter: EnterTransition =
+    androidx.compose.animation.slideInVertically(tween(380, easing = SheetEasing)) { it / 2 } +
+        androidx.compose.animation.scaleIn(tween(380, easing = SheetEasing), initialScale = 0.86f, transformOrigin = SheetOrigin) +
+        fadeIn(tween(220))
+
+/** Closing: sink down and shrink back into the mini-player box. */
+private val sheetExit: ExitTransition =
+    androidx.compose.animation.slideOutVertically(tween(320, easing = SheetEasing)) { it / 2 } +
+        androidx.compose.animation.scaleOut(tween(320, easing = SheetEasing), targetScale = 0.86f, transformOrigin = SheetOrigin) +
+        fadeOut(tween(260))

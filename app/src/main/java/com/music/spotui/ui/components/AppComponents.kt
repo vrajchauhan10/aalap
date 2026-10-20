@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
@@ -187,6 +188,19 @@ fun MiniPlayer(navController: NavHostController) {
                     indication = null
                 ) {
                     navController.navigate(Routes.Player.route)
+                }
+                // Swipe up on the mini player to open the full player.
+                .pointerInput(Unit) {
+                    var pulled = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = { pulled = 0f },
+                        onVerticalDrag = { change, dy -> change.consume(); pulled += dy },
+                        onDragEnd = {
+                            if (pulled < -swipeThreshold * 0.6f && currentRoute != Routes.Player.route) {
+                                navController.navigate(Routes.Player.route)
+                            }
+                        },
+                    )
                 }
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(

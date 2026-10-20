@@ -2,7 +2,6 @@ package com.music.spotui.ui.components
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,6 +33,10 @@ fun Modifier.swipeDownToDismiss(onDismiss: () -> Unit): Modifier {
 
     val connection = remember(threshold, screenHeight) {
         object : NestedScrollConnection {
+            // A fling can be reported more than once; closing twice would also pop the
+            // screen underneath.
+            private var dismissed = false
+
             // Pulled down and now dragging up: move the screen back before the list scrolls.
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (source != NestedScrollSource.Drag || offset.value <= 0f || available.y >= 0f) return Offset.Zero
@@ -50,9 +53,11 @@ fun Modifier.swipeDownToDismiss(onDismiss: () -> Unit): Modifier {
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
-                if (offset.value <= 0f) return Velocity.Zero
+                if (offset.value <= 0f || dismissed) return Velocity.Zero
                 if (offset.value > threshold || available.y > 2_000f) {
-                    offset.animateTo(screenHeight, tween(220))
+                    dismissed = true
+                    // Hand over to the navigation exit (sink + shrink into the mini player)
+                    // from wherever the finger let go, so the motion is continuous.
                     onDismiss()
                 } else {
                     offset.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 500f))
@@ -63,5 +68,16 @@ fun Modifier.swipeDownToDismiss(onDismiss: () -> Unit): Modifier {
     }
     return this
         .nestedScroll(connection)
-        .graphicsLayer { translationY = offset.value }
+        .graphicsLayer {
+            // While pulled, the sheet follows the finger, shrinks a little towards the
+            // bottom (where the mini player is) and rounds its corners like a card.
+            val pull = (offset.value / screenHeight).coerceIn(0f, 1f)
+            translationY = offset.value
+            val scale = 1f - 0.12f * pull
+            scaleX = scale
+            scaleY = scale
+            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+            shape = androidx.compose.foundation.shape.RoundedCornerShape((40f * pull * 4f).coerceAtMost(40f).dp)
+            clip = pull > 0f
+        }
 }
