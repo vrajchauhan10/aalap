@@ -22,8 +22,6 @@ import com.music.spotui.ui.screens.AlbumScreen
 import com.music.spotui.ui.screens.ArtistReleasesScreen
 import com.music.spotui.ui.screens.ArtistScreen
 import com.music.spotui.ui.screens.CategoryScreen
-import com.music.spotui.ui.screens.DeezerLoginScreen
-import com.music.spotui.ui.screens.DeezerIntroScreen
 import com.music.spotui.ui.screens.MusicSourceScreen
 import com.music.spotui.ui.screens.YouTubeLoginScreen
 import com.music.spotui.ui.screens.LocalFilesScreen
@@ -165,28 +163,6 @@ fun MyNavHost(
                 bottomBarPlayerState.value = playerState != ""
             }
             HistoryScreen(navHostController)
-        }
-
-        composable(
-            "${Routes.DeezerLogin.route}?next={next}",
-            arguments = listOf(navArgument("next") { defaultValue = "" }),
-        ) { navBackStackEntry ->
-            LaunchedEffect(playerState) {
-                bottomBarState.value = false
-                bottomBarPlayerState.value = playerState != ""
-            }
-            DeezerLoginScreen(
-                navHostController,
-                next = navBackStackEntry.arguments?.getString("next").orEmpty(),
-            )
-        }
-
-        composable(Routes.DeezerIntro.route){
-            LaunchedEffect(playerState) {
-                bottomBarState.value = false
-                bottomBarPlayerState.value = playerState != ""
-            }
-            DeezerIntroScreen(navHostController)
         }
 
         composable(Routes.MusicSource.route) {

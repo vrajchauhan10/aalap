@@ -90,9 +90,6 @@ fun SettingsScreen(navController: NavController) {
     var videoFallback by remember { mutableStateOf(isVideoFallbackEnabled(context)) }
     var selectedLanguage by remember { mutableStateOf(getLyricTranslateLang(context)) }
     var languageQuery by remember { mutableStateOf("") }
-    // Read fresh each composition so returning from the Deezer login reflects it.
-    val deezerConnected = com.music.spotui.data.preferences.getDeezerArl(context) != null
-    val deezerTier = com.music.spotui.data.preferences.getDeezerTier(context)
     val youtubeConnected = isYoutubeLoggedIn(context)
     var primarySource by remember {
         mutableStateOf(getPrimaryMusicSource(context) ?: MusicSource.YOUTUBE_MUSIC)
@@ -157,15 +154,10 @@ fun SettingsScreen(navController: NavController) {
                 selected = dlQ,
             ) { dlQ = it; setDownloadQuality(context, it) }
 
-            // Lossless FLAC comes from the Tidal community backend (no login) and, if
-            // connected, Deezer HiFi. Falls back to best-quality YouTube on a miss.
-            val losslessNote = if (deezerConnected) {
-                "Lossless: Tidal (free) + Deezer${if (deezerTier.isNotBlank()) " $deezerTier" else ""} — real FLAC"
-            } else {
-                "Lossless: Tidal community FLAC (no login needed) — or add Deezer HiFi below"
-            }
+            // Lossless FLAC comes from the Tidal community backend (no login). Falls back
+            // to best-quality YouTube on a miss.
             Text(
-                losslessNote,
+                "Lossless uses free community FLAC servers; if a song isn't there, Aalap plays High quality instead.",
                 color = com.music.spotui.ui.theme.TextMuted,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(start = 4.dp, top = 6.dp),
@@ -286,19 +278,6 @@ fun SettingsScreen(navController: NavController) {
                     navController.navigate(com.music.spotui.ui.navigation.Routes.YouTubeLogin.route)
                 }
             }
-            SourceSettingRow(
-                title = "Deezer",
-                subtitle = if (deezerConnected) "Connected${if (deezerTier.isNotBlank()) " — $deezerTier" else ""}" else "Not connected",
-                selected = primarySource == MusicSource.DEEZER,
-            ) {
-                if (deezerConnected) {
-                    primarySource = MusicSource.DEEZER
-                    setPrimaryMusicSource(context, primarySource)
-                    com.music.spotui.data.preferences.setDeezerEnabled(context, true)
-                } else {
-                    navController.navigate(com.music.spotui.ui.navigation.Routes.DeezerLogin.route)
-                }
-            }
             Text(
                 text = if (youtubeConnected) "Reconnect YouTube Music" else "Log in to YouTube Music",
                 color = AppPalette,
@@ -310,38 +289,6 @@ fun SettingsScreen(navController: NavController) {
                     .clickable { navController.navigate(com.music.spotui.ui.navigation.Routes.YouTubeLogin.route) }
                     .padding(vertical = 12.dp),
             )
-            Text(
-                text = if (deezerConnected) "Reconnect / switch account" else "Log in to Deezer",
-                color = AppPalette,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable {
-                        navController.navigate(com.music.spotui.ui.navigation.Routes.DeezerLogin.route)
-                    }
-                    .padding(vertical = 14.dp),
-            )
-            if (deezerConnected) {
-                Text(
-                    text = "Disconnect Deezer",
-                    color = Color(0xFFE57373),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .clickable {
-                            com.music.spotui.data.preferences.clearDeezer(context)
-                            navController.navigate(com.music.spotui.ui.navigation.Routes.Settings.route) {
-                                popUpTo(com.music.spotui.ui.navigation.Routes.Settings.route) { inclusive = true }
-                            }
-                        }
-                        .padding(vertical = 12.dp),
-                )
-            }
-
             Spacer(Modifier.height(12.dp))
             // Power-user options, folded away so the page stays about everyday choices.
             var showAdvanced by remember { mutableStateOf(false) }

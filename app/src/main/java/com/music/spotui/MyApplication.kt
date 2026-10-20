@@ -38,6 +38,9 @@ class MyApplication : Application(){
         com.metrolist.spotify.SpotifyCanvas.setLogger { level, msg ->
             android.util.Log.d("SpotifyCanvas", "[$level] $msg")
         }
+        // Deezer support was removed in 2.0: wipe any saved Deezer login token.
+        runCatching { deleteSharedPreferences("Deezer") }
+
         // Required by the ported YouTube streaming flow (cipher/PoToken WebViews).
         CipherDeobfuscator.initialize(this)
 

@@ -5,7 +5,6 @@ import android.content.Context
 /** The service used for normal (non-local, non-lossless) playback. */
 enum class MusicSource(val label: String) {
     YOUTUBE_MUSIC("YouTube Music"),
-    DEEZER("Deezer"),
 }
 
 private const val PREF = "music_source"
@@ -16,14 +15,11 @@ private fun sourcePrefs(context: Context) =
 
 /**
  * Returns null only for a new user who has not made the post-Spotify choice yet.
- * An existing Deezer login is treated as a Deezer choice when migrating older installs.
+ * Installs that had picked Deezer (removed in 2.0) move to YouTube Music.
  */
 fun getPrimaryMusicSource(context: Context): MusicSource? {
-    val stored = sourcePrefs(context).getString(KEY_PRIMARY, null)
-    if (stored != null) {
-        return runCatching { MusicSource.valueOf(stored) }.getOrNull()
-    }
-    return if (getDeezerArl(context) != null) MusicSource.DEEZER else null
+    val stored = sourcePrefs(context).getString(KEY_PRIMARY, null) ?: return null
+    return runCatching { MusicSource.valueOf(stored) }.getOrDefault(MusicSource.YOUTUBE_MUSIC)
 }
 
 fun setPrimaryMusicSource(context: Context, source: MusicSource) {

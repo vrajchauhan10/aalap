@@ -63,13 +63,6 @@ object SongPlayer {
     @Volatile var webPlayerEnabled = false
     @Volatile var youtubeEnabled = true
 
-    // ── Deezer ──
-    // When enabled and a Deezer account is logged in (ARL stored), playback tries
-    // Deezer FIRST (ISRC → Deezer track → encrypted CDN stream, decrypted on the
-    // fly by DeezerDataSource). Quality follows the account tier: free → MP3 128,
-    // Premium → MP3 320 / FLAC. Falls back to SpotiFLAC/YouTube on any miss.
-    @Volatile var deezerEnabled = true
-
     // Soulseek P2P as the last lossless fallback (see SoulseekSource).
     @Volatile var soulseekEnabled = true
 
@@ -577,9 +570,6 @@ object SongPlayer {
     private fun streamMimeType(streamUrl: String, source: String = currentSource): String? {
         val bare = streamUrl.substringBefore('?').lowercase()
         return when {
-            streamUrl.startsWith("deezer://") ->
-                if (streamUrl.contains("fmt=flac")) androidx.media3.common.MimeTypes.AUDIO_FLAC
-                else androidx.media3.common.MimeTypes.AUDIO_MPEG
             streamUrl.startsWith("data:application/dash+xml") ||
                 bare.endsWith(".mpd") || streamUrl.contains("manifest.tidal.com") || streamUrl.contains("/manifests/") ->
                 androidx.media3.common.MimeTypes.APPLICATION_MPD
@@ -600,9 +590,6 @@ object SongPlayer {
         // one now + preloading a partial intro makes playback stop after ~30s when the
         // continuation hits a stale URL, so resolve those fresh at play time instead.
         if (losslessStreaming && com.music.spotui.data.preferences.currentStreamingQuality(appContext).lossless) return
-        // Deezer resolves a fresh CDN url per play; a YouTube prefetch cached under
-        // the same key would shadow it, so skip prefetch entirely when Deezer is on.
-        if (deezerEnabled && com.music.spotui.data.preferences.isDeezerEnabled(appContext)) return
         scope.launch {
             val url = runCatching { resolveStreamUrl(song, appContext) }.getOrNull()
             if (url != null) cacheIntro(url, appContext)
@@ -720,26 +707,13 @@ object SongPlayer {
             return android.net.Uri.fromFile(java.io.File(path)).toString()
         }
         streamCache[song]?.let { cachedUrl ->
-            // Source choices take effect immediately; never let a URL cached under the
-            // previous choice silently keep using that provider.
-            val cachedSource = sourceCache[song]
-            val selectedSource = com.music.spotui.data.preferences.getPrimaryMusicSource(appContext)
-            val sourceStillSelected = when (cachedSource) {
-                "Deezer" -> selectedSource == com.music.spotui.data.preferences.MusicSource.DEEZER
-                "YouTube" -> selectedSource != com.music.spotui.data.preferences.MusicSource.DEEZER
-                else -> true // local, downloaded, alternative and lossless sources are independent
-            }
-            if (!sourceStillSelected) {
-                invalidateResolvedStream(song)
-            } else {
             // Cache hits must still update the badge — returning early kept the
             // previous track's label (e.g. "Downloaded") on a streamed track.
-                if (forPlayback) {
-                    currentSource = cachedSource ?: "YouTube"
-                    currentQuality = qualityCache[song] ?: ""
-                }
-                return cachedUrl
+            if (forPlayback) {
+                currentSource = sourceCache[song] ?: "YouTube"
+                currentQuality = qualityCache[song] ?: ""
             }
+            return cachedUrl
         }
         // Quality for the current network (Wi-Fi vs cellular), from Settings.
         val quality = com.music.spotui.data.preferences.currentStreamingQuality(appContext)
@@ -751,40 +725,6 @@ object SongPlayer {
                 sourceCache[song] = "Lossless • Soulseek"
                 qualityCache[song] = "FLAC"
                 return android.net.Uri.fromFile(file).toString()
-            }
-        }
-
-        // Deezer — preferred, but when Lossless is selected a FREE Deezer account only
-        // yields MP3. In that case we HOLD the MP3 as a fallback and try the real FLAC
-        // sources first, so lossless isn't silently pre-empted by Deezer MP3.
-        var heldDeezer: com.music.spotui.deezer.DeezerSource.Result.Success? = null
-        if (deezerEnabled && com.music.spotui.data.preferences.isDeezerEnabled(appContext)) {
-            val spotifyId = trackIdRegistry[song] ?: spotifyTrackIdForPlayback(song)
-            val r = kotlinx.coroutines.withTimeoutOrNull(12_000) {
-                com.music.spotui.deezer.DeezerSource.resolve(
-                    appContext,
-                    spotifyId = spotifyId,
-                    isrc = null,
-                    searchQuery = searchTextForPlayback(song),
-                    expectedDurationSec = (durationRegistry[song] ?: 0) / 1000,
-                )
-            }
-            if (r is com.music.spotui.deezer.DeezerSource.Result.Success) {
-                // At High, YouTube Opus (~160 kbps) beats a free account's MP3 128 (#66).
-                val belowYouTube = r.lowBitrate && youtubeEnabled &&
-                    quality.audioQuality == com.metrolist.music.constants.AudioQuality.HIGH
-                if (r.mimeFlac || (!quality.lossless && !belowYouTube)) {
-                    Log.d(TAG, "deezer ${r.qualityLabel} for: $song")
-                    if (forPlayback) { currentSource = "Deezer"; currentQuality = r.qualityLabel }
-                    streamCache[song] = r.uri
-                    sourceCache[song] = "Deezer"
-                    qualityCache[song] = r.qualityLabel
-                    return r.uri
-                }
-                heldDeezer = r // MP3 only: try FLAC (Lossless) or YouTube (MP3 128 at High) first.
-                Log.d(TAG, "deezer only ${r.qualityLabel}; trying better sources first for: $song")
-            } else {
-                Log.d(TAG, "deezer miss ($r), continuing for: $song")
             }
         }
 
@@ -829,19 +769,9 @@ object SongPlayer {
             }
         }
 
-        fun useHeldDeezer(r: com.music.spotui.deezer.DeezerSource.Result.Success): String {
-            Log.d(TAG, "using Deezer MP3 fallback for: $song")
-            if (forPlayback) { currentSource = "Deezer"; currentQuality = r.qualityLabel }
-            streamCache[song] = r.uri
-            sourceCache[song] = "Deezer"
-            qualityCache[song] = r.qualityLabel
-            return r.uri
-        }
-        // Deezer MP3 320 (held above) before YouTube; MP3 128 only if YouTube fails.
-        heldDeezer?.takeIf { !it.lowBitrate }?.let { return useHeldDeezer(it) }
         if (!youtubeEnabled || !allowYouTube) {
             if (!youtubeEnabled) Log.w(TAG, "YouTube fallback disabled — no stream for: $song")
-            return heldDeezer?.let(::useHeldDeezer)
+            return null
         }
         if (forPlayback) {
             currentSource = "YouTube"
@@ -850,7 +780,7 @@ object SongPlayer {
             currentQuality = ""
         }
         val playback = resolveYtPlayback(song, quality.audioQuality, appContext)
-            ?: return heldDeezer?.let(::useHeldDeezer)
+            ?: return null
         val ytQuality = ytQualityLabel(playback)
         if (forPlayback) currentQuality = ytQuality
         streamCache[song] = playback.streamUrl
@@ -1358,9 +1288,7 @@ object SongPlayer {
         val p = ExoPlayer.Builder(context)
             .setMediaSourceFactory(
                 androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
-                    // Routes deezer:// URIs to the decrypting DeezerDataSource and
-                    // everything else through the normal cached HTTP stack.
-                    com.music.spotui.deezer.DeezerAwareDataSourceFactory(cacheDataSourceFactory(context)),
+                    cacheDataSourceFactory(context),
                 ),
             )
             .setRenderersFactory(renderers)
@@ -1430,7 +1358,7 @@ object SongPlayer {
                 ?: currentRequest.takeIf { it.isNotBlank() } ?: return
             preloadedNext = null
             Log.w(TAG, "mid-play error for $song: ${error.errorCodeName} (code ${error.errorCode})")
-            // Drop the cached URL — it may have expired (Deezer CDN, YouTube signing).
+            // Drop the cached URL — it may have expired (YouTube signing, lossless CDN).
             streamCache.remove(song)
             sourceCache.remove(song)
             val ctx = appCtx ?: run { onStreamFailed?.invoke(song); return }

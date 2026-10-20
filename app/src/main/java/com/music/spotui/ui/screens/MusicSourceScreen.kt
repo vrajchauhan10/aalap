@@ -42,10 +42,10 @@ fun MusicSourceScreen(navController: NavController) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text("Choose your music source", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            Text("Connect YouTube Music", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 26.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))
             Text(
-                "Spotify keeps your library and recommendations. Choose where Aalap streams the audio.",
+                "Spotify keeps your library and recommendations. Aalap plays the audio from YouTube Music — sign in so explicit and age-restricted songs play too.",
                 color = com.music.spotui.ui.theme.TextMuted, fontSize = 14.sp, textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(32.dp))
@@ -63,14 +63,6 @@ fun MusicSourceScreen(navController: NavController) {
                 } else {
                     navController.navigate("${Routes.YouTubeLogin.route}?next=home")
                 }
-            }
-            Spacer(Modifier.height(14.dp))
-            SourceCard(
-                title = "Deezer",
-                subtitle = "Fast exact-track matching. Quality depends on your Deezer plan.",
-                color = Color(0xFFA238FF),
-            ) {
-                navController.navigate("${Routes.DeezerLogin.route}?next=home")
             }
         }
     }

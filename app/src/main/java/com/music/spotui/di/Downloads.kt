@@ -211,20 +211,6 @@ object Downloads {
         appContext: Context,
     ): Boolean {
         val dlQuality = com.music.spotui.data.preferences.getDownloadQuality(appContext)
-        // Deezer: use immediately if it yields FLAC (HiFi). If it only yields MP3
-        // (free account), HOLD it and try the real FLAC sources first — otherwise a
-        // free Deezer MP3 would pre-empt lossless.
-        var heldDeezer: com.music.spotui.deezer.DeezerSource.Resolved? = null
-        if (SongPlayer.deezerEnabled && com.music.spotui.data.preferences.isDeezerEnabled(appContext)) {
-            val raw = kotlinx.coroutines.withTimeoutOrNull(30_000) { resolveDeezerRaw(song, appContext) }
-            if (raw != null) {
-                if (raw.isFlac) {
-                    if (downloadDeezerRaw(song, appContext, raw)) return true
-                } else {
-                    heldDeezer = raw
-                }
-            }
-        }
         // Lossless FLAC: SpotiFLAC gated (if verified) + Tidal/community. Saves .flac.
         if (SongPlayer.losslessStreaming && song.spotifyTrackId.isNotBlank()) {
             val r = kotlinx.coroutines.withTimeoutOrNull(45_000) {
@@ -248,11 +234,6 @@ object Downloads {
                 runCatching { tmpFile.delete() }
             }
         }
-        // Deezer MP3 (held above) before a YouTube m4a, except MP3 128 at High,
-        // which YouTube's Opus beats (#66); that one stays as the last resort.
-        val ytFirst = heldDeezer?.lowBitrate == true && SongPlayer.youtubeEnabled &&
-            dlQuality.audioQuality == com.metrolist.music.constants.AudioQuality.HIGH
-        if (!ytFirst) heldDeezer?.let { if (downloadDeezerRaw(song, appContext, it)) return true }
         if (!SongPlayer.youtubeEnabled) {
             lastDownloadError = "Track not available for download"
             return false
@@ -262,7 +243,6 @@ object Downloads {
         // Resolve a fresh network stream URL (bypass any local-file short-circuit),
         // walking the ranked video candidates like playback does.
         val playback = SongPlayer.resolveYtPlayback(query, dlQuality.audioQuality, appContext) ?: run {
-            if (ytFirst && downloadDeezerRaw(song, appContext, heldDeezer!!)) return true
             lastDownloadError = "Couldn't resolve a stream"
             return false
         }
@@ -284,114 +264,4 @@ object Downloads {
         return true
     }
 
-    /**
-     * Download a Deezer track and decrypt it to a real audio file. Resolves the
-     * stream (ISRC → Deezer, account-tier quality), streams the Blowfish-encrypted
-     * CDN bytes and decrypts every 3rd 2048-byte block on the way to `<id>.flac` /
-     * `<id>.mp3`. Returns false on any miss so the caller can fall back.
-     */
-    private suspend fun resolveDeezerRaw(
-        song: com.music.spotui.data.entity.SongsModel,
-        appContext: Context,
-    ): com.music.spotui.deezer.DeezerSource.Resolved? =
-        com.music.spotui.deezer.DeezerSource.resolveRaw(
-            appContext,
-            spotifyId = song.spotifyTrackId.takeIf { it.isNotBlank() },
-            isrc = null,
-            searchQuery = listOf(song.title, song.singer).filter { it.isNotBlank() }.joinToString(" "),
-            expectedDurationSec = if (song.durationMs > 0) song.durationMs / 1000 else 0,
-        )
-
-    private fun downloadDeezerRaw(
-        song: com.music.spotui.data.entity.SongsModel,
-        appContext: Context,
-        raw: com.music.spotui.deezer.DeezerSource.Resolved,
-    ): Boolean {
-        val ext = if (raw.isFlac) "flac" else "mp3"
-        val dir = java.io.File(appContext.filesDir, "downloads").apply { mkdirs() }
-        val outFile = java.io.File(dir, "${song.id}.$ext")
-        val tmpFile = java.io.File(dir, "${song.id}.dzpart")
-        if (!deezerDownloadDecrypted(raw.url, raw.encrypted, raw.trackId, tmpFile, song.url)) {
-            runCatching { tmpFile.delete() }
-            return false
-        }
-        if (!tmpFile.renameTo(outFile)) {
-            lastDownloadError = "Couldn't save file"
-            runCatching { tmpFile.delete() }
-            return false
-        }
-        com.music.spotui.data.preferences.addDownload(appContext, song, outFile.absolutePath)
-        Log.d(TAG, "Deezer downloaded (${raw.qualityLabel}): ${song.title}")
-        return true
-    }
-
-    /**
-     * Stream [url] and, if [encrypted], Blowfish-decrypt every 3rd 2048-byte block
-     * (Deezer's stripe cipher) while writing to [tmpFile], reporting progress for
-     * [query]. Produces a plain, fully-decrypted audio file.
-     */
-    private fun deezerDownloadDecrypted(
-        url: String,
-        encrypted: Boolean,
-        trackId: String,
-        tmpFile: java.io.File,
-        query: String,
-    ): Boolean {
-        downloadProgress[query] = 0
-        val conn = openDownloadConn(url)
-        return try {
-            val code = conn.responseCode
-            if (code !in 200..299) {
-                lastDownloadError = "Deezer CDN HTTP $code"
-                return false
-            }
-            val total = conn.contentLengthLong
-            val cipher = if (encrypted) {
-                com.music.spotui.deezer.DeezerCrypto.cipher(
-                    com.music.spotui.deezer.DeezerCrypto.trackKey(trackId),
-                )
-            } else {
-                null
-            }
-            java.io.BufferedOutputStream(tmpFile.outputStream()).use { output ->
-                conn.inputStream.use { input ->
-                    val buf = ByteArray(2048)
-                    var counter = 0
-                    var position = 0L
-                    while (true) {
-                        var read = 0
-                        while (read < 2048) {
-                            val r = input.read(buf, read, 2048 - read)
-                            if (r < 0) break
-                            read += r
-                        }
-                        if (read == 0) break
-                        val out = if (encrypted && read == 2048 && counter % 3 == 0) {
-                            cipher!!.doFinal(buf)
-                        } else {
-                            buf
-                        }
-                        output.write(out, 0, read)
-                        counter++
-                        position += read
-                        if (total > 0) {
-                            val pct = ((position * 100) / total).toInt().coerceIn(0, 100)
-                            if (downloadProgress[query] != pct) {
-                                downloadProgress[query] = pct
-                                onDownloadsChanged?.invoke()
-                            }
-                        }
-                        if (read < 2048) break // final partial chunk
-                    }
-                }
-            }
-            downloadProgress[query] = 100
-            true
-        } catch (e: Exception) {
-            lastDownloadError = e.message ?: "Deezer download error"
-            false
-        } finally {
-            runCatching { conn.disconnect() }
-        }
-    }
 }
