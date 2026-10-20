@@ -170,29 +170,14 @@ fun SoundScreen(navController: NavController) {
             normalize = it; setNormalizeVolume(context, it); push()
         }
 
-        Label("Playback speed")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PLAYBACK_SPEEDS.forEach { s ->
-                val sel = s == speed
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(50))
-                        .background(if (sel) Saffron else SurfaceHigh)
-                        .clickable { speed = s; SongPlayer.setSpeed(context, s) }
-                        .padding(vertical = 9.dp),
-                ) {
-                    Text(speedLabel(s), color = if (sel) OnSaffron else TextPrimary, fontSize = 13.sp, fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal)
-                }
-            }
-        }
+        Spacer(Modifier.height(16.dp))
+        com.music.spotui.ui.components.SpeedControl(speed) { speed = it; SongPlayer.setSpeed(context, it) }
         Text("Handy for podcasts. Voices keep their normal pitch.", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
         Spacer(Modifier.height(200.dp))
     }
 }
 
-fun speedLabel(s: Float): String = if (s == s.toInt().toFloat()) "${s.toInt()}×" else "${s}×"
+fun speedLabel(s: Float): String = com.music.spotui.ui.components.formatSpeed(s)
 
 @Composable
 private fun Label(text: String) {

@@ -15,7 +15,20 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class HomeViewModel @Inject constructor(private val repository: AppRepository)  : ViewModel() {
+class HomeViewModel @Inject constructor(
+    private val repository: AppRepository,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
+)  : ViewModel() {
+
+    // ── Daily discovery (moods / charts are static lists; these are fetched) ──
+    private val _dailyPicks = MutableStateFlow<List<com.music.spotui.data.entity.SongsModel>>(emptyList())
+    val dailyPicks: StateFlow<List<com.music.spotui.data.entity.SongsModel>> = _dailyPicks
+    private val _favourites = MutableStateFlow<List<com.music.spotui.data.entity.SongsModel>>(emptyList())
+    val favourites: StateFlow<List<com.music.spotui.data.entity.SongsModel>> = _favourites
+    private val _refreshing = MutableStateFlow(false)
+    val refreshing: StateFlow<Boolean> = _refreshing
+    /** Day the page was last built for; a new day triggers a rebuild. */
+    private var loadedDay: java.time.LocalDate? = null
 
 
     private val _albums : MutableStateFlow<Response<List<AlbumsModel>>> = MutableStateFlow(Response.Loading())
@@ -32,6 +45,30 @@ class HomeViewModel @Inject constructor(private val repository: AppRepository)  
         fetchHome()
         fetchArtists()
         fetchAlbums()
+        loadDiscovery()
+    }
+
+    private fun loadDiscovery() = viewModelScope.launch(Dispatchers.IO) {
+        loadedDay = java.time.LocalDate.now()
+        _favourites.value = com.music.spotui.data.api.Discover.allTimeFavourites(appContext)
+        _dailyPicks.value = com.music.spotui.data.api.Discover.dailyPicks(appContext)
+    }
+
+    /** Called when Home comes back on screen: rebuild if the date changed since. */
+    fun refreshIfNewDay() {
+        if (loadedDay != java.time.LocalDate.now()) refresh(force = false)
+    }
+
+    /** Pull-to-refresh: reload the Spotify feed and rebuild today's discovery. */
+    fun refresh(force: Boolean = true) = viewModelScope.launch(Dispatchers.IO) {
+        _refreshing.value = true
+        if (force) {
+            com.music.spotui.data.api.Discover.clearToday(appContext)
+            com.music.spotui.data.api.Api.HomeCache.clear()
+        }
+        fetchHome().join()
+        loadDiscovery().join()
+        _refreshing.value = false
     }
 
     private fun fetchHome() = viewModelScope.launch(Dispatchers.IO) {

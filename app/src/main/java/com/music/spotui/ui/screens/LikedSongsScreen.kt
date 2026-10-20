@@ -1,5 +1,6 @@
 package com.music.spotui.ui.screens
 
+import androidx.compose.foundation.layout.statusBarsPadding
 import android.annotation.SuppressLint
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -132,7 +133,9 @@ fun LikedSongsScreen(navController: NavController) {
             }
         ) { innerPadding ->
             LazyColumn(
-                contentPadding = innerPadding,
+                // Only bottom padding: the coloured header runs up behind the transparent top
+                // bar and the status bar (top padding left a dark band above it).
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = innerPadding.calculateBottomPadding()),
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color(AppBackground.toArgb()))
@@ -151,7 +154,7 @@ fun LikedSongsScreen(navController: NavController) {
                             ),
                         verticalArrangement = Arrangement.Center,
                     ) {
-                        Spacer(modifier = Modifier.padding(25.dp))
+                        Spacer(modifier = Modifier.statusBarsPadding().height(56.dp))
 
                         Box(
                             modifier = Modifier

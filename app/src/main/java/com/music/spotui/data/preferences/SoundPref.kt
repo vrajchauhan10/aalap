@@ -20,7 +20,7 @@ enum class EqPreset(val label: String, val gainsDb: List<Float>) {
 val EQ_REFERENCE_HZ = listOf(60, 230, 910, 3_600, 14_000)
 
 /** Playback speeds offered in the UI (mainly for podcasts). */
-val PLAYBACK_SPEEDS = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
+val PLAYBACK_SPEEDS = listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
 
 private const val PREF = "sound_prefs"
 private const val KEY_EQ_ON = "eq_enabled"

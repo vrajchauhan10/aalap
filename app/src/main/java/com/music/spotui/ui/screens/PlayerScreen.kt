@@ -1064,19 +1064,23 @@ fun PlayerConnectRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             // Playback speed: tap to cycle 0.75× → 1× → 1.25× → 1.5× → 2×.
             var speed by remember { mutableStateOf(com.music.spotui.data.preferences.getPlaybackSpeed(context)) }
+            var showSpeed by remember { mutableStateOf(false) }
+            if (showSpeed) {
+                com.music.spotui.ui.components.SpeedSheet(
+                    speed = speed,
+                    onChange = { speed = it; SongPlayer.setSpeed(context, it) },
+                    onDismiss = { showSpeed = false },
+                )
+            }
             Text(
-                speedLabel(speed),
+                com.music.spotui.ui.components.formatSpeed(speed),
                 color = if (speed != 1f) com.music.spotui.ui.theme.OnSaffron else Color.White,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
                     .background(if (speed != 1f) com.music.spotui.ui.theme.Saffron else Color.White.copy(alpha = 0.16f))
-                    .clickable {
-                        val all = com.music.spotui.data.preferences.PLAYBACK_SPEEDS
-                        speed = all[(all.indexOf(speed).coerceAtLeast(0) + 1) % all.size]
-                        SongPlayer.setSpeed(context, speed)
-                    }
+                    .clickable { showSpeed = true }
                     .padding(horizontal = 10.dp, vertical = 5.dp),
             )
             Spacer(modifier = Modifier.width(18.dp))

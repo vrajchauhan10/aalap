@@ -1,5 +1,9 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.music.spotui.ui.screens
 
+import androidx.compose.foundation.border
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.foundation.horizontalScroll
@@ -87,12 +91,30 @@ fun HomeScreen(navController: NavController){
     val albums by homeViewModel.albums.collectAsState()
     val artists by homeViewModel.artists.collectAsState()
 
+    // Coming back to Home on a new day rebuilds the daily sections.
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) homeViewModel.refreshIfNewDay()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    val refreshing by homeViewModel.refreshing.collectAsState()
+    val pullState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+    if (pullState.isRefreshing) {
+        androidx.compose.runtime.LaunchedEffect(Unit) { homeViewModel.refresh() }
+    }
+    androidx.compose.runtime.LaunchedEffect(refreshing) { if (!refreshing) pullState.endRefresh() }
+
     Surface(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(AppBackground.toArgb()))
             .statusBarsPadding()
+            .nestedScroll(pullState.nestedScrollConnection)
     ) {
+        Box(Modifier.fillMaxSize()) {
         val feed = (home as? Response.Success)?.data
         // Each feed resolves independently — albums (new releases) often succeeds
         // while artists (personalized) gets rate-limited. Render whatever arrived
@@ -116,7 +138,7 @@ fun HomeScreen(navController: NavController){
             // otherwise the old "Sum up" layout flashes for a beat before the real
             // Spotify-style feed swaps in.
             home is Response.Loading -> {
-                Loader()
+                com.music.spotui.ui.components.HomeSkeleton()
             }
 
             // Fallback: home feed errored but new-releases / artists came through.
@@ -133,6 +155,13 @@ fun HomeScreen(navController: NavController){
                     )
                 }
             }
+        }
+        androidx.compose.material3.pulltorefresh.PullToRefreshContainer(
+            state = pullState,
+            modifier = Modifier.align(Alignment.TopCenter),
+            containerColor = com.music.spotui.ui.theme.Surface,
+            contentColor = com.music.spotui.ui.theme.Saffron,
+        )
         }
     }
 }
@@ -165,7 +194,10 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
             .background(com.music.spotui.ui.theme.AppBackground)
     ) {
         item { HomeHeaderRow(navController) }
+        item { MoodRow(navController) }
         featured?.let { item { FeaturedBanner(it) { onHomeItemClick(navController, it) } } }
+        item { ChartsRow(navController) }
+        item { DailySongRows() }
         gridSection?.let { section ->
             val rest = section.items.drop(1).take(10)
             if (rest.isNotEmpty()) item { JumpBackInRow(navController, rest) }
@@ -936,4 +968,106 @@ private fun OfflineAction(label: String, filled: Boolean = false, onClick: () ->
             .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 10.dp),
     )
+}
+
+/** Mood categories: calm pills in one scrolling row, each with a small colour dot. */
+@Composable
+private fun MoodRow(navController: NavController) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        modifier = Modifier.padding(vertical = 4.dp),
+    ) {
+        val moods = com.music.spotui.data.api.Mood.entries
+        items(moods.size) { i ->
+            val mood = moods[i]
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(com.music.spotui.ui.theme.Surface)
+                    .border(1.dp, com.music.spotui.ui.theme.Hairline, RoundedCornerShape(50))
+                    .clickable { navController.navigate("mood/${mood.name}") }
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
+            ) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(Color(mood.colors.first)))
+                Spacer(Modifier.width(8.dp))
+                Text(mood.label, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+/** Spotify's daily charts: clean dark cards with a colour accent. */
+@Composable
+private fun ChartsRow(navController: NavController) {
+    SectionHeader("Today's charts")
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp),
+    ) {
+        items(com.music.spotui.data.api.CHARTS.size) { i ->
+            val chart = com.music.spotui.data.api.CHARTS[i]
+            val accent = Color(chart.colors.first)
+            Column(
+                modifier = Modifier
+                    .size(width = 148.dp, height = 132.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(com.music.spotui.ui.theme.Surface)
+                    .border(1.dp, com.music.spotui.ui.theme.Hairline, RoundedCornerShape(20.dp))
+                    .clickable { navController.navigate(playlistRoute(chart.id, chart.title)) },
+            ) {
+                Box(Modifier.fillMaxWidth().height(4.dp).background(accent))
+                Column(Modifier.padding(14.dp)) {
+                    Text(chart.title.substringBefore(" 50 ").uppercase() + " 50", color = accent, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(chart.title.substringAfter(" 50 "), color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(6.dp))
+                    Text(chart.subtitle, color = com.music.spotui.ui.theme.TextMuted, fontSize = 11.sp, maxLines = 2, lineHeight = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+/** Fresh picks for today and your all-time favourites, as playable tile rows. */
+@Composable
+private fun DailySongRows() {
+    val homeViewModel: HomeViewModel = hiltViewModel()
+    val picks by homeViewModel.dailyPicks.collectAsState()
+    val favourites by homeViewModel.favourites.collectAsState()
+    if (picks.isNotEmpty()) SongTileRow("Fresh picks for you today", picks)
+    if (favourites.isNotEmpty()) SongTileRow("Your all-time favourites", favourites)
+}
+
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun SongTileRow(title: String, songs: List<com.music.spotui.data.entity.SongsModel>) {
+    val context = LocalContext.current
+    val playerViewModel: com.music.spotui.ui.viewmodel.PlayerViewModel = hiltViewModel()
+    SectionHeader(title)
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp),
+    ) {
+        items(songs.size) { i ->
+            val song = songs[i]
+            Column(
+                modifier = Modifier
+                    .width(132.dp)
+                    .clickable {
+                        playerViewModel.updateQueue(songs)
+                        playerViewModel.playSongAt(songs, i, context)
+                    },
+            ) {
+                GlideImage(
+                    model = song.coverUri, contentDescription = song.title, contentScale = ContentScale.Crop,
+                    loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+                    modifier = Modifier.size(132.dp).clip(RoundedCornerShape(18.dp)),
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(song.title, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(song.singer, color = com.music.spotui.ui.theme.TextMuted, fontSize = 11.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+        }
+    }
 }

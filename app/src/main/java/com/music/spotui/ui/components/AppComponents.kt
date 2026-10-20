@@ -69,18 +69,8 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun Loader() {
-    Column(Modifier
-        .background(Color(AppBackground.toArgb())),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        CircularProgressIndicator(
-            modifier = Modifier
-                .size(45.dp),
-            color = Color(0xFF4A4AC4)
-        )
-    }
-
+    // Aalap's bouncing sound bars, centred in the space (was a fixed purple spinner).
+    CenteredLoader(Modifier.background(com.music.spotui.ui.theme.AppBackground))
 }
 
 @OptIn(ExperimentalGlideComposeApi::class)

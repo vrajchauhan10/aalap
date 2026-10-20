@@ -1,5 +1,7 @@
 package com.music.spotui.ui.navigation
 
+import androidx.compose.foundation.layout.fillMaxSize
+import com.music.spotui.ui.components.swipeDownToDismiss
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.EnterTransition
 import android.os.Build
@@ -157,7 +159,7 @@ fun MyNavHost(
                 bottomBarState.value = true
                 bottomBarPlayerState.value = playerState != ""
             }
-            LikedSongsScreen(navHostController)
+            PullDownToClose(navHostController) { LikedSongsScreen(navHostController) }
         }
 
         composable(Routes.Downloads.route){
@@ -165,7 +167,7 @@ fun MyNavHost(
                 bottomBarState.value = true
                 bottomBarPlayerState.value = playerState != ""
             }
-            DownloadsScreen(navHostController)
+            PullDownToClose(navHostController) { DownloadsScreen(navHostController) }
         }
 
         composable(Routes.Settings.route){
@@ -173,7 +175,15 @@ fun MyNavHost(
                 bottomBarState.value = true
                 bottomBarPlayerState.value = playerState != ""
             }
-            SettingsScreen(navHostController)
+            PullDownToClose(navHostController) { SettingsScreen(navHostController) }
+        }
+
+        composable("mood/{mood}") { entry ->
+            LaunchedEffect(playerState) {
+                bottomBarState.value = true
+                bottomBarPlayerState.value = playerState != ""
+            }
+            PullDownToClose(navHostController) { com.music.spotui.ui.screens.MoodScreen(navHostController, entry.arguments?.getString("mood").orEmpty()) }
         }
 
         composable(Routes.Sound.route){
@@ -181,7 +191,7 @@ fun MyNavHost(
                 bottomBarState.value = true
                 bottomBarPlayerState.value = playerState != ""
             }
-            com.music.spotui.ui.screens.SoundScreen(navHostController)
+            PullDownToClose(navHostController) { com.music.spotui.ui.screens.SoundScreen(navHostController) }
         }
 
         composable(Routes.Wrapped.route){
@@ -189,7 +199,7 @@ fun MyNavHost(
                 bottomBarState.value = false
                 bottomBarPlayerState.value = false
             }
-            com.music.spotui.ui.screens.WrappedScreen(navHostController)
+            PullDownToClose(navHostController) { com.music.spotui.ui.screens.WrappedScreen(navHostController) }
         }
 
         composable(Routes.History.route){
@@ -197,7 +207,7 @@ fun MyNavHost(
                 bottomBarState.value = true
                 bottomBarPlayerState.value = playerState != ""
             }
-            HistoryScreen(navHostController)
+            PullDownToClose(navHostController) { HistoryScreen(navHostController) }
         }
 
         composable(Routes.MusicSource.route) {
@@ -224,7 +234,7 @@ fun MyNavHost(
                 bottomBarState.value = true
                 bottomBarPlayerState.value = playerState != ""
             }
-            LocalFilesScreen(navHostController)
+            PullDownToClose(navHostController) { LocalFilesScreen(navHostController) }
         }
 
         composable(
@@ -251,7 +261,7 @@ fun MyNavHost(
             }
             val genre = navBackStackEntry.arguments?.getString("genre").orEmpty()
             val title = navBackStackEntry.arguments?.getString("title").orEmpty()
-            CategoryScreen(navHostController, genre = genre, title = title.ifBlank { genre })
+            PullDownToClose(navHostController) { CategoryScreen(navHostController, genre = genre, title = title.ifBlank { genre }) }
         }
 
         composable(
@@ -268,7 +278,7 @@ fun MyNavHost(
             val artist = navBackStackEntry.arguments?.getString("artist").orEmpty()
             /* We check if it's not null */
             uId?.let { id->
-                AlbumScreen(navController = navHostController, albumName = id, artist = artist)
+                PullDownToClose(navHostController) { AlbumScreen(navController = navHostController, albumName = id, artist = artist) }
             }
         }
 
@@ -282,7 +292,7 @@ fun MyNavHost(
             }
             val pId = navBackStackEntry.arguments?.getString("pId")
             val name = navBackStackEntry.arguments?.getString("name").orEmpty()
-            pId?.let { PlaylistScreen(navHostController, playlistId = it, playlistName = name) }
+            PullDownToClose(navHostController) { pId?.let { PlaylistScreen(navHostController, playlistId = it, playlistName = name) } }
         }
 
         composable(
@@ -295,7 +305,7 @@ fun MyNavHost(
             }
             val sId = navBackStackEntry.arguments?.getString("sId")
             val name = navBackStackEntry.arguments?.getString("name").orEmpty()
-            sId?.let { ShowScreen(navHostController, showId = it, showName = name) }
+            PullDownToClose(navHostController) { sId?.let { ShowScreen(navHostController, showId = it, showName = name) } }
         }
 
         composable("${Routes.ArtistReleases.route}/{aString}") { navBackStackEntry ->
@@ -304,7 +314,7 @@ fun MyNavHost(
                 bottomBarPlayerState.value = playerState != ""
             }
             val aId = navBackStackEntry.arguments?.getString("aString")
-            aId?.let { ArtistReleasesScreen(navHostController, it) }
+            PullDownToClose(navHostController) { aId?.let { ArtistReleasesScreen(navHostController, it) } }
         }
 
         composable(
@@ -321,7 +331,7 @@ fun MyNavHost(
             val artistId = navBackStackEntry.arguments?.getString("artistId").orEmpty()
             /* We check if it's not null */
             aId?.let { aid->
-                ArtistScreen(navHostController, aid, artistId)
+                PullDownToClose(navHostController) { ArtistScreen(navHostController, aid, artistId) }
             }
         }
     }
@@ -344,3 +354,13 @@ private val sheetExit: ExitTransition =
     androidx.compose.animation.slideOutVertically(tween(320, easing = SheetEasing)) { it / 2 } +
         androidx.compose.animation.scaleOut(tween(320, easing = SheetEasing), targetScale = 0.86f, transformOrigin = SheetOrigin) +
         fadeOut(tween(260))
+
+/** Detail pages close with the same pull-down gesture as the player. */
+@Composable
+private fun PullDownToClose(navController: NavHostController, content: @Composable () -> Unit) {
+    androidx.compose.foundation.layout.Box(
+        androidx.compose.ui.Modifier
+            .fillMaxSize()
+            .swipeDownToDismiss { navController.navigateUp() }
+    ) { content() }
+}

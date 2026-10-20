@@ -249,7 +249,7 @@ fun LyricsScreen(
         when (val s = state) {
             is LyricsViewModel.State.Loading ->
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White)
+                    com.music.spotui.ui.components.SoundBarsLoader()
                 }
             is LyricsViewModel.State.NotFound ->
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
