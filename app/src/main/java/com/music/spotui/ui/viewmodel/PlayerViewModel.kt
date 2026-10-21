@@ -173,6 +173,8 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
         _canvasUrl.value = null
         canvasRequestId = trackId
         if (trackId.isBlank()) return
+        // Song videos can be turned off (or kept to Wi-Fi) in Profile → Playback.
+        if (!com.music.spotui.data.preferences.songVideosAllowed(com.music.spotui.MyApplication.instance)) return
         viewModelScope.launch {
             val url = withContext(Dispatchers.IO) { repository.provideCanvasUrl(trackId) }
             // Ignore a slow fetch for a track the user already skipped past.

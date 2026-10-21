@@ -124,6 +124,8 @@ fun SettingsScreen(navController: NavController) {
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             ProfileHeader(navController)
+            ConnectedServicesSection(navController)
+            YourTasteSection()
             SectionTitle("Appearance")
             // Applies instantly: ThemeState drives the Aalap palette app-wide.
             com.music.spotui.data.preferences.ThemeMode.entries.forEach { mode ->
@@ -153,6 +155,14 @@ fun SettingsScreen(navController: NavController) {
                 subtitle = "Start songs sooner, load the whole song ahead and prepare the next two. Uses more data when you skip a lot.",
                 checked = fastLoading,
             ) { fastLoading = it; com.music.spotui.data.preferences.setFastLoading(context, it) }
+            SubTitle("Song videos")
+            var songVideos by remember { mutableStateOf(com.music.spotui.data.preferences.getSongVideos(context)) }
+            com.music.spotui.data.preferences.SongVideos.entries.forEach { mode ->
+                SourceSettingRow(title = mode.label, subtitle = mode.subtitle, selected = songVideos == mode) {
+                    songVideos = mode
+                    com.music.spotui.data.preferences.setSongVideos(context, mode)
+                }
+            }
 
             SectionTitle("Notifications")
             var notifButtons by remember { mutableStateOf(com.music.spotui.data.preferences.isNotificationExtraButtons(context)) }
@@ -315,37 +325,6 @@ fun SettingsScreen(navController: NavController) {
                     activeTrackColor = AppPalette,
                     inactiveTrackColor = com.music.spotui.ui.theme.SurfaceHigh,
                 ),
-            )
-            Spacer(Modifier.height(12.dp))
-            SectionTitle("Music source")
-            SourceSettingRow(
-                title = "YouTube Music",
-                subtitle = if (youtubeConnected) "Connected — explicit and age-restricted playback enabled" else "Login required for explicit and age-restricted songs",
-                selected = primarySource == MusicSource.YOUTUBE_MUSIC,
-            ) {
-                if (youtubeConnected) {
-                    primarySource = MusicSource.YOUTUBE_MUSIC
-                    setPrimaryMusicSource(context, primarySource)
-                } else {
-                    navController.navigate(com.music.spotui.ui.navigation.Routes.YouTubeLogin.route)
-                }
-            }
-            var saavnOn by remember { mutableStateOf(com.music.spotui.data.preferences.isJioSaavnEnabled(context)) }
-            SettingsSwitchRow(
-                title = "JioSaavn",
-                subtitle = "Raced with YouTube for every song: plays in 320 kbps when JioSaavn has the exact track, and keeps music playing when YouTube fails",
-                checked = saavnOn,
-            ) { saavnOn = it; com.music.spotui.data.preferences.setJioSaavnEnabled(context, it) }
-            Text(
-                text = if (youtubeConnected) "Reconnect YouTube Music" else "Log in to YouTube Music",
-                color = AppPalette,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable { navController.navigate(com.music.spotui.ui.navigation.Routes.YouTubeLogin.route) }
-                    .padding(vertical = 12.dp),
             )
             Spacer(Modifier.height(12.dp))
             // Power-user options, folded away so the page stays about everyday choices.
@@ -695,14 +674,7 @@ private fun ProfileHeader(navController: NavController) {
                 }
                 val email = com.music.spotui.data.preferences.getAalapEmail(context)
                 if (email.isNotBlank()) Text(email, color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
-                // Connected accounts keep their own names; both are shown.
-                if (!serviceName.isNullOrBlank()) {
-                    Text("Spotify · $serviceName", color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
-                }
-                Text(
-                    "YouTube Music · " + if (isYoutubeLoggedIn(context)) "connected" else "not connected",
-                    color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp,
-                )
+                Text("Aalap member · see Connected below", color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(16.dp))

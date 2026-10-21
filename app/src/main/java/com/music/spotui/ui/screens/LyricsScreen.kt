@@ -249,7 +249,7 @@ fun LyricsScreen(
         when (val s = state) {
             is LyricsViewModel.State.Loading ->
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    com.music.spotui.ui.components.SoundBarsLoader()
+                    com.music.spotui.ui.components.AalapLoader()
                 }
             is LyricsViewModel.State.NotFound ->
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {

@@ -185,7 +185,6 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
     val sections = feed.sections
     val gridSection = sections.firstOrNull()?.takeIf { it.title.isBlank() }
     val carousels = if (gridSection != null) sections.drop(1) else sections
-    val featured = gridSection?.items?.firstOrNull() ?: carousels.firstOrNull()?.items?.firstOrNull()
 
     LazyColumn(
         contentPadding = PaddingValues(bottom = 190.dp),
@@ -195,11 +194,12 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
     ) {
         item { HomeHeaderRow(navController) }
         item { MoodRow(navController) }
-        featured?.let { item { FeaturedBanner(it) { onHomeItemClick(navController, it) } } }
+        // Aalap Radio replaces the feed's featured playlist (whose art carried another brand).
+        item { com.music.spotui.ui.components.AalapRadioSection() }
         item { ChartsRow(navController) }
         item { DailySongRows() }
         gridSection?.let { section ->
-            val rest = section.items.drop(1).take(10)
+            val rest = section.items.take(10)
             if (rest.isNotEmpty()) item { JumpBackInRow(navController, rest) }
         }
         items(carousels.size) { i ->

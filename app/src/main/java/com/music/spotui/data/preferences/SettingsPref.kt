@@ -186,3 +186,34 @@ private const val KEY_JIOSAAVN = "jiosaavn_enabled"
 /** JioSaavn as an audio source (raced with YouTube; used when it has the exact song). */
 fun isJioSaavnEnabled(c: Context): Boolean = prefs(c).getBoolean(KEY_JIOSAAVN, true)
 fun setJioSaavnEnabled(c: Context, v: Boolean) = prefs(c).edit().putBoolean(KEY_JIOSAAVN, v).apply()
+
+private const val KEY_GAANA = "gaana_enabled"
+
+/** Gaana as the last audio fallback (after YouTube Music and JioSaavn). */
+fun isGaanaEnabled(c: Context): Boolean = prefs(c).getBoolean(KEY_GAANA, true)
+fun setGaanaEnabled(c: Context, v: Boolean) = prefs(c).edit().putBoolean(KEY_GAANA, v).apply()
+
+/** Looping song videos behind the player. */
+enum class SongVideos(val label: String, val subtitle: String) {
+    ALWAYS("Always", "Show song videos on Wi-Fi and mobile data"),
+    WIFI("On Wi-Fi only", "Save mobile data"),
+    OFF("Off", "Always show the album art"),
+}
+
+private const val KEY_SONG_VIDEOS = "song_videos"
+
+fun getSongVideos(c: Context): SongVideos =
+    runCatching { SongVideos.valueOf(prefs(c).getString(KEY_SONG_VIDEOS, null) ?: "ALWAYS") }.getOrDefault(SongVideos.ALWAYS)
+
+fun setSongVideos(c: Context, v: SongVideos) = prefs(c).edit().putString(KEY_SONG_VIDEOS, v.name).apply()
+
+/** Whether a song video may play right now (setting + current network). */
+fun songVideosAllowed(c: Context): Boolean = when (getSongVideos(c)) {
+    SongVideos.ALWAYS -> true
+    SongVideos.OFF -> false
+    SongVideos.WIFI -> {
+        val cm = c.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
+            ?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true
+    }
+}

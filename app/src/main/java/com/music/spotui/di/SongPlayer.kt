@@ -837,12 +837,12 @@ object SongPlayer {
                 com.music.spotui.saavn.JioSaavnSource.resolve(info.title, fullArtist, info.durationSec, searchText)
             }
         } else null
-        val gaanaJob = scope.async {
+        val gaanaJob = if (com.music.spotui.data.preferences.isGaanaEnabled(appContext)) scope.async {
             kotlinx.coroutines.withTimeoutOrNull(12_000L) {
                 com.music.spotui.gaana.GaanaSource.resolve(info.title, fullArtist, info.durationSec, info.isrc, searchText)
             }
-        }
-        fun cancelOthers() { ytJob?.cancel(); saavnJob?.cancel(); gaanaJob.cancel() }
+        } else null
+        fun cancelOthers() { ytJob?.cancel(); saavnJob?.cancel(); gaanaJob?.cancel() }
         fun useYouTube(p: YTPlayerUtils.PlaybackData) = use("YouTube", p.streamUrl, ytQualityLabel(p)).also { cancelOthers() }
 
         // 1) YouTube Music, if it answers within YT_FIRST_WAIT_MS.
@@ -850,7 +850,7 @@ object SongPlayer {
         // 2) JioSaavn.
         saavnJob?.await()?.let { m -> return use("JioSaavn", m.url, "AAC ${m.kbps} kbps").also { cancelOthers() } }
         // 3) Gaana.
-        gaanaJob.await()?.let { m -> return use("Gaana", m.url, "AAC").also { cancelOthers() } }
+        gaanaJob?.await()?.let { m -> return use("Gaana", m.url, "AAC").also { cancelOthers() } }
         // YouTube was only slow, not failed: take its answer now.
         ytJob?.await()?.let { return useYouTube(it) }
 

@@ -134,7 +134,27 @@ fun SumUpSearchScreen(
     val searchedList = results.songs
     // One relevance-mixed list (songs, artists, albums interleaved) instead of
     // separate type sections — matches how most music apps present search.
-    val mixed = remember(results) { mixSearchResults(results) }
+    var filter by remember { mutableStateOf(SearchFilter.ALL) }
+    val available = remember(results) {
+        buildSet {
+            if (results.songs.isNotEmpty()) add(SearchFilter.SONGS)
+            if (results.artists.isNotEmpty()) add(SearchFilter.ARTISTS)
+            if (results.albums.isNotEmpty()) add(SearchFilter.ALBUMS)
+            if (results.shows.isNotEmpty() || results.episodes.isNotEmpty()) add(SearchFilter.PODCASTS)
+        }
+    }
+    val mixed = remember(results, filter) {
+        mixSearchResults(results).filter { row ->
+            when (filter) {
+                SearchFilter.ALL -> true
+                SearchFilter.SONGS -> row is SearchRow.Song
+                SearchFilter.ARTISTS -> row is SearchRow.Artist
+                SearchFilter.ALBUMS -> row is SearchRow.Album
+                SearchFilter.PODCASTS -> false
+            }
+        }
+    }
+    val showPodcasts = filter == SearchFilter.ALL || filter == SearchFilter.PODCASTS
 
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 130.dp),
@@ -144,16 +164,16 @@ fun SumUpSearchScreen(
             .statusBarsPadding()
 
     ){
-        item{
-            SearchTopBar()
+        item {
+            AalapSearchHeader()
         }
         stickyHeader {
-            SearchStickyBar(
-                text,
-                onFocusChange = { searchFocused = it },
-            ) {
-                text = it
-                searchViewModel.search(it)
+            Column {
+                AalapSearchBar(text, onFocusChange = { searchFocused = it }) {
+                    text = it
+                    searchViewModel.search(it)
+                }
+                if (text.isNotBlank()) SearchFilterChips(filter, available) { filter = it }
             }
         }
 
@@ -232,12 +252,11 @@ fun SumUpSearchScreen(
                     )
                 }
             } else {
-                // ── Spotify-style "Browse all" category grid ──
+                // ── Quick searches, moods and the Explore grid ──
                 item {
-                    // Real Spotify opens a genre *catalogue* (a page of curated
-                    // playlists) rather than running a keyword song search.
-                    BrowseAllSection { genre, title ->
-                        navController.navigate(categoryRoute(genre, title))
+                    SearchExplore(navController) { q ->
+                        text = q
+                        searchViewModel.search(q)
                     }
                 }
             }
@@ -271,7 +290,7 @@ fun SumUpSearchScreen(
                 }
             }
             // ── Podcasts: shows (→ detail) then individual episodes (→ play) ──
-            if (results.shows.isNotEmpty()) {
+            if (showPodcasts && results.shows.isNotEmpty()) {
                 item { SearchSectionHeader("Podcasts") }
                 items(results.shows.size) { i ->
                     val show = results.shows[i]
@@ -287,7 +306,7 @@ fun SumUpSearchScreen(
                     }
                 }
             }
-            if (results.episodes.isNotEmpty()) {
+            if (showPodcasts && results.episodes.isNotEmpty()) {
                 item { SearchSectionHeader("Episodes") }
                 items(results.episodes.size) { i ->
                     val ep = results.episodes[i]
@@ -588,169 +607,5 @@ fun SearchAlbumRow(album: com.music.spotui.data.entity.AlbumsModel, onClick: () 
             Text(text = album.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Text(text = "Album • ${album.artists}", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
         }
-    }
-}
-
-/** Spotify's "Browse all" categories: name + tile colour + the search query it runs. */
-private val browseCategories: List<Triple<String, Color, String>> = listOf(
-    Triple("Music", Color(0xFFDC148C), "Top hits"),
-    Triple("Podcasts", Color(0xFF1E3264), "Podcast"),
-    Triple("Made For You", Color(0xFF8768A8), "Discover weekly"),
-    Triple("New Releases", Color(0xFFE8115B), "New releases"),
-    Triple("Pop", Color(0xFF8D67AB), "Pop"),
-    Triple("Hip-Hop", Color(0xFF477D95), "Hip hop"),
-    Triple("Rock", Color(0xFFE61E32), "Rock"),
-    Triple("Latin", Color(0xFFE1118C), "Latin"),
-    Triple("Country", Color(0xFFD84000), "Country"),
-    Triple("R&B", Color(0xFFBA5D07), "R&B"),
-    Triple("K-Pop", Color(0xFF148A08), "K-pop"),
-    Triple("Indie", Color(0xFF608108), "Indie"),
-    Triple("Dance/Electronic", Color(0xFF056952), "Electronic dance"),
-    Triple("Metal", Color(0xFF777777), "Metal"),
-    Triple("Chill", Color(0xFF1E3264), "Chill"),
-    Triple("Charts", Color(0xFF8C1932), "Top charts"),
-    Triple("Workout", Color(0xFF777777), "Workout"),
-    Triple("Jazz", Color(0xFF503750), "Jazz"),
-)
-
-@Composable
-fun BrowseAllSection(onCategoryClick: (genre: String, title: String) -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "Browse all",
-            color = com.music.spotui.ui.theme.TextPrimary,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 8.dp),
-        )
-        browseCategories.chunked(2).forEach { rowItems ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp, 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                rowItems.forEach { (name, color, query) ->
-                    BrowseCategoryTile(name, color, query, Modifier.weight(1f)) { onCategoryClick(query, name) }
-                }
-                // Keep a half-width spacer if the last row has a single tile.
-                if (rowItems.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalGlideComposeApi::class)
-@Composable
-private fun BrowseCategoryTile(
-    name: String,
-    color: Color,
-    query: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    val context = LocalContext.current
-    // Cover of the category's top playlist, shown tilted in the corner like
-    // Spotify web's browse tiles. Empty until resolved (cached per session).
-    val cover by androidx.compose.runtime.produceState(initialValue = "", key1 = query) {
-        value = com.music.spotui.data.api.BrowseTileImages.coverFor(context, query)
-    }
-    Box(
-        modifier = modifier
-            .height(96.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(color)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-            ) { onClick() },
-    ) {
-        if (cover.isNotBlank()) {
-            GlideImage(
-                model = cover,
-                contentScale = ContentScale.Crop,
-                contentDescription = null,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .size(64.dp)
-                    .offset(x = 16.dp, y = 10.dp)
-                    .rotate(25f)
-                    .clip(RoundedCornerShape(4.dp)),
-            )
-        }
-        Text(
-            text = name,
-            color = com.music.spotui.ui.theme.TextPrimary,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            modifier = Modifier.padding(12.dp),
-        )
-    }
-}
-
-@Composable
-fun SearchTopBar() {
-    Row(horizontalArrangement = Arrangement.Start,
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-    ) {
-        Text(text = "Search", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        //Icon(imageVector = Icons.Default.Person, contentDescription = "", tint = com.music.spotui.ui.theme.TextPrimary)
-    }
-
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@RequiresApi(Build.VERSION_CODES.S)
-@Composable
-fun SearchStickyBar(
-    text: String,
-    onFocusChange: (Boolean) -> Unit = {},
-    onTextChange: (String) -> Unit,
-) {
-
-    Row(verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(10.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .height(55.dp)
-            .background(com.music.spotui.ui.theme.TextPrimary)
-            .padding(10.dp, 0.dp)
-    ){
-        Icon(
-            painterResource(id = R.drawable.ic_search_big),
-            tint = Color.Black,
-            contentDescription = "")
-
-        TextField(
-            enabled = true,
-            modifier = Modifier.onFocusChanged { onFocusChange(it.isFocused) },
-            value = text,
-            textStyle = TextStyle.Default.copy(fontSize = 16.sp, color = Color.Black, fontWeight = FontWeight(500)),
-            colors = TextFieldDefaults.colors(
-                unfocusedContainerColor = Color.Transparent,
-                disabledContainerColor = Color.Transparent,
-                focusedContainerColor = Color.Transparent,
-                disabledIndicatorColor = Color.Transparent,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                cursorColor = Color.Black
-
-            ),
-            singleLine = true,
-            onValueChange = onTextChange,
-            placeholder = {
-                Text(
-                     textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.Bold,
-                    text = "What do you want to listen to?"
-
-                )
-            }
-        )
     }
 }

@@ -35,43 +35,42 @@ import com.music.spotui.ui.theme.SaffronGold
 import com.music.spotui.ui.theme.SurfaceHigh
 
 /**
- * Aalap's loading animation: four rounded saffron bars bouncing out of step, like a
- * live equalizer. Replaces the generic spinner everywhere.
+ * Aalap's loading animation: the logo itself. The replay arc spins and breathes
+ * around the play button, which pulses gently, like the app is spinning up a song.
  */
 @Composable
-fun SoundBarsLoader(modifier: Modifier = Modifier, barWidth: Dp = 6.dp, maxHeight: Dp = 34.dp) {
-    val transition = rememberInfiniteTransition(label = "soundBars")
-    val phases = listOf(0, 180, 90, 270)
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(barWidth * 0.8f),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier.height(maxHeight),
-    ) {
-        phases.forEachIndexed { i, delay ->
-            val level by transition.animateFloat(
-                initialValue = 0.25f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 520, delayMillis = delay, easing = FastOutSlowInEasing),
-                    repeatMode = RepeatMode.Reverse,
-                ),
-                label = "bar$i",
-            )
-            Box(
-                Modifier
-                    .width(barWidth)
-                    .height(maxHeight * level)
-                    .clip(RoundedCornerShape(50))
-                    .background(Brush.verticalGradient(listOf(SaffronGold, Saffron)))
-            )
-        }
-    }
+fun AalapLoader(modifier: Modifier = Modifier, size: Dp = 44.dp) {
+    val transition = rememberInfiniteTransition(label = "aalapLoader")
+    val rotation by transition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing)),
+        label = "spin",
+    )
+    val arc by transition.animateFloat(
+        initialValue = 0.3f, targetValue = 0.92f,
+        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "arc",
+    )
+    val pulse by transition.animateFloat(
+        initialValue = 0.82f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "pulse",
+    )
+    AalapMark(
+        modifier = modifier.size(size),
+        arcColor = SaffronGold,
+        playColor = Saffron,
+        arcProgress = arc,
+        arcRotation = rotation,
+        playScale = pulse,
+        arrowAlpha = arc,
+    )
 }
 
 /** Full-area centred loader. */
 @Composable
 fun CenteredLoader(modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) { SoundBarsLoader() }
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) { AalapLoader() }
 }
 
 /** Soft moving highlight for skeleton placeholders. */

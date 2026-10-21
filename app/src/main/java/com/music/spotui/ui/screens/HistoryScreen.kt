@@ -85,6 +85,37 @@ private fun HistoryEntry.date(): LocalDate = Instant.ofEpochMilli(ts).atZone(Zon
 private fun HistoryEntry.ms(): Long = if (durationMs > 0) durationMs.toLong() else TYPICAL_SONG_MS
 private fun HistoryEntry.artist() = singer.substringBefore(",").trim()
 private fun HistoryEntry.toSong() = SongsModel(songId, title, album, singer, image, url, spotifyTrackId, durationMs = durationMs)
+private fun HistoryEntry.songKey() = "${title.lowercase().substringBefore(" (")}|${artist().lowercase()}"
+
+/** A play with how long it really lasted: until the next song started, at most the song's length. */
+private class Play(val e: HistoryEntry, val listenedMs: Long) {
+    /** Under 30 s (or under half a short song) counts as a skip, not a listen. */
+    val skipped: Boolean get() = listenedMs < minOf(30_000L, e.ms() / 2)
+}
+
+private fun plays(history: List<HistoryEntry>): List<Play> = history.mapIndexed { i, e ->
+    val gap = if (i == 0) Long.MAX_VALUE else history[i - 1].ts - e.ts // history is newest first
+    Play(e, minOf(e.ms(), gap.coerceAtLeast(0)))
+}
+
+/** One ranked row: [move] is places up (+) or down (−) since the previous period, null when new. */
+private class Ranked(val key: String, val entry: HistoryEntry, val plays: Int, val minutes: Long, val move: Int?)
+
+private fun rankSongs(period: List<Play>, previous: List<Play>, n: Int): List<Ranked> {
+    fun rank(list: List<Play>) = list.filter { !it.skipped }.groupBy { it.e.songKey() }
+        .map { (k, ps) -> Ranked(k, ps.first().e, ps.size, ps.sumOf { it.listenedMs } / 60_000, null) }
+        .sortedWith(compareByDescending<Ranked> { it.plays }.thenByDescending { it.minutes })
+    val before = rank(previous).mapIndexed { i, r -> r.key to i }.toMap()
+    return rank(period).take(n).mapIndexed { i, r -> Ranked(r.key, r.entry, r.plays, r.minutes, before[r.key]?.let { it - i }) }
+}
+
+private fun rankArtists(period: List<Play>, previous: List<Play>, n: Int): List<Ranked> {
+    fun rank(list: List<Play>) = list.filter { !it.skipped && it.e.artist().isNotBlank() }.groupBy { it.e.artist().lowercase() }
+        .map { (k, ps) -> Ranked(k, ps.first().e, ps.size, ps.sumOf { it.listenedMs } / 60_000, null) }
+        .sortedWith(compareByDescending<Ranked> { it.minutes }.thenByDescending { it.plays })
+    val before = rank(previous).mapIndexed { i, r -> r.key to i }.toMap()
+    return rank(period).take(n).mapIndexed { i, r -> Ranked(r.key, r.entry, r.plays, r.minutes, before[r.key]?.let { it - i }) }
+}
 
 /**
  * Replay: your listening by month — minutes, top artists, top songs — and your recent
@@ -109,19 +140,26 @@ fun HistoryScreen(navController: NavController) {
         history.filter { it.date().year == year }.map { it.date().month }.distinct().sorted()
     }
 
-    val period = remember(history, year, month) {
-        history.filter { it.date().year == year && (month == null || it.date().month == month) }
+    val allPlays = remember(history) { plays(history) }
+    val periodPlays = remember(allPlays, year, month) {
+        allPlays.filter { it.e.date().year == year && (month == null || it.e.date().month == month) }
     }
-    val minutes = remember(period) { period.sumOf { it.ms() } / 60_000 }
-    val topArtists = remember(period) {
-        period.filter { it.artist().isNotBlank() }.groupBy { it.artist() }
-            .map { (name, plays) -> Triple(name, plays.sumOf { it.ms() } / 60_000, plays.first().image) }
-            .sortedByDescending { it.second }.take(10)
+    // The period before, for rank movement (last month, or last year).
+    val previousPlays = remember(allPlays, year, month) {
+        val m = month
+        if (m == null) allPlays.filter { it.e.date().year == year - 1 }
+        else {
+            val prev = LocalDate.of(year, m, 1).minusMonths(1)
+            allPlays.filter { it.e.date().year == prev.year && it.e.date().month == prev.month }
+        }
     }
-    val topSongs = remember(period) {
-        period.groupBy { it.songId }.map { (_, plays) -> plays.first() to plays.size }
-            .sortedByDescending { it.second }.take(10)
-    }
+    val period = remember(periodPlays) { periodPlays.map { it.e } }
+    val minutes = remember(periodPlays) { periodPlays.sumOf { it.listenedMs } / 60_000 }
+    var showAllSongs by remember { mutableStateOf(false) }
+    val topArtists = remember(periodPlays, previousPlays) { rankArtists(periodPlays, previousPlays, 10) }
+    val topSongsAll = remember(periodPlays, previousPlays) { rankSongs(periodPlays, previousPlays, 30) }
+    val topSongs = if (showAllSongs) topSongsAll else topSongsAll.take(10)
+    val previousName = month?.let { LocalDate.of(year, it, 1).minusMonths(1).month.getDisplayName(TextStyle.FULL, Locale.getDefault()) } ?: "${year - 1}"
     val recent = remember(history, clearedAt) { history.filter { it.ts > clearedAt } }
     val periodName = month?.getDisplayName(TextStyle.FULL, Locale.getDefault()) ?: "$year"
 
@@ -216,7 +254,9 @@ fun HistoryScreen(navController: NavController) {
                     ReplayHeader("Your Top Artists")
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(horizontal = 20.dp)) {
                         items(topArtists.size) { i ->
-                            val (name, mins, image) = topArtists[i]
+                            val r = topArtists[i]
+                            val name = r.entry.artist()
+                            val image = r.entry.image
                             Box(
                                 modifier = Modifier.size(width = 220.dp, height = 290.dp).clip(RoundedCornerShape(16.dp)).background(SurfaceHigh),
                             ) {
@@ -228,17 +268,30 @@ fun HistoryScreen(navController: NavController) {
                                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.8f))))
                                 Text("${i + 1}", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(16.dp))
+                                MoveBadge(r.move, Modifier.align(Alignment.TopEnd).padding(14.dp))
                                 Column(Modifier.align(Alignment.BottomCenter).padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(name, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text("$mins minutes", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+                                    Text("${r.minutes} min · ${r.plays} ${if (r.plays == 1) "play" else "plays"}", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
                                 }
                             }
                         }
                     }
                 }
-                item { ReplayHeader("Your Top Songs") }
-                items(topSongs.size) { i ->
-                    val (entry, plays) = topSongs[i]
+                item {
+                    ReplayHeader("Your Top Songs")
+                    Text(
+                        "Ranked by plays you finished. Arrows compare with $previousName.",
+                        color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
+                    )
+                    topSongs.firstOrNull()?.let { top ->
+                        TopSongHero(top, periodName) { if (top.entry.url.isNotBlank()) playerViewModel.playWithRadio(top.entry.toSong(), context) }
+                    }
+                }
+                val maxPlays = topSongs.firstOrNull()?.plays?.coerceAtLeast(1) ?: 1
+                items((topSongs.size - 1).coerceAtLeast(0)) { j ->
+                    val i = j + 1
+                    val r = topSongs[i]
+                    val entry = r.entry
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
@@ -254,9 +307,26 @@ fun HistoryScreen(navController: NavController) {
                         Column(Modifier.weight(1f).padding(start = 12.dp)) {
                             Text(entry.title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(entry.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            // Share of plays compared with your #1.
+                            Box(Modifier.padding(top = 5.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(SurfaceHigh)) {
+                                Box(Modifier.fillMaxWidth(r.plays.toFloat() / maxPlays).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Saffron.copy(alpha = 0.8f)))
+                            }
                         }
-                        Text("$plays ${if (plays == 1) "play" else "plays"}", color = TextMuted, fontSize = 12.sp)
+                        Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 10.dp)) {
+                            Text("${r.plays} ${if (r.plays == 1) "play" else "plays"}", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text("${r.minutes} min", color = TextMuted, fontSize = 11.sp)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        MoveBadge(r.move)
                     }
+                }
+                if (topSongsAll.size > 10) item {
+                    Text(
+                        if (showAllSongs) "Show top 10" else "Show top ${topSongsAll.size}",
+                        color = Saffron, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).clip(RoundedCornerShape(50))
+                            .clickable { showAllSongs = !showAllSongs }.padding(8.dp),
+                    )
                 }
             }
 
@@ -317,6 +387,54 @@ fun HistoryScreen(navController: NavController) {
                             })
                     }
                 }
+            }
+        }
+    }
+}
+
+/** ▲3 / ▼2 / NEW / – next to a ranked row. */
+@Composable
+private fun MoveBadge(move: Int?, modifier: Modifier = Modifier) {
+    val (text, color) = when {
+        move == null -> "NEW" to Saffron
+        move > 0 -> "▲$move" to Color(0xFF4CC38A)
+        move < 0 -> "▼${-move}" to Color(0xFFE57373)
+        else -> "–" to TextMuted
+    }
+    Text(
+        text, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+        modifier = modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.25f)).padding(horizontal = 7.dp, vertical = 3.dp),
+    )
+}
+
+/** Your #1 song of the period, as a big card. */
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun TopSongHero(r: Ranked, periodName: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .fillMaxWidth()
+            .height(190.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .clickable(onClick = onClick),
+    ) {
+        GlideImage(
+            model = r.entry.image, contentDescription = r.entry.title, contentScale = ContentScale.Crop,
+            loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.85f), Color.Black.copy(alpha = 0.35f)))))
+        Column(Modifier.align(Alignment.CenterStart).padding(20.dp)) {
+            Text("#1 SONG · ${periodName.uppercase()}", color = SaffronGold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+            Spacer(Modifier.height(6.dp))
+            Text(r.entry.title, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 28.sp)
+            Text(r.entry.singer, color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("${r.plays} plays · ${r.minutes} min", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.width(8.dp))
+                MoveBadge(r.move)
             }
         }
     }

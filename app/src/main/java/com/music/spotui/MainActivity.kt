@@ -33,6 +33,18 @@ class MainActivity : ComponentActivity() {
     @OptIn(UnstableApi::class)
     @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?){
+        // Opening animation: keep the splash until the animated mark has played once,
+        // then the mark grows and the splash fades into the app.
+        val splash = androidx.core.splashscreen.SplashScreen.run { this@MainActivity.installSplashScreen() }
+        val openedAt = android.os.SystemClock.uptimeMillis()
+        splash.setKeepOnScreenCondition { android.os.SystemClock.uptimeMillis() - openedAt < 850 }
+        splash.setOnExitAnimationListener { view ->
+            val icon = view.iconView
+            icon.animate().scaleX(1.35f).scaleY(1.35f).alpha(0f).setDuration(320)
+                .setInterpolator(android.view.animation.AccelerateInterpolator()).start()
+            view.view.animate().alpha(0f).setStartDelay(120).setDuration(320)
+                .withEndAction { view.remove() }.start()
+        }
 
         super.onCreate(savedInstanceState)
         this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
