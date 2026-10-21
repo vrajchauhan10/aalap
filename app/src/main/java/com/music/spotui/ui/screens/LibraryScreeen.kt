@@ -119,7 +119,7 @@ fun LibraryScreen(navController: NavController) {
     // Liked Songs and Downloads get their own tiles, so they're not repeated in the list.
     val listEntries = allEntries.filter {
         it.spotifyId != Api.HomeCache.LIKED_SONGS_ID && it.spotifyId != Api.HomeCache.DOWNLOADS_ID
-    }
+    }.distinctBy { it.spotifyId.ifBlank { it.name } } // a playlist both saved and owned is listed once
     val playlists = listEntries.count { it.isPlaylist }
     val albums = listEntries.size - playlists
 
