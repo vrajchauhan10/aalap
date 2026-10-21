@@ -689,17 +689,7 @@ private fun ProfileHeader(navController: NavController) {
                 }
                 val email = com.music.spotui.data.preferences.getAalapEmail(context)
                 if (email.isNotBlank()) Text(email, color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
-                val split by androidx.compose.runtime.produceState<com.music.spotui.data.api.YouTubeLibrary.LikedBreakdown?>(null) {
-                    value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                        com.music.spotui.data.api.YouTubeLibrary.likedBreakdown(context)
-                    }
-                }
-                // How the Liked number is made: a song liked on both services counts once.
-                Text(
-                    split?.takeIf { it.total > 0 }?.let { "${it.spotify} from Spotify + ${it.youtubeOnly} more from YouTube Music" }
-                        ?: "Spotify + YouTube Music in one library",
-                    color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp,
-                )
+                Text("Spotify + YouTube Music in one library", color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(16.dp))

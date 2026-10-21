@@ -89,14 +89,6 @@ fun ConnectedServicesSection(navController: NavController) {
     val scope = rememberCoroutineScope()
     var syncing by remember { mutableStateOf(false) }
     // The unified library: counts from both services together, each song/artist once.
-    // Every count comes from the same merged list the Liked page shows, so they add up.
-    val breakdown by produceState<com.music.spotui.data.api.YouTubeLibrary.LikedBreakdown?>(null, tick, syncing) {
-        value = withContext(Dispatchers.IO) { com.music.spotui.data.api.YouTubeLibrary.likedBreakdown(context) }
-    }
-    val spotifyLiked = breakdown?.spotify ?: 0
-    val ytLiked = breakdown?.youtube ?: 0
-    val onBoth = breakdown?.onBoth ?: 0
-    val ytArtists = remember(tick, syncing) { com.music.spotui.data.api.YouTubeLibrary.artists(context).size }
 
     ProfileSectionTitle("Connected")
     Column(
@@ -109,7 +101,7 @@ fun ConnectedServicesSection(navController: NavController) {
         ServiceLine(
             logo = com.music.spotui.R.drawable.ic_brand_spotify,
             name = "Spotify",
-            status = if (spotifyOk) "Connected" + (spotifyName?.let { " as $it" } ?: "") + " · $spotifyLiked liked songs" else "Not connected",
+            status = if (spotifyOk) "Connected" + (spotifyName?.let { " as $it" } ?: "") + " · library and likes" else "Not connected",
             action = if (spotifyOk) "Reconnect" else "Connect",
         ) { navController.navigate(Routes.SpotifyConnect.route) }
         Divider()
@@ -119,7 +111,7 @@ fun ConnectedServicesSection(navController: NavController) {
             status = when {
                 !youtubeOk -> "Not connected · sign in to bring your likes and artists"
                 syncing -> "Syncing your library…"
-                else -> "Connected · $ytLiked liked songs" + (if (onBoth > 0) " ($onBoth also on Spotify)" else "") + ", $ytArtists artists" +
+                else -> "Connected · likes and artists" +
                     com.music.spotui.data.api.YouTubeLibrary.lastSync(context).let { at ->
                         if (at > 0) " · synced " + android.text.format.DateUtils.getRelativeTimeSpanString(at, System.currentTimeMillis(), 60_000L) else ""
                     }

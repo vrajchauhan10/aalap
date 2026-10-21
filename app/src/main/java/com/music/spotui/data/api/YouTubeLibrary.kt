@@ -150,18 +150,6 @@ object YouTubeLibrary {
     fun unifiedLiked(c: Context): List<SongsModel> =
         unifiedCache ?: mergeLiked(spotifyLiked(c), likedSongs(c)).also { unifiedCache = it }
 
-    /** How the combined liked count is made up, from the same lists the Liked page shows. */
-    data class LikedBreakdown(val spotify: Int, val youtube: Int, val onBoth: Int, val total: Int) {
-        val youtubeOnly get() = total - spotify
-    }
-
-    fun likedBreakdown(c: Context): LikedBreakdown {
-        val spotify = spotifyLiked(c).distinctBy { it.id }.size
-        val youtube = likedSongs(c).size
-        val total = unifiedLiked(c).size
-        return LikedBreakdown(spotify, youtube, (spotify + youtube - total).coerceAtLeast(0), total)
-    }
-
     /** Drops the in-memory merged list (after either side changed). */
     fun invalidateUnified() { unifiedCache = null }
 
