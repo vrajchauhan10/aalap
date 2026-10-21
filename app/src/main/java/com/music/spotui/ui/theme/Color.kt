@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.Color
 // UI with the other palette, with no per-screen theme plumbing.
 
 object AalapPalette {
-    /** Set by [SpotuiTheme] from the user's choice / the system dark-mode setting. */
+    /** Set by [AalapTheme] from the user's choice / the system dark-mode setting. */
     var isLight by mutableStateOf(false)
 }
 

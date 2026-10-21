@@ -19,7 +19,7 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.music.spotui.di.SongPlayer
 import com.music.spotui.ui.notification.PlaybackService
-import com.music.spotui.ui.theme.SpotuiTheme
+import com.music.spotui.ui.theme.AalapTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
 
-            SpotuiTheme {
+            AalapTheme {
                 // A surface container using the 'background' color from the theme
                     App()
             }

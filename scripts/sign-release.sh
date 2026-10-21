@@ -1,15 +1,15 @@
 #!/bin/sh
 # Signs the release APK so it upgrades installs of BOTH old signing keys:
 # key A (1.3, 1.5) and key B (1.4, 1.6+), via APK key rotation (lineage A -> B).
-# Keys and lineage live outside the repo in $SPOTUI_SIGNING (default ~/.spotui-signing).
+# Keys and lineage live outside the repo in $AALAP_SIGNING (default ~/.aalap-signing, falls back to ~/.spotui-signing).
 # Usage: ./gradlew :app:assembleRelease && scripts/sign-release.sh
 set -e
-K="${SPOTUI_SIGNING:-$HOME/.spotui-signing}"
+K="${AALAP_SIGNING:-$HOME/.aalap-signing}"; [ -d "$K" ] || K="$HOME/.spotui-signing"
 SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 BT="$(ls -d "$SDK"/build-tools/* | sort -V | tail -1)"
 VERSION=$(sed -n 's/.*versionName = "\(.*\)"/\1/p' app/build.gradle.kts)
 IN=app/build/outputs/apk/release/app-release.apk
-OUT="release/spotui-$VERSION.apk"
+OUT="release/aalap-$VERSION.apk"
 mkdir -p release
 "$BT/apksigner" sign \
   --ks "$K/keyA.keystore" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android \

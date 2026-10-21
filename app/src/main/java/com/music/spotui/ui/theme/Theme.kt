@@ -57,7 +57,7 @@ private fun schemeFor(light: Boolean) = if (light) lightColorScheme(
 )
 
 @Composable
-fun SpotuiTheme(
+fun AalapTheme(
     content: @Composable () -> Unit
 ) {
     ThemeState.load(LocalContext.current)
