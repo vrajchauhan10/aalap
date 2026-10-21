@@ -108,18 +108,18 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
         if (!autoplayRadioEnabled || radioLoading) return
         // Only start fetching when we're within one track of the end.
         if (cur < queueSongs.size - 2) return
-        val seeds = queueSongs.takeLast(5)
-            .mapNotNull { it.spotifyTrackId.ifBlank { null } }
-            .distinct()
-        if (seeds.isEmpty()) return
+        // The chain continues from the last song in the queue; each song is appended as soon as it's picked.
+        val seed = queueSongs.lastOrNull() ?: return
         radioLoading = true
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val recs = repository.provideRecommendations(seeds)
-                val existing = currentSongState.queue.value
-                val existingIds = existing.map { it.id }.toSet()
-                val fresh = recs.filter { it.id !in existingIds }
-                if (fresh.isNotEmpty()) currentSongState.updateQueue(existing + fresh)
+                repository.provideRecommendations(seed, queueSongs.mapTo(HashSet()) { it.id }).collect { song ->
+                    val existing = currentSongState.queue.value
+                    if (existing.none { it.id == song.id }) currentSongState.updateQueue(existing + song)
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                android.util.Log.w("PlayerViewModel", "radio top-up failed: $e")
             } finally {
                 radioLoading = false
             }
@@ -243,14 +243,21 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
         updateQueue(listOf(song))
         updateSongState(song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
         SongPlayer.playSong(song.url, context)
-        val seed = song.spotifyTrackId.ifBlank { return }
+        appendRadio(song)
+    }
+
+    /**
+     * Appends the engine's chain after [song], one song at a time, while [song]'s radio
+     * is still the active queue (the user didn't start something else).
+     */
+    private fun appendRadio(song: SongsModel) {
         viewModelScope.launch(Dispatchers.IO) {
-            val recs = runCatching { repository.provideRecommendations(listOf(seed)) }.getOrDefault(emptyList())
-            val current = currentSongState.queue.value
-            // Only if that song is still the whole queue (the user didn't start something else).
-            if (current.size == 1 && current.first().id == song.id) {
-                val fresh = recs.filter { it.id != song.id }
-                if (fresh.isNotEmpty()) currentSongState.updateQueue(current + fresh)
+            runCatching {
+                repository.provideRecommendations(song, setOf(song.id)).collect { next ->
+                    val current = currentSongState.queue.value
+                    if (current.firstOrNull()?.id != song.id) throw kotlinx.coroutines.CancellationException("queue replaced")
+                    if (current.none { it.id == next.id }) currentSongState.updateQueue(current + next)
+                }
             }
         }
     }

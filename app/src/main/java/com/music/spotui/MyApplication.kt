@@ -31,6 +31,8 @@ class MyApplication : Application(){
         if (BuildConfig.DEBUG && Timber.forest().isEmpty()) {
             Timber.plant(Timber.DebugTree())
         }
+        // GET /queue on 127.0.0.1:8765 for testing the recommendation engine (debug builds only).
+        if (BuildConfig.DEBUG) com.music.spotui.data.recommendation.engine.QueueEndpoint.start(this)
         // Surface Spotify REST/GQL logs to logcat for diagnosis.
         com.metrolist.spotify.Spotify.logger = { level, msg ->
             android.util.Log.d("SpotifyREST", "[$level] $msg")

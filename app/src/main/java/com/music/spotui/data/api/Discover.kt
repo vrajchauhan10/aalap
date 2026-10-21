@@ -114,9 +114,8 @@ object Discover {
             }.getOrNull().orEmpty().take(40)
         }.distinctBy { it.spotifyTrackId.ifBlank { it.title + it.singer } }
         // Same engine as everywhere else: a fresh order each window, then ranked for your taste.
-        val taste = com.music.spotui.data.recommendation.Recommender.taste(context)
         val shuffled = tracks.shuffled(java.util.Random(salt(context, 100 + mood.ordinal)))
-        val result = com.music.spotui.data.recommendation.Recommender.rerank(taste, shuffled, familiar = 0.3f).take(60)
+        val result = com.music.spotui.data.recommendation.Recommender.rerank(context, shuffled, familiar = 0.3f).take(60)
         Log.d(TAG, "mood ${mood.name}: ${playlists.size} playlists, ${tracks.size} tracks")
         if (result.isNotEmpty()) write(context, key, result)
         return result

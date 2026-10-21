@@ -136,6 +136,9 @@ class CurrentSongState @Inject constructor() {
         likeState.value = newLikeState
     }
 
+    /** The last song handed to the recommendation engine (pause/resume isn't a new play). */
+    private var lastLoggedSongId = Int.MIN_VALUE
+
     fun updateSongState(coverUri: String, title: String, singer: String, playingState: Boolean, songId : Int, songIndex : Int, album : String) {
         _coverUri.value = coverUri
         _title.value = title
@@ -171,6 +174,12 @@ class CurrentSongState @Inject constructor() {
             val trackUrl = _queue.value.firstOrNull { it.id == songId }?.url.orEmpty()
             val skippedOffline = com.music.spotui.data.preferences.OfflineState.isOffline &&
                 !SongPlayer.playableOffline(trackUrl, com.music.spotui.MyApplication.instance)
+            // Recommendation engine: logs the play (skips, habits) and updates the taste.
+            val track = _queue.value.firstOrNull { it.id == songId }
+            if (!skippedOffline && track != null && songId != lastLoggedSongId) {
+                lastLoggedSongId = songId
+                com.music.spotui.data.recommendation.engine.QueueEngine.onPlay(com.music.spotui.MyApplication.instance, track)
+            }
             if (!skippedOffline) com.music.spotui.data.preferences.addListeningHistory(
                 com.music.spotui.MyApplication.instance,
                 com.music.spotui.data.preferences.HistoryEntry(

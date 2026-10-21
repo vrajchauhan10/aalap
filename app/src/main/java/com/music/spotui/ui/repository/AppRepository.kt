@@ -37,9 +37,12 @@ class AppRepository @Inject constructor(private val api : Api) {
 
     suspend fun provideCategoryPlaylists(genre: String) = api.getCategoryPlaylists(genre)
 
-    /** Every "what next" in the app goes through the shared engine (Spotify radio ranked for you). */
-    suspend fun provideRecommendations(seedTrackIds: List<String>) =
-        com.music.spotui.data.recommendation.Recommender.next(com.music.spotui.MyApplication.instance, seedTrackIds)
+    /**
+     * Every "what next" in the app goes through the shared engine: songs arrive one by
+     * one as the chain picks them (each pick seeds the next).
+     */
+    fun provideRecommendations(seed: com.music.spotui.data.entity.SongsModel, excludeIds: Set<Int> = emptySet()) =
+        com.music.spotui.data.recommendation.Recommender.next(com.music.spotui.MyApplication.instance, seed, excludeIds)
 
     suspend fun provideLikedSongs() = api.getLikedSongs()
 

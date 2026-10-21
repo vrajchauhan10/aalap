@@ -54,15 +54,14 @@ class SearchViewModel @Inject constructor(private val repository: AppRepository,
      */
     fun startRadioFromSong(song: SongsModel) {
         currentSongState.updateQueue(listOf(song))
-        val seed = song.spotifyTrackId
-        if (seed.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
-            val recs = repository.provideRecommendations(listOf(seed))
-            val current = currentSongState.queue.value
-            // Only extend if this radio is still the active queue (user didn't tap away).
-            if (current.size == 1 && current.first().id == song.id) {
-                val fresh = recs.filter { it.id != song.id }
-                if (fresh.isNotEmpty()) currentSongState.updateQueue(current + fresh)
+            runCatching {
+                repository.provideRecommendations(song, setOf(song.id)).collect { next ->
+                    val current = currentSongState.queue.value
+                    // Only extend while this radio is still the active queue (user didn't tap away).
+                    if (current.firstOrNull()?.id != song.id) throw kotlinx.coroutines.CancellationException("queue replaced")
+                    if (current.none { it.id == next.id }) currentSongState.updateQueue(current + next)
+                }
             }
         }
     }

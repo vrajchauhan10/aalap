@@ -125,6 +125,72 @@ object JioSaavnSource {
         null
     }
 
+    private fun artistNames(mi: JSONObject?): String = mi?.optJSONObject("artistMap")?.let { am ->
+        (am.optJSONArray("primary_artists")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).optString("name") } }.orEmpty() +
+            am.optJSONArray("featured_artists")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).optString("name") } }.orEmpty())
+            .distinct().joinToString(", ") { clean(it) }
+    }.orEmpty()
+
+    private fun JSONObject.toCandidate(): com.music.spotui.data.recommendation.engine.Candidate {
+        val mi = optJSONObject("more_info")
+        return com.music.spotui.data.recommendation.engine.Candidate(
+            title = clean(optString("title")),
+            artists = artistNames(mi).ifBlank { clean(optString("subtitle")).substringBefore(" - ") },
+            durationSec = mi?.optString("duration")?.toIntOrNull() ?: 0,
+            album = clean(mi?.optString("album").orEmpty()),
+            // Bigger artwork than the 150px default.
+            cover = optString("image").replace("150x150", "500x500"),
+            saavnId = optString("id"),
+            language = optString("language"),
+            explicit = optString("explicit_content") == "1",
+        )
+    }
+
+    /**
+     * JioSaavn's listing of a song (id + language), with the same strict matching as
+     * playback: title, artist, version and length must agree.
+     */
+    suspend fun findSong(title: String, artist: String, durationSec: Int): com.music.spotui.data.recommendation.engine.Candidate? =
+        withContext(Dispatchers.IO) {
+            val results = runCatching { search("${norm(title)} ${artist.substringBefore(",").trim()}".trim()) }.getOrNull()
+                ?: return@withContext null
+            val wantVersion = versionWords(title)
+            results.filter { r ->
+                val mi = r.optJSONObject("more_info") ?: return@filter false
+                val dur = mi.optString("duration").toIntOrNull() ?: 0
+                val durDiff = if (durationSec > 0 && dur > 0) abs(durationSec - dur) else -1
+                titleSimilarity(title, clean(r.optString("title"))) >= 0.6f &&
+                    (artist.isBlank() || artistMatch(artist, artistNames(mi))) &&
+                    versionWords(clean(r.optString("title"))) == wantVersion &&
+                    (durDiff in 0..8 || durDiff == -1)
+            }.maxByOrNull { titleSimilarity(title, clean(it.optString("title"))) }?.toCandidate()
+        }
+
+    /** JioSaavn's song radio after [songId]: what its listeners hear next, best first. */
+    suspend fun radio(songId: String, count: Int = 25): List<com.music.spotui.data.recommendation.engine.Candidate> =
+        withContext(Dispatchers.IO) {
+            val api = "https://www.jiosaavn.com/api.php?_format=json&_marker=0&api_version=4&ctx=android&__call="
+            val ids = URLEncoder.encode("[\"$songId\"]", "UTF-8")
+            val station = JSONObject(get("${api}webradio.createEntityStation&entity_type=queue&entity_id=$ids"))
+                .optString("stationid").ifBlank { return@withContext emptyList() }
+            val body = JSONObject(get("${api}webradio.getSong&k=$count&next=1&stationid=${URLEncoder.encode(station, "UTF-8")}"))
+            (0 until count).mapNotNull { i -> body.optJSONObject(i.toString())?.optJSONObject("song")?.toCandidate() }
+                .filter { it.saavnId != songId && it.title.isNotBlank() }
+        }
+
+    private fun get(url: String): String {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 5_000
+            conn.readTimeout = 6_000
+            conn.setRequestProperty("User-Agent", UA)
+            conn.setRequestProperty("Accept", "application/json")
+            return conn.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            conn.disconnect()
+        }
+    }
+
     private fun search(query: String): List<JSONObject> {
         val conn = URL(SEARCH + URLEncoder.encode(query, "UTF-8")).openConnection() as HttpURLConnection
         try {

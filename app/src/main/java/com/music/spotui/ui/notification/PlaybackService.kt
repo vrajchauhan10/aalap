@@ -353,17 +353,23 @@ class PlaybackService : MediaLibraryService() {
             return
         }
         serviceScope.launch {
-            val seeds = queue.takeLast(5).mapNotNull { it.spotifyTrackId.ifBlank { null } }.distinct()
+            val seed = queue.lastOrNull()
             val known = queue.mapTo(HashSet()) { it.id }
-            val fresh = withContext(Dispatchers.IO) {
-                runCatching { repository.provideRecommendations(seeds) }.getOrDefault(emptyList())
-            }.filter { it.id !in known }
-            if (fresh.isEmpty()) {
-                currentSongState.updatePlayingState(false)
-                return@launch
+            // The first chained song is enough to keep playing; the rest append as they're picked.
+            var advanced = false
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    if (seed != null) repository.provideRecommendations(seed, known).collect { next ->
+                        val current = currentSongState.queue.value
+                        if (current.none { it.id == next.id }) currentSongState.updateQueue(current + next)
+                        if (!advanced) {
+                            advanced = true
+                            withContext(Dispatchers.Main) { advance(forward = true) }
+                        }
+                    }
+                }
             }
-            currentSongState.updateQueue(currentSongState.queue.value + fresh)
-            advance(forward = true)
+            if (!advanced) currentSongState.updatePlayingState(false)
         }
     }
 

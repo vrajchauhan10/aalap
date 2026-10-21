@@ -322,39 +322,85 @@ class Api @Inject constructor(
     suspend fun getRecommendations(seedTrackIds: List<String>): List<SongsModel> {
         val seeds = seedTrackIds.filter { it.isNotBlank() }.distinct()
         if (seeds.isEmpty()) return emptyList()
-        if (!SpotifyTokenProvider.ensureToken(context)) return emptyList()
-        val seedId = seeds.last()
+        return radioTracks(seeds.last()).map { it.toSongModel() }
+    }
+
+    /** Spotify's song radio for [spotifyId] as engine candidates (keeps ISRCs for matching). */
+    suspend fun radioCandidates(spotifyId: String): List<com.music.spotui.data.recommendation.engine.Candidate> =
+        radioTracks(spotifyId).map { it.toCandidate() }
+
+    /** The best Spotify listing of [c] (title + artist search, checked by the song matcher). */
+    suspend fun findTrack(c: com.music.spotui.data.recommendation.engine.Candidate): com.music.spotui.data.recommendation.engine.Candidate? {
+        if (!SpotifyTokenProvider.ensureToken(context)) return null
+        val q = "${c.title} ${c.artists.substringBefore(",")}".trim()
+        val items = Spotify.search(q, listOf("track"), limit = 8).getOrNull()?.tracks?.items.orEmpty()
+        return items.map { it.toCandidate() }
+            .firstOrNull { com.music.spotui.data.recommendation.engine.SongMatcher.sameSong(it, c.copy(spotifyId = "")) }
+    }
+
+    /** A Spotify track's details by id. */
+    suspend fun trackCandidate(spotifyId: String): com.music.spotui.data.recommendation.engine.Candidate? {
+        if (spotifyId.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return null
+        return Spotify.track(spotifyId).getOrNull()?.toCandidate()
+    }
+
+    /** The top Spotify track for free text (debug endpoint's "q:" seeds). */
+    suspend fun searchCandidate(query: String): com.music.spotui.data.recommendation.engine.Candidate? {
+        if (query.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return null
+        return Spotify.search(query, listOf("track"), limit = 1).getOrNull()?.tracks?.items?.firstOrNull()?.toCandidate()
+    }
+
+    /** Top tracks of [artistName]'s best Spotify match (the engine's last fallback). */
+    suspend fun artistTopCandidates(artistName: String): List<com.music.spotui.data.recommendation.engine.Candidate> {
+        if (artistName.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
+        val artist = Spotify.search(artistName, listOf("artist"), limit = 3).getOrNull()?.artists?.items?.firstOrNull()
+            ?: return emptyList()
+        return Spotify.artistTopTracks(artist.id).getOrNull()?.tracks.orEmpty().map { it.toCandidate() }
+    }
+
+    private fun SpotifyTrack.toCandidate() = com.music.spotui.data.recommendation.engine.Candidate(
+        title = name,
+        artists = artists.joinToString(", ") { it.name },
+        durationSec = durationMs / 1000,
+        album = album?.name.orEmpty(),
+        cover = album?.images?.firstOrNull()?.url.orEmpty(),
+        isrc = isrc.orEmpty(),
+        spotifyId = id,
+        explicit = explicit,
+    )
+
+    private suspend fun radioTracks(seedId: String): List<SpotifyTrack> {
+        if (seedId.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
         // Primary: the exact radio the Spotify web player queues after this track —
         // the inspiredby-mix station playlist. This IS Spotify's real queue, so the
         // continuation matches what open.spotify.com would play next.
         Spotify.trackRadio(seedId).getOrNull()
             ?.filter { it.id != seedId }
             ?.takeIf { it.isNotEmpty() }
-            ?.let { radio -> return radio.map { it.toSongModel() } }
+            ?.let { radio -> return radio }
         Log.w("Api", "track radio empty — trying native recommender")
         // Fallback 1: Spotify's own recommender (the SEO "recommended tracks" GQL op).
         // Still Spotify's real backend, so it beats any local heuristic when available.
         Spotify.recommendedTracks(seedId).getOrNull()?.takeIf { it.isNotEmpty() }?.let { native ->
-            return native.map { it.toSongModel() }
+            return native
         }
         Log.w("Api", "native recommender empty — trying artist radio")
         val seedTrack = Spotify.track(seedId).getOrNull()
-            ?: return emptyList<SongsModel>().also { Log.w("Api", "getRecommendations: seed track unresolved") }
+            ?: return emptyList<SpotifyTrack>().also { Log.w("Api", "getRecommendations: seed track unresolved") }
 
         // Fallback 2: artist radio built purely from GQL endpoints (seed artist top
         // tracks + related artists' top tracks). Unlike the heuristic engine this does
         // NOT depend on me/top/tracks|artists, which are frequently HTTP 429 rate-limited
         // with the web token — so it keeps working when the profile-based engine can't.
         artistRadio(seedTrack).takeIf { it.isNotEmpty() }?.let { radio ->
-            return radio.map { it.toSongModel() }
+            return radio
         }
 
         Log.w("Api", "artist radio empty — falling back to heuristic engine")
         // Fallback 3: profile-based heuristic engine (best-personalized but needs top data).
         return com.music.spotui.data.recommendation.SpotifyRecommendationEngine
             .getRecommendations(seedTrack, limit = 25)
-            .map { it.toSongModel() }
-            .ifEmpty { emptyList<SongsModel>().also { Log.w("Api", "getRecommendations returned no tracks") } }
+            .ifEmpty { emptyList<SpotifyTrack>().also { Log.w("Api", "getRecommendations returned no tracks") } }
     }
 
     /**
@@ -630,6 +676,7 @@ class Api @Inject constructor(
             com.music.spotui.data.preferences.syncSpotifyLikedSongIds(
                 context, models.mapTo(HashSet()) { it.id.toString() }, complete = items.size >= total,
             )
+            com.music.spotui.data.recommendation.engine.QueueEngine.rememberLiked(context, models)
             emit(Response.Success(models))
         }) { offset -> Spotify.likedSongs(limit = 50, offset = offset) }
         if (!loaded) emit(Response.Error("Couldn't load Liked Songs"))

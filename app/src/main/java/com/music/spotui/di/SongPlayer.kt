@@ -1293,6 +1293,11 @@ object SongPlayer {
      * YouTube video id for a song: the one playback used, else the best match from a
      * search (the same matching playback uses). Null if YouTube has no match.
      */
+    /** Pins [query] to a known YouTube video (e.g. one YouTube Music suggested), so playback skips the search. */
+    fun rememberVideoId(query: String, videoId: String) {
+        if (query.isNotBlank() && videoId.isNotBlank()) matchedVideoIds.putIfAbsent(query, videoId)
+    }
+
     suspend fun youTubeIdFor(query: String): String? =
         matchedVideoIds[query] ?: runCatching { resolveVideoCandidates(query).firstOrNull() }.getOrNull()
             ?.also { matchedVideoIds[query] = it }
@@ -1322,6 +1327,7 @@ object SongPlayer {
             }
             return null
         }
+        matchedVideoIds[query]?.let { known -> tryIds(listOf(known))?.let { return it } }
         tryIds(resolveVideoCandidates(query).take(3))?.let { return it }
         if (!com.music.spotui.data.preferences.isVideoFallbackEnabled(appContext)) {
             Log.w(TAG, "song candidates exhausted and video fallback disabled for: ${searchTextForPlayback(query)}")
