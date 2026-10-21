@@ -139,7 +139,11 @@ fun LibraryScreen(navController: NavController) {
             Column(Modifier.weight(1f)) {
                 Text("Library", fontWeight = FontWeight.Bold, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 28.sp)
                 Text(
-                    "$playlists playlists · $albums albums · ${followedArtists.size} artists",
+                    listOf(
+                        "$playlists ${if (playlists == 1) "playlist" else "playlists"}",
+                        "$albums ${if (albums == 1) "album" else "albums"}",
+                        "${followedArtists.size} ${if (followedArtists.size == 1) "artist" else "artists"}",
+                    ).joinToString(" · "),
                     color = com.music.spotui.ui.theme.TextMuted, fontSize = 13.sp,
                 )
             }

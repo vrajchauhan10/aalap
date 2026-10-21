@@ -25,14 +25,7 @@ object ArtistPicker {
     private fun key(name: String) = SongMatcher.artistKeys(name).firstOrNull().orEmpty()
 
     /** Everyone you follow right now, each once. */
-    fun following(c: Context): List<ArtistsModel> {
-        val local = c.getSharedPreferences("FollowedArtists", Context.MODE_PRIVATE).all
-            .mapNotNull { (id, name) -> (name as? String)?.let { ArtistsModel(it, "", id) } }
-        val merged = YouTubeLibrary.mergeArtists(getCachedFollowedArtists(c), YouTubeLibrary.artists(c))
-        val keys = merged.mapTo(HashSet()) { key(it.name) }
-        val hidden = YouTubeLibrary.hiddenArtists(c)
-        return merged + local.filter { key(it.name) !in keys && key(it.name) !in hidden }
-    }
+    fun following(c: Context): List<ArtistsModel> = YouTubeLibrary.allFollowed(c, null)
 
     /** Spotify's listing (id + photo) for an artist known only by name. */
     private suspend fun resolve(api: Api, name: String): ArtistsModel? =
@@ -135,12 +128,15 @@ object ArtistPicker {
             }
             val cached = getCachedFollowedArtists(c)
             if (cached.none { key(it.name) == key(a.name) }) cacheFollowedArtists(c, listOf(a) + cached)
+            val sp = YouTubeLibrary.spotifyArtists(c)
+            if (a.id.isNotBlank() && sp.none { key(it.name) == key(a.name) }) YouTubeLibrary.saveSpotifyArtists(c, listOf(a) + sp)
         } else {
             if (a.id.isNotBlank()) {
                 removeFollowedArtist(c, a.id)
                 SpotifySync.setArtistFollowed(c, a.id, false)
             }
             cacheFollowedArtists(c, getCachedFollowedArtists(c).filter { key(it.name) != key(a.name) })
+            YouTubeLibrary.saveSpotifyArtists(c, YouTubeLibrary.spotifyArtists(c).filter { key(it.name) != key(a.name) })
             // Keeps a YouTube Music subscription out of Aalap too (unsubscribing there is up to you).
             YouTubeLibrary.setArtistHidden(c, a.name, true)
         }

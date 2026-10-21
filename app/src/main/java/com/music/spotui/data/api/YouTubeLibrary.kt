@@ -198,6 +198,32 @@ object YouTubeLibrary {
         return out.distinctBy { it.id }
     }
 
+    /** Your Spotify follows from the last successful fetch (used when a fetch fails). */
+    fun saveSpotifyArtists(c: Context, artists: List<ArtistsModel>) {
+        val a = JSONArray()
+        artists.forEach { a.put(JSONObject().put("name", it.name).put("cover", it.coverUri).put("id", it.id)) }
+        prefs(c).edit().putString("spotify_artists", a.toString()).apply()
+    }
+
+    fun spotifyArtists(c: Context): List<ArtistsModel> = runCatching {
+        val a = JSONArray(prefs(c).getString("spotify_artists", "[]"))
+        (0 until a.length()).map { i -> a.getJSONObject(i).let { ArtistsModel(it.optString("name"), it.optString("cover"), it.optString("id")) } }
+    }.getOrDefault(emptyList())
+
+    /**
+     * Everyone you follow: Spotify (or its last good copy if the fetch failed), YouTube
+     * Music subscriptions and follows made in Aalap, each artist once.
+     */
+    fun allFollowed(c: Context, spotifyNow: List<ArtistsModel>?): List<ArtistsModel> {
+        val spotify = spotifyNow?.takeIf { it.isNotEmpty() }?.also { saveSpotifyArtists(c, it) } ?: spotifyArtists(c)
+        val local = c.getSharedPreferences("FollowedArtists", Context.MODE_PRIVATE).all
+            .mapNotNull { (id, name) -> (name as? String)?.let { ArtistsModel(it, "", id) } }
+        val merged = mergeArtists(spotify, artists(c))
+        val keys = merged.mapTo(HashSet()) { SongMatcher.artistKeys(it.name).firstOrNull() }
+        val hidden = hiddenArtists(c)
+        return merged + local.filter { l -> SongMatcher.artistKeys(l.name).firstOrNull().let { it !in keys && it !in hidden } }
+    }
+
     /** Followed artists from both services, each artist once. */
     fun mergeArtists(spotify: List<ArtistsModel>, youtube: List<ArtistsModel>): List<ArtistsModel> {
         val hidden = hiddenArtists(com.music.spotui.MyApplication.instance)

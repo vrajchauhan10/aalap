@@ -26,7 +26,7 @@ class LibrarySyncWorker(context: Context, params: WorkerParameters) : CoroutineW
                 val api = Api(c)
                 api.getLikedSongs().collect { } // saves the full list when the last page arrives
                 api.getFollowedArtists().takeIf { it.isNotEmpty() }
-                    ?.let { com.music.spotui.data.preferences.cacheFollowedArtists(c, it) }
+                    ?.let { com.music.spotui.data.preferences.cacheFollowedArtists(c, YouTubeLibrary.allFollowed(c, it)) }
                 ok = true
             }.onFailure { Log.w(TAG, "Spotify sync failed: $it") }
         }
