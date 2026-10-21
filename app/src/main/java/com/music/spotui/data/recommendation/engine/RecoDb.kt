@@ -321,6 +321,22 @@ class RecoDb private constructor(context: Context) :
         }
     }
 
+    /** Moves everything logged under [from] (e.g. "local", before an email was set) to [to]. */
+    @Synchronized
+    fun adoptUser(from: String, to: String) {
+        if (from == to) return
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.execSQL("UPDATE play_history SET user_id = ? WHERE user_id = ?", arrayOf(to, from))
+            db.execSQL("UPDATE OR IGNORE transitions SET user_id = ? WHERE user_id = ?", arrayOf(to, from))
+            db.execSQL("UPDATE OR IGNORE user_taste SET user_id = ? WHERE user_id = ?", arrayOf(to, from))
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     // ── user_taste ──────────────────────────────────────────────────────────
 
     fun likedIds(userId: String): Set<String> =

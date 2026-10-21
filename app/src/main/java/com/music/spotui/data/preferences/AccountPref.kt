@@ -17,8 +17,16 @@ private fun prefs(c: Context) = c.getSharedPreferences(PREF, Context.MODE_PRIVAT
 fun getAalapName(c: Context): String = prefs(c).getString(KEY_NAME, null).orEmpty()
 fun getAalapEmail(c: Context): String = prefs(c).getString(KEY_EMAIL, null).orEmpty()
 
-fun setAalapAccount(c: Context, name: String, email: String) =
-    prefs(c).edit().putString(KEY_NAME, name.trim()).putString(KEY_EMAIL, email.trim()).putBoolean(KEY_ONBOARDED, true).apply()
+fun setAalapAccount(c: Context, name: String, email: String) {
+    // Listening logged on this phone before (or without) an email stays with this person.
+    val before = com.music.spotui.data.recommendation.engine.RecoDb.userId(c)
+    prefs(c).edit().putString(KEY_NAME, name.trim()).putString(KEY_EMAIL, email.trim()).putBoolean(KEY_ONBOARDED, true).commit()
+    val after = com.music.spotui.data.recommendation.engine.RecoDb.userId(c)
+    Thread {
+        runCatching { com.music.spotui.data.recommendation.engine.RecoDb.get(c).adoptUser(before, after) }
+        com.music.spotui.data.recommendation.engine.Personalizer.invalidate()
+    }.start()
+}
 
 fun setAalapName(c: Context, name: String) = prefs(c).edit().putString(KEY_NAME, name.trim()).apply()
 
@@ -29,5 +37,11 @@ fun isAalapOnboarded(c: Context): Boolean =
 /** The name to show: the Aalap name if set, else [fallback] (e.g. the connected account's name). */
 fun aalapDisplayName(c: Context, fallback: String): String = getAalapName(c).ifBlank { fallback }
 
-/** Logging out of Aalap forgets the welcome step too. */
-fun clearAalapAccount(c: Context) = prefs(c).edit().clear().apply()
+/**
+ * Logging out of Aalap forgets the welcome step too. The email is kept as the last
+ * account, so listening logged after logout (and before signing back in) isn't lost.
+ */
+fun clearAalapAccount(c: Context) {
+    val email = getAalapEmail(c)
+    prefs(c).edit().clear().putString(KEY_EMAIL, email).apply()
+}
