@@ -51,6 +51,7 @@ import com.music.spotui.data.api.ArtistPicker
 import com.music.spotui.data.entity.ArtistsModel
 import com.music.spotui.data.recommendation.engine.SongMatcher
 import com.music.spotui.ui.components.AalapLoader
+import com.music.spotui.ui.navigation.artistRoute
 import com.music.spotui.ui.theme.AppBackground
 import com.music.spotui.ui.theme.OnSaffron
 import com.music.spotui.ui.theme.Saffron
@@ -63,53 +64,71 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * "Your artists": follow anyone. Suggestions come from your own listening (artists
- * you play a lot but don't follow, with your play count) and from artists similar to
- * your favourites. Tap to follow or unfollow; it applies to Spotify, your Library and
- * recommendations.
+ * "Your artists": follow anyone. Every artist has a clear Follow / Following button;
+ * the photo opens the artist. Following someone slides in three similar artists right
+ * after them (like Spotify), so you can keep going. Suggestions come from your own
+ * listening (artists you play a lot, with your play count) and from fans-also-like.
  */
-@OptIn(ExperimentalGlideComposeApi::class)
+@OptIn(ExperimentalGlideComposeApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ArtistPickerScreen(navController: NavController) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var query by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<ArtistsModel>>(emptyList()) }
+    val results = remember { mutableStateListOf<ArtistPicker.Pick>() }
     var searching by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     val fromListening = remember { mutableStateListOf<ArtistPicker.Pick>() }
     val similar = remember { mutableStateListOf<ArtistPicker.Pick>() }
     val following = remember { mutableStateListOf<ArtistsModel>() }
-    // Keys of artists followed right now (drives the check marks).
     var followedKeys by remember { mutableStateOf(emptySet<String>()) }
+    // Artists that just slid in after a follow (briefly highlighted).
+    var fresh by remember { mutableStateOf(emptySet<String>()) }
     fun key(name: String) = SongMatcher.artistKeys(name).firstOrNull().orEmpty()
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             val f = ArtistPicker.following(context)
             withContext(Dispatchers.Main) { following.addAll(f); followedKeys = f.mapTo(HashSet()) { key(it.name) } }
-            val mine = runCatching { ArtistPicker.fromYourListening(context) }.getOrDefault(emptyList())
+            val mine = runCatching { ArtistPicker.fromYourListening(context) }
+                .onFailure { android.util.Log.w("ArtistPicker", "top artists failed", it) }.getOrDefault(emptyList())
             withContext(Dispatchers.Main) { fromListening.addAll(mine) }
             val sim = runCatching { ArtistPicker.similar(context, mine.mapTo(HashSet()) { key(it.artist.name) }) }.getOrDefault(emptyList())
             withContext(Dispatchers.Main) { similar.addAll(sim); loading = false }
         }
     }
     LaunchedEffect(query) {
-        if (query.isBlank()) { results = emptyList(); return@LaunchedEffect }
+        if (query.isBlank()) { results.clear(); return@LaunchedEffect }
         delay(300)
         searching = true
-        results = withContext(Dispatchers.IO) { runCatching { ArtistPicker.search(context, query) }.getOrDefault(emptyList()) }
+        val found = withContext(Dispatchers.IO) { runCatching { ArtistPicker.search(context, query) }.getOrDefault(emptyList()) }
+        results.clear(); results.addAll(found.map { ArtistPicker.Pick(it, "Artist") })
         searching = false
     }
 
-    fun toggle(artist: ArtistsModel) {
-        val follow = key(artist.name) !in followedKeys
-        followedKeys = if (follow) followedKeys + key(artist.name) else followedKeys - key(artist.name)
+    /** Follow/unfollow; on follow, three similar artists slide in right after it in [list]. */
+    fun toggle(artist: ArtistsModel, list: androidx.compose.runtime.snapshots.SnapshotStateList<ArtistPicker.Pick>?) {
+        val k = key(artist.name)
+        val follow = k !in followedKeys
+        followedKeys = if (follow) followedKeys + k else followedKeys - k
         scope.launch {
             val resolved = withContext(Dispatchers.IO) { ArtistPicker.setFollowed(context, artist, follow) }
-            if (follow) { if (following.none { key(it.name) == key(resolved.name) }) following.add(0, resolved) }
-            else following.removeAll { key(it.name) == key(artist.name) }
+            if (follow) {
+                if (following.none { key(it.name) == k }) following.add(0, resolved)
+                if (list != null) {
+                    val shown = (fromListening + similar + results).mapTo(HashSet()) { key(it.artist.name) } + followedKeys
+                    val more = withContext(Dispatchers.IO) { runCatching { ArtistPicker.relatedTo(context, resolved, shown) }.getOrDefault(emptyList()) }
+                    val at = list.indexOfFirst { key(it.artist.name) == k }
+                    if (at >= 0 && more.isNotEmpty()) {
+                        list.addAll(at + 1, more)
+                        fresh = more.mapTo(HashSet()) { key(it.artist.name) }
+                        delay(2500); fresh = emptySet()
+                    }
+                }
+            } else {
+                following.removeAll { key(it.name) == k }
+            }
         }
     }
 
@@ -117,44 +136,54 @@ fun ArtistPickerScreen(navController: NavController) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp, 12.dp)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = TextPrimary,
                 modifier = Modifier.size(26.dp).clickable { navController.navigateUp() })
+            Spacer(Modifier.weight(1f))
+            Text(
+                "${followedKeys.size} following", color = Saffron, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(50)).background(Saffron.copy(alpha = 0.14f))
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
         }
         Text("Your artists", color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 20.dp))
         Text(
-            "Follow the artists you love. Aalap Radio and your recommendations follow along.",
+            "Tap Follow on artists you love. Aalap Radio and your recommendations follow along.",
             color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 2.dp),
         )
         AalapSearchBar(query, onFocusChange = {}, placeholder = "Search any artist") { query = it }
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 200.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 200.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
             if (query.isNotBlank()) {
                 if (searching && results.isEmpty()) item(span = { GridItemSpan(3) }) { CenterLoader() }
-                items(results, key = { "s:" + it.id.ifBlank { it.name } }) { a ->
-                    ArtistCell(a, null, key(a.name) in followedKeys) { toggle(a) }
+                items(results, key = { "s:" + key(it.artist.name) }) { p ->
+                    ArtistCell(p.artist, p.reason, key(p.artist.name) in followedKeys, key(p.artist.name) in fresh,
+                        Modifier.animateItemPlacement(), onOpen = { navController.navigate(artistRoute(p.artist.name, p.artist.id)) }) { toggle(p.artist, results) }
                 }
             } else {
                 if (fromListening.isNotEmpty()) {
-                    item(span = { GridItemSpan(3) }) { Header("Suggested from your listening", "Artists you play a lot but don't follow yet") }
-                    items(fromListening, key = { "m:" + it.artist.name }) { p ->
-                        ArtistCell(p.artist, p.reason, key(p.artist.name) in followedKeys) { toggle(p.artist) }
+                    item(span = { GridItemSpan(3) }) { Header("Your top artists", "From what you play the most") }
+                    items(fromListening, key = { "m:" + key(it.artist.name) }) { p ->
+                        ArtistCell(p.artist, p.reason, key(p.artist.name) in followedKeys, key(p.artist.name) in fresh,
+                            Modifier.animateItemPlacement(), onOpen = { navController.navigate(artistRoute(p.artist.name, p.artist.id)) }) { toggle(p.artist, fromListening) }
                     }
                 }
                 if (similar.isNotEmpty()) {
-                    item(span = { GridItemSpan(3) }) { Header("You might also like", "Similar to your favourite artists") }
-                    items(similar, key = { "r:" + it.artist.name }) { p ->
-                        ArtistCell(p.artist, p.reason, key(p.artist.name) in followedKeys) { toggle(p.artist) }
+                    item(span = { GridItemSpan(3) }) { Header("Fans also like", "Similar to the artists you love") }
+                    items(similar, key = { "r:" + key(it.artist.name) }) { p ->
+                        ArtistCell(p.artist, p.reason, key(p.artist.name) in followedKeys, key(p.artist.name) in fresh,
+                            Modifier.animateItemPlacement(), onOpen = { navController.navigate(artistRoute(p.artist.name, p.artist.id)) }) { toggle(p.artist, similar) }
                     }
                 }
                 if (loading) item(span = { GridItemSpan(3) }) { CenterLoader() }
                 if (following.isNotEmpty()) {
-                    item(span = { GridItemSpan(3) }) { Header("Following · ${following.size}", "Tap to unfollow") }
-                    items(following, key = { "f:" + it.name }) { a ->
-                        ArtistCell(a, null, key(a.name) in followedKeys) { toggle(a) }
+                    item(span = { GridItemSpan(3) }) { Header("Following", "Everyone you follow on Spotify, YouTube Music and Aalap") }
+                    items(following, key = { "f:" + key(it.name) }) { a ->
+                        ArtistCell(a, null, key(a.name) in followedKeys, false,
+                            Modifier.animateItemPlacement(), onOpen = { navController.navigate(artistRoute(a.name, a.id)) }) { toggle(a, null) }
                     }
                 }
             }
@@ -164,8 +193,8 @@ fun ArtistPickerScreen(navController: NavController) {
 
 @Composable
 private fun Header(title: String, subtitle: String) {
-    Column(Modifier.padding(top = 18.dp, start = 4.dp)) {
-        Text(title, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+    Column(Modifier.padding(top = 20.dp, start = 6.dp, bottom = 2.dp)) {
+        Text(title, color = TextPrimary, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
         Text(subtitle, color = TextMuted, fontSize = 12.sp)
     }
 }
@@ -175,30 +204,53 @@ private fun CenterLoader() {
     Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { AalapLoader() }
 }
 
+/** An artist: photo (opens the artist), name, why it's here, and a clear Follow / Following button. */
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
-private fun ArtistCell(artist: ArtistsModel, reason: String?, followed: Boolean, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onClick)) {
-        Box {
+private fun ArtistCell(
+    artist: ArtistsModel,
+    reason: String?,
+    followed: Boolean,
+    justAdded: Boolean,
+    modifier: Modifier,
+    onOpen: () -> Unit,
+    onToggle: () -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(18.dp))
+            .background(if (justAdded) Saffron.copy(alpha = 0.10f) else androidx.compose.ui.graphics.Color.Transparent)
+            .padding(vertical = 8.dp, horizontal = 4.dp),
+    ) {
+        Box(Modifier.clickable(onClick = onOpen)) {
             GlideImage(
                 model = artist.coverUri, contentDescription = artist.name, contentScale = ContentScale.Crop,
                 loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
-                modifier = Modifier
-                    .size(96.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceHigh)
-                    .border(if (followed) 3.dp else 0.dp, if (followed) Saffron else SurfaceHigh, CircleShape),
+                modifier = Modifier.size(88.dp).clip(CircleShape).background(SurfaceHigh),
             )
             if (followed) {
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.align(Alignment.BottomEnd).size(28.dp).clip(CircleShape).background(Saffron),
-                ) { Text("✓", color = OnSaffron, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                    modifier = Modifier.align(Alignment.BottomEnd).size(26.dp).clip(CircleShape).background(Saffron),
+                ) { Text("✓", color = OnSaffron, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
             }
         }
         Spacer(Modifier.height(6.dp))
-        Text(artist.name, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1,
+        Text(artist.name, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
             overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-        if (reason != null) Text(reason, color = TextMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+        Text(reason ?: "Artist", color = TextMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            if (followed) "Following" else "Follow",
+            color = if (followed) OnSaffron else Saffron,
+            fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
+                .background(if (followed) Saffron else androidx.compose.ui.graphics.Color.Transparent)
+                .border(1.dp, Saffron, androidx.compose.foundation.shape.RoundedCornerShape(50))
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+        )
     }
 }

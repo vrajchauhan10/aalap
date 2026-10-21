@@ -260,6 +260,11 @@ object QueueEngine {
     @Synchronized
     fun ensureImported(context: Context) {
         if (imported.get()) return
+        // Plays logged before an email was set belong to this phone's one listener.
+        RecoDb.userId(context).takeIf { it != "local" }?.let { me ->
+            runCatching { RecoDb.get(context).adoptUser("local", me) }
+            Personalizer.invalidate()
+        }
         val prefs = context.getSharedPreferences("reco_engine", Context.MODE_PRIVATE)
         if (!prefs.getBoolean("history_imported", false)) {
             runCatching {

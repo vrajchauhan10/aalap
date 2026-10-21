@@ -38,13 +38,17 @@ object ArtistPicker {
     private suspend fun resolve(api: Api, name: String): ArtistsModel? =
         api.searchArtists(name, limit = 5).firstOrNull { key(it.name) == key(name) }
 
-    /** Artists you play most that you don't follow yet, with your finished plays. */
+    /**
+     * Your most-played artists with your finished plays ("42 plays"), followed or not;
+     * the ones you don't follow yet come first.
+     */
     suspend fun fromYourListening(c: Context, limit: Int = 15): List<Pick> = coroutineScope {
         val followed = following(c).mapTo(HashSet()) { key(it.name) }
         val api = Api(c)
         Personalizer.artistPlayCounts(c)
-            .filter { (name, n) -> n >= 2 && key(name) !in followed }
+            .filter { (_, n) -> n >= 2 }
             .take(limit)
+            .sortedBy { (name, _) -> key(name) in followed }
             .map { (name, n) -> async { resolve(api, name)?.let { Pick(it, "$n plays") } } }
             .awaitAll().filterNotNull().distinctBy { key(it.artist.name) }
     }
@@ -69,6 +73,54 @@ object ArtistPicker {
         }
         out.take(limit)
     }
+
+    /** A few artists like [artist] that aren't in [exclude] (keys): shown right after you follow it. */
+    suspend fun relatedTo(c: Context, artist: ArtistsModel, exclude: Set<String>, n: Int = 3): List<Pick> {
+        val api = Api(c)
+        val id = artist.id.ifBlank { resolve(api, artist.name)?.id.orEmpty() }
+        return api.relatedArtists(id).filter { key(it.name) !in exclude }.take(n).map { Pick(it, "Like ${artist.name}") }
+    }
+
+    private const val ALBUMS_PREF = "favourite_albums"
+
+    /**
+     * Popular albums by the artists you follow and play most, two each, mixed. Cached
+     * for the day; [force] rebuilds.
+     */
+    suspend fun albumsFromFavourites(c: Context, force: Boolean = false): List<com.music.spotui.data.entity.LibraryEntry> = coroutineScope {
+        val prefs = c.getSharedPreferences(ALBUMS_PREF, Context.MODE_PRIVATE)
+        val today = java.time.LocalDate.now().toString()
+        if (!force && prefs.getString("day", null) == today) readAlbums(prefs.getString("list", "[]"))?.let { return@coroutineScope it }
+        val api = Api(c)
+        val played = Personalizer.artistPlayCounts(c).take(6).map { it.first }
+        val followed = following(c).take(10)
+        // Artists you play most come first, then the ones you follow.
+        val artists = (played.map { ArtistsModel(it, "", "") } + followed).distinctBy { key(it.name) }.take(10)
+        val lists = artists.map { a ->
+            async {
+                val id = a.id.ifBlank { resolve(api, a.name)?.id.orEmpty() }
+                runCatching { api.artistReleases(id) }.getOrDefault(emptyList()).take(2)
+            }
+        }.awaitAll()
+        val mixed = ArrayList<com.music.spotui.data.entity.LibraryEntry>()
+        for (i in 0 until 2) lists.forEach { l -> l.getOrNull(i)?.let { if (mixed.none { m -> m.spotifyId == it.spotifyId }) mixed += it } }
+        if (mixed.isNotEmpty()) prefs.edit().putString("day", today).putString("list", writeAlbums(mixed)).apply()
+        mixed
+    }
+
+    private fun writeAlbums(list: List<com.music.spotui.data.entity.LibraryEntry>) = org.json.JSONArray().also { a ->
+        list.forEach { e ->
+            a.put(org.json.JSONObject().put("id", e.spotifyId).put("name", e.name).put("sub", e.subtitle)
+                .put("cover", e.coverUri).put("artists", e.artists))
+        }
+    }.toString()
+
+    private fun readAlbums(raw: String?): List<com.music.spotui.data.entity.LibraryEntry>? = runCatching {
+        val a = org.json.JSONArray(raw ?: "[]")
+        (0 until a.length()).map { i -> a.getJSONObject(i).let {
+            com.music.spotui.data.entity.LibraryEntry(it.getString("id"), it.optString("name"), it.optString("sub"), it.optString("cover"), false, it.optString("artists"))
+        } }
+    }.getOrNull()?.takeIf { it.isNotEmpty() }
 
     suspend fun search(c: Context, query: String): List<ArtistsModel> = Api(c).searchArtists(query, limit = 18)
 

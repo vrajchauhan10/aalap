@@ -34,6 +34,10 @@ class LibraryViewModel @Inject constructor(
         MutableStateFlow(emptyList())
     val followedArtists: StateFlow<List<com.music.spotui.data.entity.ArtistsModel>> = _followedArtists
 
+    /** Popular albums by the artists you follow and play most. */
+    private val _favouriteAlbums = MutableStateFlow<List<LibraryEntry>>(emptyList())
+    val favouriteAlbums: StateFlow<List<LibraryEntry>> = _favouriteAlbums
+
     init {
         // Seed UI with the last-seen library immediately so it's visible offline.
         val cached = getCachedLibraryEntries(context)
@@ -44,6 +48,9 @@ class LibraryViewModel @Inject constructor(
         load()
         loadAccount()
         loadFollowedArtists()
+        viewModelScope.launch(Dispatchers.IO) {
+            _favouriteAlbums.value = runCatching { com.music.spotui.data.api.ArtistPicker.albumsFromFavourites(context) }.getOrDefault(emptyList())
+        }
     }
 
     fun load() = viewModelScope.launch(Dispatchers.IO) {

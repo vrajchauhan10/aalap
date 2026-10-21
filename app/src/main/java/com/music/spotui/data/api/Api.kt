@@ -134,6 +134,25 @@ class Api @Inject constructor(
         return Spotify.search(query, listOf("artist"), limit = limit).getOrNull()?.artists?.items.orEmpty().map { it.toArtistModel() }
     }
 
+    /** An artist's popular releases as Library entries (albums first, then singles/EPs). */
+    suspend fun artistReleases(artistId: String): List<com.music.spotui.data.entity.LibraryEntry> {
+        if (artistId.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
+        val o = Spotify.artistOverview(artistId).getOrNull() ?: return emptyList()
+        return o.popularReleases
+            .sortedBy { if (it.albumType.equals("album", true)) 0 else 1 }
+            .map { a ->
+                val artists = a.artists.joinToString(", ") { it.name }.ifBlank { o.name }
+                com.music.spotui.data.entity.LibraryEntry(
+                    spotifyId = a.id,
+                    name = a.name,
+                    subtitle = listOfNotNull(a.releaseDate?.take(4), o.name).joinToString(" · "),
+                    coverUri = a.images.firstOrNull()?.url.orEmpty(),
+                    isPlaylist = false,
+                    artists = artists,
+                )
+            }
+    }
+
     /** Artists similar to [artistId] ("fans also like"). */
     suspend fun relatedArtists(artistId: String): List<ArtistsModel> {
         if (artistId.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
