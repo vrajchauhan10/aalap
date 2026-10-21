@@ -38,6 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -117,7 +118,16 @@ fun LibraryScreen(navController: NavController) {
     var filter by remember { mutableStateOf(LibraryFilter.ALL) }
     val allEntries = (entries as? Response.Success)?.data.orEmpty()
     // Liked Songs and Downloads get their own tiles, so they're not repeated in the list.
-    val listEntries = allEntries.filter {
+    // Playlists made in Aalap come first, then the ones from Spotify.
+    val localVersion by com.music.spotui.data.local.AalapPlaylists.version.collectAsState()
+    val localPlaylists = remember(localVersion) { com.music.spotui.data.local.AalapPlaylists.asLibraryEntries(context) }
+    var creatingPlaylist by remember { mutableStateOf(false) }
+    if (creatingPlaylist) com.music.spotui.ui.components.PlaylistNameDialog("New playlist", onDismiss = { creatingPlaylist = false }) { name ->
+        creatingPlaylist = false
+        val id = com.music.spotui.data.local.AalapPlaylists.create(context, name)
+        navController.navigate(com.music.spotui.ui.navigation.playlistRoute(id, name))
+    }
+    val listEntries = localPlaylists + allEntries.filter {
         it.spotifyId != Api.HomeCache.LIKED_SONGS_ID && it.spotifyId != Api.HomeCache.DOWNLOADS_ID
     }.distinctBy { it.spotifyId.ifBlank { it.name } } // a playlist both saved and owned is listed once
     val playlists = listEntries.count { it.isPlaylist }
@@ -139,14 +149,20 @@ fun LibraryScreen(navController: NavController) {
             Column(Modifier.weight(1f)) {
                 Text("Library", fontWeight = FontWeight.Bold, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 28.sp)
                 Text(
-                    listOf(
-                        "$playlists ${if (playlists == 1) "playlist" else "playlists"}",
-                        "$albums ${if (albums == 1) "album" else "albums"}",
-                        "${followedArtists.size} ${if (followedArtists.size == 1) "artist" else "artists"}",
+                    // Only what you have, on one line (e.g. "1 playlist · 86 artists").
+                    listOfNotNull(
+                        "$playlists ${if (playlists == 1) "playlist" else "playlists"}".takeIf { playlists > 0 },
+                        "$albums ${if (albums == 1) "album" else "albums"}".takeIf { albums > 0 },
+                        "${followedArtists.size} ${if (followedArtists.size == 1) "artist" else "artists"}".takeIf { followedArtists.isNotEmpty() },
                     ).joinToString(" · "),
                     color = com.music.spotui.ui.theme.TextMuted, fontSize = 13.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
+            RoundIconButton(onClick = { creatingPlaylist = true }) {
+                Icon(Icons.Default.Add, contentDescription = "New playlist", tint = com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(8.dp))
             RoundIconButton(
                 active = searchActive,
                 onClick = { searchActive = !searchActive; if (!searchActive) searchQuery = "" },
@@ -263,6 +279,7 @@ fun LibraryScreen(navController: NavController) {
                     grid = gridView,
                     favouriteAlbums = if (q.isBlank() && (filter == LibraryFilter.ALL || filter == LibraryFilter.ALBUMS)) favouriteAlbums else emptyList(),
                     favouriteAlbumsAsGrid = filter == LibraryFilter.ALBUMS,
+                    onSeeAll = { filter = it },
                 )
             }
             else -> Box(modifier = Modifier.padding(20.dp, 100.dp)) { Snackbar(showMessage = "Couldn't load your library") }
@@ -387,6 +404,7 @@ private fun LibraryContent(
     grid: Boolean,
     favouriteAlbums: List<LibraryEntry> = emptyList(),
     favouriteAlbumsAsGrid: Boolean = false,
+    onSeeAll: (LibraryFilter) -> Unit = {},
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(if (grid) 3 else 1),
@@ -399,13 +417,21 @@ private fun LibraryContent(
         }
         if (showTiles) item(span = full) { LibraryTiles(navController) }
 
-        // Albums by the artists you follow and play most (a row on All, a grid under Albums).
-        if (favouriteAlbums.isNotEmpty() && !favouriteAlbumsAsGrid) {
+        // Albums by the artists you follow and play most. Grid view: square tiles like the
+        // rest of the library; list view: a row on All, list rows under Albums.
+        if (favouriteAlbums.isNotEmpty() && (!favouriteAlbumsAsGrid || grid)) {
             item(span = full) { LibrarySectionTitle("Albums from artists you love") }
-            item(span = full) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(horizontal = 20.dp)) {
-                    items(favouriteAlbums.size) { i -> AlbumCard(favouriteAlbums[i], navController, Modifier.width(140.dp)) }
+            if (!favouriteAlbumsAsGrid && grid) {
+                // All view, grid: pages of 4×4 squares, swipe for the next page.
+                item(span = full) {
+                    PagedGrid(favouriteAlbums) { e -> SmallAlbumTile(e, navController) }
                 }
+            } else if (!favouriteAlbumsAsGrid) {
+                // All view, list: the first few as rows, the rest under Albums.
+                items(minOf(5, favouriteAlbums.size), span = { full() }) { i -> AlbumRow(favouriteAlbums[i], navController) }
+                if (favouriteAlbums.size > 5) item(span = full) { SeeAll("See all ${favouriteAlbums.size} albums") { onSeeAll(LibraryFilter.ALBUMS) } }
+            } else {
+                items(favouriteAlbums.size) { i -> AlbumCard(favouriteAlbums[i], navController, Modifier.padding(6.dp).padding(4.dp)) }
             }
         }
 
@@ -460,36 +486,33 @@ private fun LibraryContent(
             }
         }
 
-        if (favouriteAlbums.isNotEmpty() && favouriteAlbumsAsGrid) {
+        if (favouriteAlbums.isNotEmpty() && favouriteAlbumsAsGrid && !grid) {
             item(span = full) { LibrarySectionTitle("From artists you love") }
-            item(span = full) {
-                // Two-up grid inside the list, so it reads the same in row and grid view.
-                Column(Modifier.padding(horizontal = 14.dp)) {
-                    favouriteAlbums.chunked(2).forEach { pair ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(vertical = 6.dp)) {
-                            pair.forEach { AlbumCard(it, navController, Modifier.weight(1f)) }
-                            if (pair.size == 1) Spacer(Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
+            items(favouriteAlbums.size, span = { full() }) { i -> AlbumRow(favouriteAlbums[i], navController) }
         }
 
         if (artists.isNotEmpty() || artistsAsGrid) {
             item(span = full) { LibrarySectionTitle("Artists you follow") }
-            if (artistsAsGrid) {
-                item { AddArtistsCircle(navController, Modifier.padding(8.dp)) }
-                items(artists.size) { i -> ArtistCircle(artists[i], navController, Modifier.padding(8.dp)) }
-            } else {
+            if (!artistsAsGrid && !grid) {
+                // All view, list: Add artists and the first few as rows, the rest under Artists.
+                item(span = full) { AddArtistsRow(navController) }
+                items(minOf(5, artists.size), span = { full() }) { i -> ArtistRow(artists[i], navController) }
+                if (artists.size > 5) item(span = full) { SeeAll("See all ${artists.size} artists") { onSeeAll(LibraryFilter.ARTISTS) } }
+            } else if (!artistsAsGrid) {
+                // All view, grid: pages of 4×4 circles (Add artists first), swipe for the next page.
                 item(span = full) {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        contentPadding = PaddingValues(horizontal = 20.dp),
-                    ) {
-                        item { AddArtistsCircle(navController, Modifier.width(92.dp)) }
-                        items(artists.size) { i -> ArtistCircle(artists[i], navController, Modifier.width(92.dp)) }
+                    PagedGrid(listOf<com.music.spotui.data.entity.ArtistsModel?>(null) + artists) { a ->
+                        if (a == null) AddArtistsCircle(navController, Modifier.fillMaxWidth(), compact = true)
+                        else SmallArtistTile(a, navController)
                     }
                 }
+            } else if (grid) {
+                item { AddArtistsCircle(navController, Modifier.padding(10.dp)) }
+                items(artists.size) { i -> ArtistCircle(artists[i], navController, Modifier.padding(10.dp)) }
+            } else if (artistsAsGrid) {
+                // List view: compact rows, not full-width circles.
+                item(span = full) { AddArtistsRow(navController) }
+                items(artists.size, span = { full() }) { i -> ArtistRow(artists[i], navController) }
             }
         }
 
@@ -523,9 +546,148 @@ private fun ArtistCircle(artist: com.music.spotui.data.entity.ArtistsModel, navC
     }
 }
 
+/**
+ * Pages of up to 16 items in a 4×4 grid; swipe sideways for the next page. Dots under
+ * the grid show where you are when there's more than one page.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun <T> PagedGrid(items: List<T>, perRow: Int = 4, rows: Int = 4, cell: @Composable (T) -> Unit) {
+    val pages = items.chunked(perRow * rows)
+    val pager = androidx.compose.foundation.pager.rememberPagerState { pages.size }
+    Column {
+        androidx.compose.foundation.pager.HorizontalPager(
+            state = pager,
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            pageSpacing = 16.dp,
+            verticalAlignment = Alignment.Top,
+        ) { p ->
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                pages[p].chunked(perRow).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        row.forEach { Box(Modifier.weight(1f)) { cell(it) } }
+                        repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+            }
+        }
+        if (pages.size > 1) {
+            Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.Center) {
+                repeat(pages.size) { i ->
+                    Box(
+                        Modifier.padding(horizontal = 3.dp).size(width = if (i == pager.currentPage) 16.dp else 6.dp, height = 6.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(if (i == pager.currentPage) com.music.spotui.ui.theme.Saffron else com.music.spotui.ui.theme.SurfaceHigh),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun SmallAlbumTile(entry: LibraryEntry, navController: NavController) {
+    Column(Modifier.fillMaxWidth().clickable { openLibraryEntry(entry, navController) }) {
+        GlideImage(
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)).background(com.music.spotui.ui.theme.SurfaceHigh),
+            model = entry.coverUri, contentScale = ContentScale.Crop, contentDescription = entry.name,
+            loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(entry.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun SmallArtistTile(artist: com.music.spotui.data.entity.ArtistsModel, navController: NavController) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth().clickable { navController.navigate(artistRoute(artist.name, artist.id)) },
+    ) {
+        GlideImage(
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(CircleShape).background(com.music.spotui.ui.theme.SurfaceHigh),
+            model = artist.coverUri, contentScale = ContentScale.Crop, contentDescription = artist.name,
+            loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+        )
+        Spacer(Modifier.height(5.dp))
+        Text(artist.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+    }
+}
+
+@Composable
+private fun SeeAll(text: String, onClick: () -> Unit) {
+    Text(
+        text, color = com.music.spotui.ui.theme.Saffron, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp).clip(RoundedCornerShape(50))
+            .clickable(onClick = onClick).padding(vertical = 6.dp, horizontal = 4.dp),
+    )
+}
+
+/** An album as a list row: cover, name, year · artist. */
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun AlbumRow(entry: LibraryEntry, navController: NavController) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable { openLibraryEntry(entry, navController) }.padding(horizontal = 20.dp, vertical = 7.dp),
+    ) {
+        GlideImage(
+            modifier = Modifier.size(58.dp).clip(RoundedCornerShape(14.dp)).background(com.music.spotui.ui.theme.SurfaceHigh),
+            model = entry.coverUri, contentScale = ContentScale.Crop, contentDescription = entry.name,
+            loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+        )
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Text(entry.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(entry.subtitle, color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** An artist as a list row: small photo, name, "Artist". */
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun ArtistRow(artist: com.music.spotui.data.entity.ArtistsModel, navController: NavController) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable { navController.navigate(artistRoute(artist.name, artist.id)) }
+            .padding(horizontal = 20.dp, vertical = 7.dp),
+    ) {
+        GlideImage(
+            modifier = Modifier.size(58.dp).clip(CircleShape).background(com.music.spotui.ui.theme.SurfaceHigh),
+            model = artist.coverUri, contentScale = ContentScale.Crop, contentDescription = artist.name,
+            loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+        )
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Text(artist.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("Artist", color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
+        }
+        Text("›", color = com.music.spotui.ui.theme.TextMuted, fontSize = 22.sp)
+    }
+}
+
+@Composable
+private fun AddArtistsRow(navController: NavController) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable { navController.navigate(Routes.ArtistPicker.route) }
+            .padding(horizontal = 20.dp, vertical = 7.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(58.dp).clip(CircleShape).background(com.music.spotui.ui.theme.Saffron.copy(alpha = 0.14f)),
+        ) { Text("+", color = com.music.spotui.ui.theme.Saffron, fontSize = 28.sp) }
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Text("Add artists", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text("Suggestions from what you play", color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
+        }
+    }
+}
+
 /** First card in the artists list: opens the artist picker. */
 @Composable
-private fun AddArtistsCircle(navController: NavController, modifier: Modifier) {
+private fun AddArtistsCircle(navController: NavController, modifier: Modifier, compact: Boolean = false) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier.clickable { navController.navigate(Routes.ArtistPicker.route) },
@@ -538,10 +700,10 @@ private fun AddArtistsCircle(navController: NavController, modifier: Modifier) {
                 .clip(CircleShape)
                 .background(com.music.spotui.ui.theme.Saffron.copy(alpha = 0.14f))
                 .border(1.5.dp, com.music.spotui.ui.theme.Saffron.copy(alpha = 0.6f), CircleShape),
-        ) { Text("+", color = com.music.spotui.ui.theme.Saffron, fontSize = 34.sp, fontWeight = FontWeight.Light) }
-        Spacer(Modifier.height(8.dp))
-        Text("Add artists", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-        Text("Suggestions", color = com.music.spotui.ui.theme.TextMuted, fontSize = 11.sp)
+        ) { Text("+", color = com.music.spotui.ui.theme.Saffron, fontSize = if (compact) 26.sp else 34.sp, fontWeight = FontWeight.Light) }
+        Spacer(Modifier.height(if (compact) 5.dp else 8.dp))
+        Text("Add artists", color = com.music.spotui.ui.theme.TextPrimary, fontSize = if (compact) 11.sp else 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        if (!compact) Text("Suggestions", color = com.music.spotui.ui.theme.TextMuted, fontSize = 11.sp)
     }
 }
 

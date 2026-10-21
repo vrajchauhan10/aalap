@@ -2,6 +2,7 @@ package com.music.spotui.ui.repository
 
 import com.music.spotui.data.api.Api
 import javax.inject.Inject
+import kotlinx.coroutines.flow.map
 
 class AppRepository @Inject constructor(private val api : Api) {
 
@@ -23,9 +24,31 @@ class AppRepository @Inject constructor(private val api : Api) {
 
     suspend fun provideArtistOverview(artistName: String, artistId: String = "") = api.getArtistOverview(artistName, artistId)
 
-    suspend fun providePlaylistSongs(playlistId: String) = api.getPlaylistSongs(playlistId)
+    /** Aalap playlists live on the phone (and update live as songs are added); the rest come from Spotify. */
+    suspend fun providePlaylistSongs(playlistId: String): kotlinx.coroutines.flow.Flow<com.music.spotui.data.api.Response<List<com.music.spotui.data.entity.SongsModel>>> =
+        if (com.music.spotui.data.local.AalapPlaylists.isLocal(playlistId))
+            com.music.spotui.data.local.AalapPlaylists.version.map {
+                com.music.spotui.data.api.Response.Success(
+                    com.music.spotui.data.local.AalapPlaylists.get(com.music.spotui.MyApplication.instance, playlistId)?.songs.orEmpty()
+                )
+            }
+        else api.getPlaylistSongs(playlistId)
 
-    suspend fun providePlaylist(playlistId: String) = api.getPlaylist(playlistId)
+    suspend fun providePlaylist(playlistId: String): kotlinx.coroutines.flow.Flow<com.music.spotui.data.api.Response<com.music.spotui.data.entity.AlbumsModel>> =
+        if (com.music.spotui.data.local.AalapPlaylists.isLocal(playlistId))
+            com.music.spotui.data.local.AalapPlaylists.version.map {
+                val p = com.music.spotui.data.local.AalapPlaylists.get(com.music.spotui.MyApplication.instance, playlistId)
+                com.music.spotui.data.api.Response.Success(
+                    com.music.spotui.data.entity.AlbumsModel(
+                        id = playlistId.hashCode() and 0x7fffffff,
+                        artists = com.music.spotui.data.preferences.getAalapName(com.music.spotui.MyApplication.instance).ifBlank { "You" },
+                        coverUri = p?.songs?.firstOrNull()?.coverUri.orEmpty(),
+                        name = p?.name ?: "Playlist",
+                        time = "${p?.songs?.size ?: 0} songs · made in Aalap",
+                    )
+                )
+            }
+        else api.getPlaylist(playlistId)
 
     suspend fun provideShowEpisodes(showId: String) = api.getShowEpisodes(showId)
 

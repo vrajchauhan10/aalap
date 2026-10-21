@@ -32,6 +32,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -92,11 +93,16 @@ fun SavedInSheet(
         }
     }
 
+    // Aalap playlists hold any song (Spotify or YouTube), so new playlists are made here.
+    val localVersion by com.music.spotui.data.local.AalapPlaylists.version.collectAsState()
+    val localPlaylists = remember(localVersion) { com.music.spotui.data.local.AalapPlaylists.all(context) }
+
     fun createNow() {
-        val name = newName.trim().ifBlank { "My Playlist" }
+        val name = newName.trim().ifBlank { "My playlist" }
         creating = false
         newName = ""
-        SpotifySync.createPlaylistWithTrack(context, name, song.spotifyTrackId)
+        com.music.spotui.data.local.AalapPlaylists.create(context, name, song)
+        android.widget.Toast.makeText(context, "Added to $name", android.widget.Toast.LENGTH_SHORT).show()
         onDismiss()
     }
 
@@ -198,7 +204,28 @@ fun SavedInSheet(
                 onLikedChanged(liked)
             }
 
-            when (val list = playlists) {
+            // ── Your Aalap playlists ──
+            localPlaylists.forEach { pl ->
+                val saved = pl.songs.any { it.id == song.id }
+                SavedInRow(
+                    name = pl.name,
+                    subtitle = "${pl.songs.size} ${if (pl.songs.size == 1) "song" else "songs"} · Aalap",
+                    saved = saved,
+                    cover = {
+                        GlideImage(
+                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)),
+                            model = pl.songs.firstOrNull()?.coverUri, contentScale = ContentScale.Crop,
+                            failure = placeholder(R.drawable.placeholder), loading = placeholder(R.drawable.placeholder),
+                            contentDescription = "",
+                        )
+                    },
+                ) { com.music.spotui.data.local.AalapPlaylists.toggle(context, pl.id, song) }
+            }
+            if (song.spotifyTrackId.isNotBlank()) Text(
+                "On Spotify", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(20.dp, 10.dp, 20.dp, 2.dp),
+            )
+            if (song.spotifyTrackId.isNotBlank()) when (val list = playlists) {
                 null -> Text("Loading playlists…", color = Color.Gray, fontSize = 14.sp, modifier = Modifier.padding(20.dp, 12.dp))
                 else -> LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
                     items(list.size) { i ->

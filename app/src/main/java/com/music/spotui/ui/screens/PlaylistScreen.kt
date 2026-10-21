@@ -94,6 +94,26 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
         )
 
 
+    // Aalap playlists (made on the phone) can be edited here.
+    val isLocal = com.music.spotui.data.local.AalapPlaylists.isLocal(playlistId)
+    var addingSongs by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (addingSongs) com.music.spotui.ui.components.AddSongsSheet(playlistId) { addingSongs = false }
+    if (renaming) com.music.spotui.ui.components.PlaylistNameDialog("Rename playlist", playlist.name, "Save", { renaming = false }) {
+        com.music.spotui.data.local.AalapPlaylists.rename(context, playlistId, it); renaming = false
+    }
+    if (confirmDelete) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { confirmDelete = false },
+        containerColor = com.music.spotui.ui.theme.Surface,
+        title = { Text("Delete \"${playlist.name}\"?", color = com.music.spotui.ui.theme.TextPrimary) },
+        text = { Text("The playlist is removed from Aalap. The songs stay in your library.", color = com.music.spotui.ui.theme.TextMuted) },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = {
+            com.music.spotui.data.local.AalapPlaylists.delete(context, playlistId); confirmDelete = false; navController.navigateUp()
+        }) { Text("Delete", color = Color(0xFFE57373)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmDelete = false }) { Text("Cancel", color = com.music.spotui.ui.theme.TextPrimary) } },
+    )
+
     var menuSong by remember { mutableStateOf<com.music.spotui.data.entity.SongsModel?>(null) }
     menuSong?.let { sel ->
         com.music.spotui.ui.components.SongOptionsSheet(
@@ -361,6 +381,16 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                     }
                 }
 
+                if (isLocal) item {
+                    com.music.spotui.ui.components.AalapPlaylistActions(
+                        onAdd = { addingSongs = true }, onRename = { renaming = true }, onDelete = { confirmDelete = true },
+                    )
+                    if (songs.isEmpty()) Text(
+                        "Your playlist is empty. Tap Add songs to search or pick from your liked songs.",
+                        color = com.music.spotui.ui.theme.TextMuted, fontSize = 14.sp,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                    )
+                }
                 // A playlist can hold the same track twice; duplicate keys crash LazyColumn.
                 // Repeats get "#n" so every other key stays stable while pages load.
                 val rowKeys = run {
