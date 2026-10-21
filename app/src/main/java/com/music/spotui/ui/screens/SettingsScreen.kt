@@ -616,15 +616,20 @@ private fun ProfileHeader(navController: NavController) {
     val avatar = com.music.spotui.data.api.ProfileCache.imageUrl
     // One library: Spotify and YouTube Music together, each song and artist once
     // (the same list the Liked page shows).
-    val liked = remember {
-        com.music.spotui.data.api.YouTubeLibrary.unifiedLiked(context).size
-            .takeIf { it > 0 } ?: com.music.spotui.data.preferences.getLikedSongIds(context).size
+    // Counted in the background so opening Profile never waits on it.
+    val liked by androidx.compose.runtime.produceState(0) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.music.spotui.data.api.YouTubeLibrary.unifiedLiked(context).size
+                .takeIf { it > 0 } ?: com.music.spotui.data.preferences.getLikedSongIds(context).size
+        }
     }
-    val artists = remember {
-        com.music.spotui.data.api.YouTubeLibrary.mergeArtists(
-            com.music.spotui.data.preferences.getCachedFollowedArtists(context),
-            com.music.spotui.data.api.YouTubeLibrary.artists(context),
-        ).size
+    val artists by androidx.compose.runtime.produceState(0) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.music.spotui.data.api.YouTubeLibrary.mergeArtists(
+                com.music.spotui.data.preferences.getCachedFollowedArtists(context),
+                com.music.spotui.data.api.YouTubeLibrary.artists(context),
+            ).size
+        }
     }
     val plays = remember { com.music.spotui.data.preferences.getListeningHistory(context).size }
 

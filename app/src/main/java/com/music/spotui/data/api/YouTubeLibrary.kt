@@ -107,7 +107,8 @@ object YouTubeLibrary {
                 // Recent YouTube plays also count as songs you know, for Your Mix and the engine.
                 db.resolveAll(history.map { Candidate(title = it.title, artists = it.artists, durationSec = it.durationSec, album = it.album, cover = it.thumbnail, ytId = it.videoId) })
             }
-            edit.putLong("synced_at", System.currentTimeMillis()).apply()
+            edit.putLong("synced_at", System.currentTimeMillis()).commit()
+            invalidateUnified()
             Personalizer.invalidate()
             Log.d(TAG, "synced: ${liked?.size} liked, ${artists?.size} artists, ${history?.size} recent")
             true
@@ -125,7 +126,10 @@ object YouTubeLibrary {
     }.toString()
 
     /** The full Spotify liked list from the last complete fetch (so the merged list is available instantly). */
-    fun saveSpotifyLiked(c: Context, songs: List<SongsModel>) = prefs(c).edit().putString("spotify_liked", toJson(songs)).apply()
+    fun saveSpotifyLiked(c: Context, songs: List<SongsModel>) {
+        prefs(c).edit().putString("spotify_liked", toJson(songs)).commit()
+        invalidateUnified()
+    }
 
     fun spotifyLiked(c: Context): List<SongsModel> = runCatching {
         val a = JSONArray(prefs(c).getString("spotify_liked", "[]"))
@@ -137,8 +141,17 @@ object YouTubeLibrary {
         }
     }.getOrDefault(emptyList())
 
-    /** The one liked list Aalap shows everywhere: Spotify + YouTube Music, each song once. */
-    fun unifiedLiked(c: Context): List<SongsModel> = mergeLiked(spotifyLiked(c), likedSongs(c))
+    @Volatile private var unifiedCache: List<SongsModel>? = null
+
+    /**
+     * The one liked list Aalap shows everywhere: Spotify + YouTube Music, each song once.
+     * Kept in memory and rebuilt only after a sync; call it off the main thread.
+     */
+    fun unifiedLiked(c: Context): List<SongsModel> =
+        unifiedCache ?: mergeLiked(spotifyLiked(c), likedSongs(c)).also { unifiedCache = it }
+
+    /** Drops the in-memory merged list (after either side changed). */
+    fun invalidateUnified() { unifiedCache = null }
 
     /**
      * Spotify's liked songs and YouTube Music's in one list, a song liked on both only
@@ -146,11 +159,22 @@ object YouTubeLibrary {
      */
     fun mergeLiked(spotify: List<SongsModel>, youtube: List<SongsModel>): List<SongsModel> {
         val spotifyIds = spotify.mapTo(HashSet()) { it.id }
-        val ytOnly = youtube.filter { y ->
-            y.id !in spotifyIds && spotify.none { s ->
-                SongMatcher.sameSong(SongBridge.toCandidate(s).copy(spotifyId = ""), SongBridge.toCandidate(y).copy(spotifyId = ""))
-            }
+        // Index Spotify songs by main artist, so each YouTube song is only compared with
+        // the same artist's songs (not with the whole list).
+        val byArtist = HashMap<String, MutableList<SongsModel>>()
+        val byTitle = HashMap<String, MutableList<SongsModel>>()
+        spotify.forEach { s ->
+            SongMatcher.artistKeys(s.singer).firstOrNull()?.let { byArtist.getOrPut(it) { ArrayList() } += s }
+            byTitle.getOrPut(SongMatcher.titleKey(s.title, s.singer)) { ArrayList() } += s
         }
+        fun same(a: SongsModel, b: SongsModel) =
+            SongMatcher.sameSong(SongBridge.toCandidate(a).copy(spotifyId = ""), SongBridge.toCandidate(b).copy(spotifyId = ""))
+        val ytOnly = youtube.filter { y ->
+            if (y.id in spotifyIds) return@filter false
+            val sameArtist = SongMatcher.artistKeys(y.singer).flatMap { byArtist[it].orEmpty() }
+            val sameTitle = byTitle[SongMatcher.titleKey(y.title, y.singer)].orEmpty()
+            (sameArtist + sameTitle).none { same(it, y) }
+        }.distinctBy { it.id }
         if (ytOnly.isEmpty()) return spotify
         if (spotify.isEmpty()) return ytOnly
         val out = ArrayList<SongsModel>(spotify.size + ytOnly.size)
@@ -160,7 +184,7 @@ object YouTubeLibrary {
             val pj = if (j < ytOnly.size) j.toDouble() / ytOnly.size else Double.MAX_VALUE
             if (pi <= pj) out += spotify[i++] else out += ytOnly[j++]
         }
-        return out
+        return out.distinctBy { it.id }
     }
 
     /** Followed artists from both services, each artist once. */

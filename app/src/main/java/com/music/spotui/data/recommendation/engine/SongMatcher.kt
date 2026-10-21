@@ -28,11 +28,19 @@ object SongMatcher {
     private val FEAT = Regex("""\s(feat\.?|ft\.?|featuring)\s.*$""", RegexOption.IGNORE_CASE)
     private val NON_WORD = Regex("""[^\p{L}\p{N} ]""")
     private val SPACES = Regex("""\s+""")
+    private val MARKS = Regex("""\p{M}+""")
+
+    /** Keys are computed for the same titles/artists over and over; remember recent ones. */
+    private val titleCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val artistCache = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
+    private fun <V> MutableMap<String, V>.remember(key: String, compute: () -> V): V =
+        this[key] ?: compute().also { if (size > 20_000) clear(); this[key] = it }
+
     private val ARTIST_SPLIT = Regex("""\s*(,|&|\bx\b|\band\b|\bfeat\.?|\bft\.?|\bwith\b|/|;)\s*""", RegexOption.IGNORE_CASE)
 
     /** Folds spelling variants: accents, doubled vowels, w/v. "Badnaam" → "badnam". */
     fun fold(word: String): String {
-        var w = Normalizer.normalize(word, Normalizer.Form.NFD).replace(Regex("""\p{M}+"""), "")
+        var w = Normalizer.normalize(word, Normalizer.Form.NFD).replace(MARKS, "")
         w = w.replace("ee", "i").replace("oo", "u").replace("w", "v")
         val out = StringBuilder(w.length)
         for (ch in w) if (out.isEmpty() || out.last() != ch || !ch.isLetter()) out.append(ch)
@@ -46,14 +54,17 @@ object SongMatcher {
         .replace(SPACES, " ").trim()
 
     /** Each credited artist, normalised. "Kamal Kahlon & Param Singh" → [kamal kahlon, param singh]. */
-    fun artistKeys(artists: String): List<String> =
+    fun artistKeys(artists: String): List<String> = artistCache.remember(artists) {
         artists.split(ARTIST_SPLIT)
             .map { a -> basicNorm(a).split(' ').filter { it.isNotBlank() }.joinToString(" ") { fold(it) } }
             .filter { it.isNotBlank() }
             .distinct()
+    }
 
     /** The comparable core of a title. Uploads like "Artist - Title | Label" keep only "Title". */
-    fun titleKey(title: String, artists: String = ""): String {
+    fun titleKey(title: String, artists: String = ""): String = titleCache.remember("$title\u0000$artists") { computeTitleKey(title, artists) }
+
+    private fun computeTitleKey(title: String, artists: String): String {
         val artistSet = artistKeys(artists).toSet()
         val parts = title.split(" - ", " | ", " – ", " — ").map { it.trim() }.filter { it.isNotBlank() }
         val core = parts.firstOrNull { p ->

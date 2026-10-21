@@ -50,9 +50,11 @@ class LikedSongsViewModel @Inject constructor(
     }
 
     init {
-        // Show the saved list at once, then refresh it after Spotify's pages have all
-        // arrived, so the count doesn't climb page by page.
-        if (com.music.spotui.data.api.YouTubeLibrary.unifiedLiked(ctx).isNotEmpty()) publish()
+        // Show the saved list at once (built off the main thread), then refresh it after
+        // Spotify's pages have all arrived, so the count doesn't climb page by page.
+        viewModelScope.launch(Dispatchers.IO) {
+            if (com.music.spotui.data.api.YouTubeLibrary.unifiedLiked(ctx).isNotEmpty()) publish()
+        }
         viewModelScope.launch(Dispatchers.IO) {
             var failed: Response<List<SongsModel>>? = null
             repository.provideLikedSongs().collect { r -> if (r is Response.Error) failed = r }
