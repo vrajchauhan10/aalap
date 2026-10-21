@@ -109,14 +109,9 @@ fun SpotifyLoginScreen(navController: NavController) {
 
     val navigateToHome: () -> Unit = {
         com.music.spotui.di.SpotifyWebPlayer.attach(context as Activity)
-        // Spotify owns the catalog; playback source is an explicit next-step choice.
-        val source = com.music.spotui.data.preferences.getPrimaryMusicSource(context)
-        val needsSourceLogin = source == null ||
-            (source == com.music.spotui.data.preferences.MusicSource.YOUTUBE_MUSIC &&
-                !com.music.spotui.data.preferences.isYoutubeLoggedIn(context))
-        val dest = if (needsSourceLogin) Routes.MusicSource.route else Routes.Home.route
-        navController.navigate(dest) {
-            popUpTo(Routes.Login.route) { inclusive = true }
+        // Back to "Connect your music", where Spotify now shows a tick.
+        if (!navController.popBackStack()) {
+            navController.navigate(Routes.MusicSource.route) { popUpTo(0) { inclusive = true } }
         }
     }
 
@@ -190,7 +185,7 @@ fun SpotifyLoginScreen(navController: NavController) {
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = if (isProcessing) statusMessage.ifBlank { "Signing in…" } else "Log in to Spotify",
+                text = if (isProcessing) statusMessage.ifBlank { "Connecting…" } else "Connecting to Spotify",
                 color = if (hasError) Color(0xFFE22134) else com.music.spotui.ui.theme.TextPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
@@ -252,7 +247,7 @@ private fun LoginForm(
         )
         Spacer(Modifier.height(28.dp))
         Text(
-            "Log in to Spotify",
+            "Connect Spotify",
             color = com.music.spotui.ui.theme.TextPrimary,
             fontWeight = FontWeight.Bold,
             fontSize = 26.sp,
@@ -352,7 +347,7 @@ private fun LoginForm(
         Spacer(Modifier.height(16.dp))
         TextButton(onClick = onUseWeb, enabled = !isProcessing) {
             Text(
-                "Trouble logging in? Use the Spotify web page",
+                "Trouble connecting? Use the sign-in page",
                 color = com.music.spotui.ui.theme.TextMuted,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
@@ -450,7 +445,7 @@ private fun finishLogin(
     if (spDc.isNullOrBlank()) {
         setProcessing(true)
         setError(true)
-        setStatus("Couldn't read login cookie. Make sure you completed the Spotify login, then try again.")
+        setStatus("Couldn't finish connecting. Complete the sign-in, then try again.")
         tokenFetchStarted.set(false)
         return
     }

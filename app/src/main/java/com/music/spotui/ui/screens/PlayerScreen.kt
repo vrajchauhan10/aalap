@@ -698,37 +698,7 @@ fun PlayerInfo(
                         indication = null,
                     ) { onArtistClick() } else Modifier,
                 )
-                if (source.isNotBlank()) {
-                    // One rule app-wide: green = lossless (as on the FLAC badges in Local
-                    // files), grey = everything else, whatever the source. Source-based
-                    // colours made a downloaded or local FLAC show up red.
-                    val lossless = source.startsWith("Lossless") || listOf("FLAC", "WAV", "ALAC", "AIFF", "APE")
-                        .any { quality.uppercase().contains(it) }
-                    val badgeColor = if (lossless || source == "Spotify") com.music.spotui.ui.theme.Saffron else Color(0xFF9C9C9C)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(top = 3.dp),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(7.dp)
-                                .clip(CircleShape)
-                                .background(badgeColor)
-                        )
-                        Text(
-                            // Don't advertise the fallback engine — just "Streamed".
-                            // Append the stream quality (codec/bitrate or FLAC depth)
-                            // so the user can see what they're actually hearing.
-                            text = (if (source == "YouTube") "Streamed" else source) +
-                                (if (quality.isNotBlank()) " • $quality" else ""),
-                            color = badgeColor,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            modifier = Modifier.padding(start = 5.dp),
-                        )
-                    }
-                }
+                // No source badge: users only ever see Aalap, not which service plays a song.
             }
             } // AnimatedContent(trackInfo)
         }
@@ -1014,14 +984,14 @@ fun shareSongCard(context: Context, scope: kotlinx.coroutines.CoroutineScope, tr
     val title = track?.title.orEmpty()
     val artist = track?.singer.orEmpty()
     val link = track?.spotifyTrackId?.takeIf { it.isNotBlank() }?.let { "https://open.spotify.com/track/$it" }
-    val message = "Listening to $title by $artist on Aalap" + (link?.let { "\n$it" } ?: "")
+    val message = "Listening to $title by $artist on Aalap"
     scope.launch(kotlinx.coroutines.Dispatchers.IO) {
         val art = runCatching {
             com.bumptech.glide.Glide.with(context).asBitmap().load(track?.coverUri.orEmpty()).submit(900, 900).get()
         }.getOrNull()
         val card = com.music.spotui.ui.share.ShareCards.songCard(context, art, title, artist)
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-            com.music.spotui.ui.share.ShareCards.share(context, card, "aalap-song", message)
+            com.music.spotui.ui.share.ShareCards.share(context, card, "aalap-song", message, link)
             onDone()
         }
     }

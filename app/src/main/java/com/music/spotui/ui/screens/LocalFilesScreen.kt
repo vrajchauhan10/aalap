@@ -525,7 +525,7 @@ private fun EmptyLibrary(importing: Boolean, accent: Color, onSongs: () -> Unit,
     Column(Modifier.fillMaxWidth().padding(28.dp, 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Your music, in lossless", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Text(
-            "Import FLAC, MP3, WAV and more from your phone. They play offline, with your albums and artists, next to Spotify.",
+            "Import FLAC, MP3, WAV and more from your phone. They play offline, with your albums and artists, next to the rest of your music.",
             color = Color.Gray, fontSize = 14.sp,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.padding(top = 8.dp, bottom = 24.dp),

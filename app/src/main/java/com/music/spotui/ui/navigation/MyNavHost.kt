@@ -26,7 +26,6 @@ import com.music.spotui.ui.screens.AlbumScreen
 import com.music.spotui.ui.screens.ArtistReleasesScreen
 import com.music.spotui.ui.screens.ArtistScreen
 import com.music.spotui.ui.screens.CategoryScreen
-import com.music.spotui.ui.screens.MusicSourceScreen
 import com.music.spotui.ui.screens.YouTubeLoginScreen
 import com.music.spotui.ui.screens.LocalFilesScreen
 import com.music.spotui.ui.screens.SpotiflacVerifyScreen
@@ -62,12 +61,11 @@ fun MyNavHost(
 
     val context = LocalContext.current
     // First launch (no Spotify session) lands on the login screen.
+    // New users: Aalap welcome → connect your music → Home. YouTube Music is
+    // recommended, not required (JioSaavn/Gaana play without any login).
     val startDestination = when {
-        SpotifySession.spDc(context).isBlank() -> Routes.Login.route
-        com.music.spotui.data.preferences.getPrimaryMusicSource(context) == null -> Routes.MusicSource.route
-        com.music.spotui.data.preferences.getPrimaryMusicSource(context) ==
-            com.music.spotui.data.preferences.MusicSource.YOUTUBE_MUSIC &&
-            !com.music.spotui.data.preferences.isYoutubeLoggedIn(context) -> Routes.MusicSource.route
+        !com.music.spotui.data.preferences.isAalapOnboarded(context) -> Routes.Login.route
+        SpotifySession.spDc(context).isBlank() -> Routes.MusicSource.route
         else -> Routes.Home.route
     }
 
@@ -99,6 +97,13 @@ fun MyNavHost(
         popExitTransition = { fadeOut(animationSpec = tween(150)) },
     ){
         composable(Routes.Login.route){
+            LaunchedEffect(Unit) {
+                bottomBarState.value = false
+                bottomBarPlayerState.value = false
+            }
+            com.music.spotui.ui.screens.WelcomeScreen(navHostController)
+        }
+        composable(Routes.SpotifyConnect.route){
             LaunchedEffect(Unit) {
                 bottomBarState.value = false
                 bottomBarPlayerState.value = false
@@ -215,7 +220,7 @@ fun MyNavHost(
                 bottomBarState.value = false
                 bottomBarPlayerState.value = false
             }
-            MusicSourceScreen(navHostController)
+            com.music.spotui.ui.screens.ConnectServicesScreen(navHostController)
         }
 
         composable(

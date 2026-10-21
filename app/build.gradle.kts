@@ -119,6 +119,8 @@ dependencies {
     //exoplayer
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-exoplayer-dash:1.3.1")
+    // HLS: Gaana streams are HLS (m3u8).
+    implementation("androidx.media3:media3-exoplayer-hls:1.3.1")
     // PlayerView for the Spotify Canvas looping video on the now-playing screen.
     implementation("androidx.media3:media3-ui:1.3.1")
     // media session + system media notification (lock screen / notification center)

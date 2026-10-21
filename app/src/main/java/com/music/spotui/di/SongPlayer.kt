@@ -341,6 +341,9 @@ object SongPlayer {
         if (!wantsQuickStart(song, appContext)) soulseekLookahead(appContext)
     }
 
+    /** How long YouTube Music (first choice) gets before the next source is used. */
+    private const val YT_FIRST_WAIT_MS = 7_000L
+
     // ── Offline ──
     private const val MAX_OFFLINE_SKIPS = 40
     @Volatile private var offlineSkips = 0
@@ -812,47 +815,53 @@ object SongPlayer {
             currentQuality = ""
         }
 
-        // JioSaavn: exact-match AAC up to 320 kbps, independent of YouTube.
+        // Sources in order of preference: YouTube Music → JioSaavn → Gaana. All three are
+        // started together so a fallback is ready the moment it's needed, but YouTube's
+        // answer wins whenever it comes back in time.
         val saavnOn = com.music.spotui.data.preferences.isJioSaavnEnabled(appContext)
         val info = losslessTrackInfo(song)
         val fullArtist = metadataRegistry[song]?.artist?.ifBlank { null } ?: info.artist
-        suspend fun trySaavn(relaxed: Boolean): String? {
-            if (!saavnOn) return null
-            val m = kotlinx.coroutines.withTimeoutOrNull(if (relaxed) 12_000L else 9_000L) {
-                com.music.spotui.saavn.JioSaavnSource.resolve(
-                    info.title, fullArtist, info.durationSec, searchTextForPlayback(song), relaxed,
-                )
-            } ?: return null
-            val label = "AAC ${m.kbps} kbps"
-            if (forPlayback) { currentSource = "JioSaavn"; currentQuality = label }
-            streamCache[song] = m.url
-            sourceCache[song] = "JioSaavn"
+        val searchText = searchTextForPlayback(song)
+        fun use(source: String, url: String, label: String): String {
+            if (forPlayback) { currentSource = source; currentQuality = label }
+            streamCache[song] = url
+            sourceCache[song] = source
             qualityCache[song] = label
-            return m.url
+            return url
         }
-
-        // Race both sources: YouTube starts at the same time as JioSaavn; when JioSaavn
-        // has the exact song it wins (and YouTube is cancelled), else YouTube's answer is used.
         val ytJob = if (youtubeEnabled) scope.async {
             runCatching { resolveYtPlayback(song, quality.audioQuality, appContext) }.getOrNull()
         } else null
-        trySaavn(relaxed = false)?.let { ytJob?.cancel(); return it }
-        val playback = ytJob?.await()
-        if (playback != null) {
-            val ytQuality = ytQualityLabel(playback)
-            if (forPlayback) { currentSource = "YouTube"; currentQuality = ytQuality }
-            streamCache[song] = playback.streamUrl
-            sourceCache[song] = "YouTube"
-            qualityCache[song] = ytQuality
-            return playback.streamUrl
+        val saavnJob = if (saavnOn) scope.async {
+            kotlinx.coroutines.withTimeoutOrNull(9_000L) {
+                com.music.spotui.saavn.JioSaavnSource.resolve(info.title, fullArtist, info.durationSec, searchText)
+            }
+        } else null
+        val gaanaJob = scope.async {
+            kotlinx.coroutines.withTimeoutOrNull(12_000L) {
+                com.music.spotui.gaana.GaanaSource.resolve(info.title, fullArtist, info.durationSec, info.isrc, searchText)
+            }
         }
+        fun cancelOthers() { ytJob?.cancel(); saavnJob?.cancel(); gaanaJob.cancel() }
+        fun useYouTube(p: YTPlayerUtils.PlaybackData) = use("YouTube", p.streamUrl, ytQualityLabel(p)).also { cancelOthers() }
 
-        // YouTube gave nothing (player change, throttling, region): every other source
-        // gets a turn before the song is reported unplayable.
-        Log.w(TAG, "YouTube failed — trying the other sources for: $song")
+        // 1) YouTube Music, if it answers within YT_FIRST_WAIT_MS.
+        ytJob?.let { job -> kotlinx.coroutines.withTimeoutOrNull(YT_FIRST_WAIT_MS) { job.await() } }?.let { return useYouTube(it) }
+        // 2) JioSaavn.
+        saavnJob?.await()?.let { m -> return use("JioSaavn", m.url, "AAC ${m.kbps} kbps").also { cancelOthers() } }
+        // 3) Gaana.
+        gaanaJob.await()?.let { m -> return use("Gaana", m.url, "AAC").also { cancelOthers() } }
+        // YouTube was only slow, not failed: take its answer now.
+        ytJob?.await()?.let { return useYouTube(it) }
+
+        // Nothing yet: every remaining source gets a turn before the song is reported unplayable.
+        Log.w(TAG, "YouTube, JioSaavn and Gaana had nothing — last resorts for: $song")
         if (losslessStreaming && !quality.lossless) tryLossless()?.let { return it }
-        trySaavn(relaxed = true)?.let { return it }
-        if (!youtubeEnabled) Log.w(TAG, "YouTube disabled and no other source had: $song")
+        if (saavnOn) {
+            kotlinx.coroutines.withTimeoutOrNull(12_000L) {
+                com.music.spotui.saavn.JioSaavnSource.resolve(info.title, fullArtist, info.durationSec, searchText, relaxed = true)
+            }?.let { m -> return use("JioSaavn", m.url, "AAC ${m.kbps} kbps") }
+        }
         return null
     }
 

@@ -147,7 +147,7 @@ object ShareCards {
     }
 
     /** Saves [bitmap] to the share cache and opens the Android share sheet. */
-    fun share(ctx: Context, bitmap: Bitmap, name: String, message: String) {
+    fun share(ctx: Context, bitmap: Bitmap, name: String, message: String, link: String? = null) {
         val dir = java.io.File(ctx.cacheDir, "share").apply { mkdirs() }
         val file = java.io.File(dir, "$name.png")
         file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -155,7 +155,12 @@ object ShareCards {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "image/png"
             putExtra(Intent.EXTRA_STREAM, uri)
+            // The link is never shown as a raw URL: plain-text apps get just the message;
+            // apps that render rich text get "Listen on Aalap" as a hyperlink.
             putExtra(Intent.EXTRA_TEXT, message)
+            if (link != null) {
+                putExtra(Intent.EXTRA_HTML_TEXT, "${android.text.TextUtils.htmlEncode(message)}<br><a href=\"$link\">Listen on Aalap</a>")
+            }
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         ctx.startActivity(Intent.createChooser(intent, "Share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

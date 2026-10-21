@@ -401,6 +401,7 @@ fun SettingsScreen(navController: NavController) {
                     .clickable {
                         com.music.spotui.data.api.SpotifySession.setSpDc(context, "")
                         com.music.spotui.data.api.Api.HomeCache.clear()
+                        com.music.spotui.data.preferences.clearAalapAccount(context)
                         navController.navigate(com.music.spotui.ui.navigation.Routes.Login.route) {
                             popUpTo(0) { inclusive = true }
                         }
@@ -595,7 +596,44 @@ private fun QualityPicker(
 private fun ProfileHeader(navController: NavController) {
     val context = LocalContext.current
     androidx.compose.runtime.LaunchedEffect(Unit) { com.music.spotui.data.api.ProfileCache.ensure(context) }
-    val name = com.music.spotui.data.api.ProfileCache.name
+    // The Aalap name (editable) leads; the connected accounts' own names are listed under it.
+    val serviceName = com.music.spotui.data.api.ProfileCache.name
+    var aalapName by remember { mutableStateOf(com.music.spotui.data.preferences.getAalapName(context)) }
+    val name = aalapName.ifBlank { serviceName }
+    var editing by remember { mutableStateOf(false) }
+    if (editing) {
+        var draft by remember { mutableStateOf(name.orEmpty()) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { editing = false },
+            title = { Text("Your Aalap name") },
+            text = {
+                OutlinedTextField(
+                    value = draft, onValueChange = { draft = it }, singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = com.music.spotui.ui.theme.TextPrimary,
+                        unfocusedTextColor = com.music.spotui.ui.theme.TextPrimary,
+                        focusedBorderColor = AppPalette, cursorColor = AppPalette,
+                    ),
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    if (draft.isNotBlank()) {
+                        com.music.spotui.data.preferences.setAalapName(context, draft)
+                        aalapName = draft.trim()
+                    }
+                    editing = false
+                }) { Text("Save", color = AppPalette) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { editing = false }) {
+                    Text("Cancel", color = com.music.spotui.ui.theme.TextPrimary)
+                }
+            },
+            containerColor = com.music.spotui.ui.theme.Surface,
+            titleContentColor = com.music.spotui.ui.theme.TextPrimary,
+        )
+    }
     val avatar = com.music.spotui.data.api.ProfileCache.imageUrl
     val liked = remember { com.music.spotui.data.preferences.getLikedSongIds(context).size }
     val downloads = remember { com.music.spotui.data.preferences.getDownloadedSongs(context).size }
@@ -640,15 +678,31 @@ private fun ProfileHeader(navController: NavController) {
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        name ?: "Your profile",
+                        color = com.music.spotui.ui.theme.TextPrimary,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Text(
+                        "  ✎", color = AppPalette, fontSize = 16.sp,
+                        modifier = Modifier.clickable { editing = true },
+                    )
+                }
+                val email = com.music.spotui.data.preferences.getAalapEmail(context)
+                if (email.isNotBlank()) Text(email, color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
+                // Connected accounts keep their own names; both are shown.
+                if (!serviceName.isNullOrBlank()) {
+                    Text("Spotify · $serviceName", color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
+                }
                 Text(
-                    name ?: "Your profile",
-                    color = com.music.spotui.ui.theme.TextPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    "YouTube Music · " + if (isYoutubeLoggedIn(context)) "connected" else "not connected",
+                    color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp,
                 )
-                Text("Connected to Spotify", color = com.music.spotui.ui.theme.TextMuted, fontSize = 13.sp)
             }
         }
         Spacer(Modifier.height(16.dp))

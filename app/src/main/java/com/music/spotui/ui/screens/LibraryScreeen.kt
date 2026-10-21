@@ -541,9 +541,9 @@ private fun AccountSheet(
                 }
                 Spacer(modifier = Modifier.width(14.dp))
                 Column {
-                    Text(account.name.ifBlank { "Spotify user" }, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(com.music.spotui.data.preferences.aalapDisplayName(LocalContext.current, account.name.ifBlank { "Aalap listener" }), color = com.music.spotui.ui.theme.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (account.email.isNotBlank()) Text(account.email, color = Color.Gray, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (account.plan.isNotBlank()) Text("Spotify ${account.plan} · connected", color = com.music.spotui.ui.theme.Saffron, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text("Aalap member", color = com.music.spotui.ui.theme.Saffron, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                 }
             }
             HorizontalDivider(color = com.music.spotui.ui.theme.SurfaceHigh)

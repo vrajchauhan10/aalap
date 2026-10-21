@@ -216,7 +216,10 @@ private fun HomeHeaderRow(navController: NavController) {
     androidx.compose.runtime.LaunchedEffect(Unit) {
         com.music.spotui.data.api.ProfileCache.ensure(context)
     }
-    val firstName = com.music.spotui.data.api.ProfileCache.name?.trim()?.substringBefore(' ')
+    // The Aalap name the user chose, else the connected account's name.
+    val firstName = com.music.spotui.data.preferences.aalapDisplayName(
+        context, com.music.spotui.data.api.ProfileCache.name.orEmpty(),
+    ).trim().substringBefore(' ').ifBlank { null }
     val greeting = when (java.time.LocalTime.now().hour) {
         in 5..11 -> "Good morning"
         in 12..16 -> "Good afternoon"

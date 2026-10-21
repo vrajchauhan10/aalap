@@ -212,17 +212,10 @@ fun SongOptionsSheet(
                 navController.navigate(albumRoute(song.album, song.singer))
                 onDismiss()
             }
+            val shareScope = androidx.compose.runtime.rememberCoroutineScope()
             SongMenuRow(Icons.Default.Share, "Share") {
-                // Share the real Spotify track link when we know the id.
-                val shareText = song.spotifyTrackId.takeIf { it.isNotBlank() }
-                    ?.let { "https://open.spotify.com/track/$it" }
-                    ?: "Listening to ${song.title} by ${song.singer}"
-                val send = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, shareText)
-                }
-                context.startActivity(Intent.createChooser(send, "Share"))
-                onDismiss()
+                // Same as the player: a song card, with the link hidden behind "Listen on Aalap".
+                com.music.spotui.ui.screens.shareSongCard(context, shareScope, song, onDismiss)
             }
             Spacer(modifier = Modifier.padding(8.dp))
         }

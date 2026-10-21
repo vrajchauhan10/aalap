@@ -46,7 +46,7 @@ private const val YOUTUBE_LOGIN_URL =
 fun YouTubeLoginScreen(navController: NavController, next: String = "") {
     val context = LocalContext.current
     var webView by remember { mutableStateOf<WebView?>(null) }
-    var status by remember { mutableStateOf("Log in to YouTube Music") }
+    var status by remember { mutableStateOf("Connecting to YouTube Music") }
     var hasError by remember { mutableStateOf(false) }
     val validating = remember { AtomicBoolean(false) }
 

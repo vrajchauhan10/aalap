@@ -37,6 +37,10 @@ class Api @Inject constructor(
 ) {
     private fun stableId(key: String): Int = key.hashCode() and 0x7fffffff
 
+        /** Users never see the backend's name: Spotify-owned playlists show as Aalap's. */
+        fun brandOwner(name: String?): String? =
+            name?.let { if (it.equals("Spotify", ignoreCase = true)) "Aalap" else it }
+
     /**
      * Process-level cache for the Home feeds. The Home ViewModel is recreated on
      * every navigation back to Home and would otherwise re-hit the network each
@@ -212,7 +216,7 @@ class Api @Inject constructor(
         is SpotifyHomeFeedItem.Playlist -> HomeItem.Playlist(
             name = name,
             imageUrl = imageUrl ?: "",
-            subtitle = (madeForUsername ?: ownerName)?.let { "Playlist • $it" } ?: "Playlist",
+            subtitle = brandOwner(madeForUsername ?: ownerName)?.let { "Playlist • $it" } ?: "Playlist",
             id = id,
         )
     }
@@ -399,7 +403,7 @@ class Api @Inject constructor(
                     com.music.spotui.data.entity.LibraryEntry(
                         spotifyId = p.id,
                         name = p.name,
-                        subtitle = "Playlist" + (p.owner?.displayName?.let { " • $it" } ?: ""),
+                        subtitle = "Playlist" + (brandOwner(p.owner?.displayName)?.let { " • $it" } ?: ""),
                         coverUri = p.images.firstOrNull()?.url ?: "",
                         isPlaylist = true,
                     )
@@ -575,7 +579,7 @@ class Api @Inject constructor(
             com.music.spotui.data.entity.LibraryEntry(
                 spotifyId = p.id,
                 name = p.name,
-                subtitle = "Playlist" + (p.owner?.displayName?.let { " • $it" } ?: ""),
+                subtitle = "Playlist" + (brandOwner(p.owner?.displayName)?.let { " • $it" } ?: ""),
                 coverUri = p.images.firstOrNull()?.url ?: "",
                 isPlaylist = true,
             )
@@ -663,7 +667,7 @@ class Api @Inject constructor(
             onSuccess = { p ->
                 emit(Response.Success(AlbumsModel(
                     id = stableId("playlist:${p.id}"),
-                    artists = p.owner?.displayName ?: "",
+                    artists = brandOwner(p.owner?.displayName) ?: "",
                     coverUri = p.images.firstOrNull()?.url ?: "",
                     name = p.name,
                     time = stripHtml(p.description),
