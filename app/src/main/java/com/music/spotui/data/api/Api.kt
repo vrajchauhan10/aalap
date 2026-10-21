@@ -677,6 +677,7 @@ class Api @Inject constructor(
                 context, models.mapTo(HashSet()) { it.id.toString() }, complete = items.size >= total,
             )
             com.music.spotui.data.recommendation.engine.QueueEngine.rememberLiked(context, models)
+            if (items.size >= total) YouTubeLibrary.saveSpotifyLiked(context, models)
             emit(Response.Success(models))
         }) { offset -> Spotify.likedSongs(limit = 50, offset = offset) }
         if (!loaded) emit(Response.Error("Couldn't load Liked Songs"))

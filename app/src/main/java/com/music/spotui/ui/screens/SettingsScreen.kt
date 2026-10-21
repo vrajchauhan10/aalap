@@ -614,8 +614,18 @@ private fun ProfileHeader(navController: NavController) {
         )
     }
     val avatar = com.music.spotui.data.api.ProfileCache.imageUrl
-    val liked = remember { com.music.spotui.data.preferences.getLikedSongIds(context).size }
-    val downloads = remember { com.music.spotui.data.preferences.getDownloadedSongs(context).size }
+    // One library: Spotify and YouTube Music together, each song and artist once
+    // (the same list the Liked page shows).
+    val liked = remember {
+        com.music.spotui.data.api.YouTubeLibrary.unifiedLiked(context).size
+            .takeIf { it > 0 } ?: com.music.spotui.data.preferences.getLikedSongIds(context).size
+    }
+    val artists = remember {
+        com.music.spotui.data.api.YouTubeLibrary.mergeArtists(
+            com.music.spotui.data.preferences.getCachedFollowedArtists(context),
+            com.music.spotui.data.api.YouTubeLibrary.artists(context),
+        ).size
+    }
     val plays = remember { com.music.spotui.data.preferences.getListeningHistory(context).size }
 
     Column(
@@ -674,7 +684,7 @@ private fun ProfileHeader(navController: NavController) {
                 }
                 val email = com.music.spotui.data.preferences.getAalapEmail(context)
                 if (email.isNotBlank()) Text(email, color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
-                Text("Aalap member · see Connected below", color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
+                Text("Spotify + YouTube Music in one library", color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -682,8 +692,8 @@ private fun ProfileHeader(navController: NavController) {
             ProfileStat("$liked", "Liked", Modifier.weight(1f)) {
                 navController.navigate(com.music.spotui.ui.navigation.Routes.Liked.route)
             }
-            ProfileStat("$downloads", "Downloads", Modifier.weight(1f)) {
-                navController.navigate(com.music.spotui.ui.navigation.Routes.Downloads.route)
+            ProfileStat("$artists", "Artists", Modifier.weight(1f)) {
+                navController.navigate(com.music.spotui.ui.navigation.Routes.Library.route)
             }
             ProfileStat("$plays", "Plays", Modifier.weight(1f)) {
                 navController.navigate(com.music.spotui.ui.navigation.Routes.History.route)

@@ -66,6 +66,13 @@ class MyApplication : Application(){
         // Meld searches/browses with the same signed-in account used by /player.
         // Leaving this false makes search anonymous and can return the clean edit.
         YouTube.useLoginForBrowse = hasValidSavedLogin
+        // Keep the Spotify + YouTube Music library fresh: hourly in the background,
+        // and on launch when the last YouTube sync is over an hour old.
+        com.music.spotui.data.api.LibrarySyncWorker.schedule(this)
+        if (hasValidSavedLogin) appScope.launch {
+            kotlinx.coroutines.delay(4_000)
+            com.music.spotui.data.api.YouTubeLibrary.syncIfDue(this@MyApplication)
+        }
         if (YouTube.visitorData.isNullOrBlank()) {
             appScope.launch {
                 YouTube.visitorData = YouTube.visitorData().getOrNull() ?: YouTube.visitorData

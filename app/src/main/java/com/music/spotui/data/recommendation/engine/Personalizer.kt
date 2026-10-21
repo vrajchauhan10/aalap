@@ -78,6 +78,10 @@ object Personalizer {
         }
         val followed = followedArtistKeys(context)
         followed.forEach { artist[it] = (artist[it] ?: 0.0) + 2.0 }
+        // YouTube Music recent plays count like imported favourites (its subscriptions are follows, below).
+        com.music.spotui.data.api.YouTubeLibrary.historyArtistCounts(context).forEach { (name, n) ->
+            SongMatcher.artistKeys(name).firstOrNull()?.let { artist[it] = (artist[it] ?: 0.0) + minOf(3.0, 0.4 * n) }
+        }
         com.music.spotui.data.local.AppleMusicImport.artistCounts(context).forEach { (name, n) ->
             SongMatcher.artistKeys(name).firstOrNull()?.let { artist[it] = (artist[it] ?: 0.0) + minOf(3.0, 0.5 * n) }
         }
@@ -111,7 +115,8 @@ object Personalizer {
 
     private fun followedArtistKeys(context: Context): Set<String> {
         val names = context.getSharedPreferences("FollowedArtists", Context.MODE_PRIVATE).all.values.mapNotNull { it as? String } +
-            com.music.spotui.data.preferences.getCachedFollowedArtists(context).map { it.name }
+            com.music.spotui.data.preferences.getCachedFollowedArtists(context).map { it.name } +
+            com.music.spotui.data.api.YouTubeLibrary.artists(context).map { it.name }
         return names.mapNotNull { SongMatcher.artistKeys(it).firstOrNull() }.toSet()
     }
 

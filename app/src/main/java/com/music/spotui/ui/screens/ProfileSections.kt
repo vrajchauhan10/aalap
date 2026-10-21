@@ -86,6 +86,14 @@ fun ConnectedServicesSection(navController: NavController) {
     var gaanaOn by remember { mutableStateOf(isGaanaEnabled(context)) }
     var appleCount by remember { mutableIntStateOf(AppleMusicImport.tracks(context).size) }
     var appleGuide by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    var syncing by remember { mutableStateOf(false) }
+    // The unified library: counts from both services together, each song/artist once.
+    val spotifyLiked = remember(tick) {
+        context.getSharedPreferences("LikedSongsFromSpotify", android.content.Context.MODE_PRIVATE).getStringSet("ids", null)?.size ?: 0
+    }
+    val ytLiked = remember(tick, syncing) { com.music.spotui.data.api.YouTubeLibrary.likedSongs(context).size }
+    val ytArtists = remember(tick, syncing) { com.music.spotui.data.api.YouTubeLibrary.artists(context).size }
 
     ProfileSectionTitle("Connected")
     Column(
@@ -98,16 +106,33 @@ fun ConnectedServicesSection(navController: NavController) {
         ServiceLine(
             logo = com.music.spotui.R.drawable.ic_brand_spotify,
             name = "Spotify",
-            status = if (spotifyOk) "Connected" + (spotifyName?.let { " as $it" } ?: "") + " · library, playlists, likes" else "Not connected",
+            status = if (spotifyOk) "Connected" + (spotifyName?.let { " as $it" } ?: "") + " · $spotifyLiked liked songs" else "Not connected",
             action = if (spotifyOk) "Reconnect" else "Connect",
         ) { navController.navigate(Routes.SpotifyConnect.route) }
         Divider()
         ServiceLine(
             logo = com.music.spotui.R.drawable.ic_brand_ytmusic,
             name = "YouTube Music",
-            status = if (youtubeOk) "Connected · main audio, explicit songs included" else "Not connected · sign in for explicit songs",
-            action = if (youtubeOk) "Reconnect" else "Connect",
-        ) { navController.navigate(Routes.YouTubeLogin.route) }
+            status = when {
+                !youtubeOk -> "Not connected · sign in to bring your likes and artists"
+                syncing -> "Syncing your library…"
+                else -> "Connected · $ytLiked liked songs, $ytArtists artists" +
+                    com.music.spotui.data.api.YouTubeLibrary.lastSync(context).let { at ->
+                        if (at > 0) " · synced " + android.text.format.DateUtils.getRelativeTimeSpanString(at, System.currentTimeMillis(), 60_000L) else ""
+                    }
+            },
+            action = when { !youtubeOk -> "Connect"; syncing -> null; else -> "Sync now" },
+        ) {
+            if (!youtubeOk) navController.navigate(Routes.YouTubeLogin.route)
+            else if (!syncing) {
+                syncing = true
+                scope.launch {
+                    val ok = withContext(Dispatchers.IO) { runCatching { com.music.spotui.data.api.YouTubeLibrary.sync(context) }.getOrDefault(false) }
+                    syncing = false
+                    Toast.makeText(context, if (ok) "YouTube Music library synced" else "Couldn't sync right now", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
         Divider()
         ServiceLine(
             logo = com.music.spotui.R.drawable.ic_brand_jiosaavn,

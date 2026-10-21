@@ -33,7 +33,11 @@ class AppRepository @Inject constructor(private val api : Api) {
 
     suspend fun provideLibrary() = api.getLibrary()
 
-    suspend fun provideFollowedArtists() = api.getFollowedArtists()
+    /** Followed artists on Spotify plus subscriptions on YouTube Music, each artist once. */
+    suspend fun provideFollowedArtists() = com.music.spotui.data.api.YouTubeLibrary.mergeArtists(
+        api.getFollowedArtists(),
+        com.music.spotui.data.api.YouTubeLibrary.artists(com.music.spotui.MyApplication.instance),
+    )
 
     suspend fun provideCategoryPlaylists(genre: String) = api.getCategoryPlaylists(genre)
 

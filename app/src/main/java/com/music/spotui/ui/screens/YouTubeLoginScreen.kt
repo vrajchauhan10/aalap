@@ -1,5 +1,6 @@
 package com.music.spotui.ui.screens
 
+import kotlinx.coroutines.launch
 import android.annotation.SuppressLint
 import android.webkit.CookieManager
 import android.webkit.WebSettings
@@ -70,6 +71,10 @@ fun YouTubeLoginScreen(navController: NavController, next: String = "") {
             YouTube.useLoginForBrowse = true
             setPrimaryMusicSource(context, MusicSource.YOUTUBE_MUSIC)
             status = "YouTube Music connected"
+            // Bring in the YouTube Music library (likes, artists, recent plays) in the background.
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                com.music.spotui.data.api.YouTubeLibrary.syncIfDue(context.applicationContext, force = true)
+            }
             delay(350)
             when (next) {
                 "spotiflac" -> {

@@ -44,3 +44,19 @@ fun syncSpotifyLikedSongIds(context: Context, ids: Set<String>, complete: Boolea
     }.apply()
     if (complete) seed.edit().putStringSet("ids", ids).apply()
 }
+
+/**
+ * Mirrors the YouTube Music liked songs into the app's likes (same idea as the
+ * Spotify mirror): songs unliked on YouTube since the last sync are dropped, unless
+ * they're also liked on Spotify or were liked here.
+ */
+fun syncYouTubeLikedSongIds(context: Context, ids: Set<String>) {
+    val seed = context.getSharedPreferences("LikedSongsFromYouTube", Context.MODE_PRIVATE)
+    val previous = seed.getStringSet("ids", null).orEmpty()
+    val fromSpotify = context.getSharedPreferences("LikedSongsFromSpotify", Context.MODE_PRIVATE).getStringSet("ids", null).orEmpty()
+    context.getSharedPreferences("LikedSongs", Context.MODE_PRIVATE).edit().apply {
+        (previous - ids - fromSpotify).forEach { remove(it) }
+        ids.forEach { putString(it, it) }
+    }.apply()
+    seed.edit().putStringSet("ids", ids).apply()
+}

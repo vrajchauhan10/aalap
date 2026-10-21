@@ -50,6 +50,21 @@ object QueueEndpoint {
     private fun handle(context: Context, socket: Socket) {
         val line = socket.getInputStream().bufferedReader().readLine().orEmpty() // "GET /queue?… HTTP/1.1"
         val target = line.split(" ").getOrNull(1).orEmpty()
+        if (target.startsWith("/ytlibrary")) {
+            // Debug: force a YouTube Music library sync and report what came in.
+            val ok = runBlocking { com.music.spotui.data.api.YouTubeLibrary.sync(context) }
+            val songs = com.music.spotui.data.api.YouTubeLibrary.likedSongs(context)
+            val body = JSONObject().put("synced", ok).put("liked", songs.size)
+                .put("artists", JSONArray(com.music.spotui.data.api.YouTubeLibrary.artists(context).map { it.name }))
+                .put("history_artists", JSONObject(com.music.spotui.data.api.YouTubeLibrary.historyArtistCounts(context) as Map<*, *>))
+                .put("first_liked", JSONArray(songs.take(8).map { "${it.title} — ${it.singer}${if (it.spotifyTrackId.isNotBlank()) " [matched]" else ""}" }))
+            val bytes = body.toString(2).toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
         val (status, body) = if (!line.startsWith("GET ") || target.substringBefore("?") != "/queue") {
             404 to JSONObject().put("error", "use GET /queue?seed_song_id=…&user_id=…&length=5")
         } else runCatching {
