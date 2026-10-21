@@ -10,13 +10,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,18 +29,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
+import com.bumptech.glide.integration.compose.GlideImage
+import com.bumptech.glide.integration.compose.placeholder
+import com.music.spotui.R
 import com.music.spotui.data.api.Mood
 import com.music.spotui.data.entity.SongsModel
 import com.music.spotui.data.recommendation.AalapRadio
 import com.music.spotui.ui.theme.Saffron
 import com.music.spotui.ui.theme.SaffronDeep
-import com.music.spotui.ui.theme.SaffronGold
+import com.music.spotui.ui.theme.SurfaceHigh
 import com.music.spotui.ui.theme.TextMuted
 import com.music.spotui.ui.theme.TextPrimary
 import com.music.spotui.ui.viewmodel.PlayerViewModel
@@ -50,10 +54,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private val CARD = 148.dp
+
 /**
- * Aalap Radio on Home: a big "Your Mix" station made from your taste, then one
- * station per mood, ordered for you and the time of day. Tapping a station builds it
- * and starts playing; the engine keeps it going after it ends.
+ * Aalap Radio on Home: one calm row of stations. "Your Mix" (your favourites and new
+ * finds, shown with your own album covers) comes first, then mood stations ordered
+ * for you and the time of day. Tap a station and it starts playing; the engine keeps
+ * it going after it ends.
  */
 @Composable
 fun AalapRadioSection() {
@@ -62,8 +69,9 @@ fun AalapRadioSection() {
     val scope = rememberCoroutineScope()
     var loading by remember { mutableStateOf<String?>(null) }
 
-    val artists by produceState(emptyList<String>()) { value = withContext(Dispatchers.IO) { AalapRadio.topArtists(context) } }
-    val moods = remember { AalapRadio.moodOrder(context) }
+    val artists by produceState(emptyList<String>()) { value = withContext(Dispatchers.IO) { AalapRadio.topArtists(context, 2) } }
+    val covers by produceState(emptyList<String>()) { value = withContext(Dispatchers.IO) { AalapRadio.mixCovers(context) } }
+    val moods = remember { AalapRadio.moodOrder(context).take(6) }
 
     fun start(key: String, build: suspend () -> List<SongsModel>) {
         if (loading != null) return
@@ -72,7 +80,7 @@ fun AalapRadioSection() {
             val songs = runCatching { withContext(Dispatchers.IO) { build() } }.getOrDefault(emptyList())
             loading = null
             if (songs.isEmpty()) {
-                Toast.makeText(context, "Couldn't build this station right now. Try again in a moment.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Couldn't start this station. Try again in a moment.", Toast.LENGTH_SHORT).show()
                 return@launch
             }
             player.updateQueue(songs)
@@ -83,88 +91,118 @@ fun AalapRadioSection() {
     Column {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 12.dp),
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 2.dp),
         ) {
             Box(Modifier.size(width = 4.dp, height = 20.dp).clip(RoundedCornerShape(2.dp)).background(Saffron))
             Spacer(Modifier.width(10.dp))
             Text("Aalap Radio", color = TextPrimary, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.weight(1f))
-            Text("Made from how you listen", color = TextMuted, fontSize = 11.sp)
         }
-
-        // ── Your Mix ──
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .padding(horizontal = 20.dp)
-                .fillMaxWidth()
-                .height(178.dp)
-                .clip(RoundedCornerShape(26.dp))
-                .background(Brush.linearGradient(listOf(SaffronGold, Saffron, SaffronDeep, Color(0xFF3A1F6B))))
-                .clickable {
-                    start("mix") {
-                        AalapRadio.yourMix(context).ifEmpty { AalapRadio.moodRadio(context, moods.first()) }
-                    }
-                }
-                .padding(18.dp),
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("AALAP RADIO", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                Spacer(Modifier.height(2.dp))
-                Text("Your Mix", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    if (artists.isEmpty()) "Your favourites and new finds, mixed for you"
-                    else artists.joinToString(", ") + " and more",
-                    color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(12.dp))
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(46.dp).clip(CircleShape).background(Color(0xFF1A0E05)),
-                ) {
-                    if (loading == "mix") AalapLoader(size = 26.dp)
-                    else AalapMark(Modifier.size(30.dp), arcColor = Color.Transparent, playColor = Saffron, playScale = 1.25f, arrowAlpha = 0f)
-                }
-            }
-            AalapMark(Modifier.size(116.dp), arcColor = Color.White.copy(alpha = 0.92f), playColor = Color.White)
-        }
-
-        // ── Mood stations ──
-        Spacer(Modifier.height(12.dp))
+        Text(
+            "Stations made from how you listen",
+            color = TextMuted, fontSize = 12.sp,
+            modifier = Modifier.padding(start = 34.dp, bottom = 12.dp),
+        )
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(horizontal = 20.dp),
         ) {
+            item {
+                Station(
+                    title = "Your Mix",
+                    subtitle = if (artists.isEmpty()) "Favourites and new finds" else artists.joinToString(", ") + " and more",
+                    loading = loading == "mix",
+                    onClick = {
+                        start("mix") { AalapRadio.yourMix(context).ifEmpty { AalapRadio.moodRadio(context, moods.first()) } }
+                    },
+                ) { CoverCollage(covers) }
+            }
             items(moods.size) { i ->
                 val mood = moods[i]
-                MoodStation(mood, loading == mood.name) {
-                    start(mood.name) { AalapRadio.moodRadio(context, mood) }
-                }
+                Station(
+                    title = "${mood.label} Radio",
+                    subtitle = mood.blurb,
+                    loading = loading == mood.name,
+                    onClick = { start(mood.name) { AalapRadio.moodRadio(context, mood) } },
+                ) { MoodArt(mood) }
             }
         }
     }
 }
 
 @Composable
-private fun MoodStation(mood: Mood, loading: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(width = 120.dp, height = 138.dp)
-            .clip(RoundedCornerShape(22.dp))
-            .background(Brush.linearGradient(listOf(Color(mood.colors.first), Color(mood.colors.second))))
-            .clickable(onClick = onClick)
-            .padding(14.dp),
-    ) {
-        AalapMark(
-            Modifier.size(28.dp).align(Alignment.TopStart),
-            arcColor = Color.White.copy(alpha = 0.85f), playColor = Color.White,
-        )
-        if (loading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { AalapLoader(size = 34.dp) }
+private fun Station(
+    title: String,
+    subtitle: String,
+    loading: Boolean,
+    onClick: () -> Unit,
+    art: @Composable () -> Unit,
+) {
+    Column(Modifier.width(CARD).clickable(onClick = onClick)) {
+        Box(Modifier.size(CARD).clip(RoundedCornerShape(18.dp)).background(SurfaceHigh)) {
+            art()
+            if (loading) {
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f)), contentAlignment = Alignment.Center) {
+                    AalapLoader(size = 40.dp)
+                }
+            }
         }
-        Column(Modifier.align(Alignment.BottomStart)) {
-            Text(mood.label, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-            Text("Radio", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+        Spacer(Modifier.height(8.dp))
+        Text(title, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(subtitle, color = TextMuted, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 14.sp)
+    }
+}
+
+/** Your Mix artwork: a 2×2 grid of your favourites' covers (one cover, or colours, when there are fewer). */
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun CoverCollage(covers: List<String>) {
+    when {
+        covers.size >= 4 -> {
+            val half: Dp = CARD / 2
+            Column {
+                covers.take(4).chunked(2).forEach { row ->
+                    Row {
+                        row.forEach { url ->
+                            GlideImage(
+                                model = url, contentDescription = null, contentScale = ContentScale.Crop,
+                                loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+                                modifier = Modifier.size(half),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        covers.isNotEmpty() -> GlideImage(
+            model = covers.first(), contentDescription = null, contentScale = ContentScale.Crop,
+            loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+            modifier = Modifier.fillMaxSize(),
+        )
+        else -> Box(
+            Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Saffron, SaffronDeep, Color(0xFF3A1F6B)))).padding(14.dp),
+            contentAlignment = Alignment.BottomStart,
+        ) {
+            Column {
+                Text("Your Mix", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("RADIO", color = Color.White.copy(alpha = 0.75f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+            }
+        }
+    }
+}
+
+/** A mood station's artwork: its colours and name, nothing else. */
+@Composable
+private fun MoodArt(mood: Mood) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Brush.linearGradient(listOf(Color(mood.colors.first), Color(mood.colors.second))))
+            .padding(14.dp),
+        contentAlignment = Alignment.BottomStart,
+    ) {
+        Column {
+            Text(mood.label, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text("RADIO", color = Color.White.copy(alpha = 0.75f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
         }
     }
 }

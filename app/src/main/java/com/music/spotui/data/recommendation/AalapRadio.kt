@@ -30,6 +30,18 @@ object AalapRadio {
     fun topArtists(context: Context, n: Int = 3): List<String> =
         runCatching { Personalizer.summary(context).artists.take(n) }.getOrDefault(emptyList())
 
+    /** Up to 4 album covers of your current favourites, for the Your Mix card. */
+    fun mixCovers(context: Context): List<String> = runCatching {
+        QueueEngine.ensureImported(context)
+        val profile = Personalizer.profile(context)
+        val top = profile.songAffinity.entries.sortedByDescending { it.value }.take(40).map { it.key }
+        val songs = RecoDb.get(context).songs(top).let { m -> top.mapNotNull { m[it] } }
+            .filter { it.info.cover.isNotBlank() }
+        // Prefer different artists, then fill up with whatever covers there are.
+        val varied = songs.distinctBy { SongMatcher.artistKeys(it.artists).firstOrNull() }
+        (varied + songs).map { it.info.cover }.distinct().take(4)
+    }.getOrDefault(emptyList())
+
     suspend fun yourMix(context: Context, salt: Long = System.currentTimeMillis(), size: Int = 30): List<SongsModel> {
         QueueEngine.ensureImported(context)
         val userId = RecoDb.userId(context)

@@ -96,35 +96,35 @@ fun ConnectedServicesSection(navController: NavController) {
             .border(1.dp, Hairline, RoundedCornerShape(20.dp)),
     ) {
         ServiceLine(
-            badge = "S", badgeColor = Color(0xFF1DB954),
+            logo = com.music.spotui.R.drawable.ic_brand_spotify,
             name = "Spotify",
             status = if (spotifyOk) "Connected" + (spotifyName?.let { " as $it" } ?: "") + " · library, playlists, likes" else "Not connected",
             action = if (spotifyOk) "Reconnect" else "Connect",
         ) { navController.navigate(Routes.SpotifyConnect.route) }
         Divider()
         ServiceLine(
-            badge = "Y", badgeColor = Color(0xFFFF0033),
+            logo = com.music.spotui.R.drawable.ic_brand_ytmusic,
             name = "YouTube Music",
             status = if (youtubeOk) "Connected · main audio, explicit songs included" else "Not connected · sign in for explicit songs",
             action = if (youtubeOk) "Reconnect" else "Connect",
         ) { navController.navigate(Routes.YouTubeLogin.route) }
         Divider()
         ServiceLine(
-            badge = "J", badgeColor = Color(0xFF2BC5B4),
+            logo = com.music.spotui.R.drawable.ic_brand_jiosaavn,
             name = "JioSaavn",
             status = "Backup audio in 320 kbps · no login needed",
             switch = saavnOn,
         ) { saavnOn = !saavnOn; setJioSaavnEnabled(context, saavnOn) }
         Divider()
         ServiceLine(
-            badge = "G", badgeColor = Color(0xFFE72C30),
+            logo = com.music.spotui.R.drawable.ic_brand_gaana,
             name = "Gaana",
             status = "Last backup source · no login needed",
             switch = gaanaOn,
         ) { gaanaOn = !gaanaOn; setGaanaEnabled(context, gaanaOn) }
         Divider()
         ServiceLine(
-            badge = "A", badgeColor = Color(0xFFFA2D48),
+            logo = com.music.spotui.R.drawable.ic_brand_apple_music,
             name = "Apple Music",
             status = if (appleCount > 0) "$appleCount songs imported · shaping your taste" else "Import your library to shape your taste",
             action = if (appleCount > 0) "Update" else "Import",
@@ -138,9 +138,8 @@ fun ConnectedServicesSection(navController: NavController) {
 private fun Divider() = HorizontalDivider(color = Hairline, thickness = 1.dp, modifier = Modifier.padding(start = 66.dp))
 
 @Composable
-private fun ServiceLine(
-    badge: String,
-    badgeColor: Color,
+internal fun ServiceLine(
+    logo: Int,
     name: String,
     status: String,
     action: String? = null,
@@ -154,10 +153,11 @@ private fun ServiceLine(
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(badgeColor),
-        ) { Text(badge, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold) }
+        androidx.compose.foundation.Image(
+            painter = androidx.compose.ui.res.painterResource(logo),
+            contentDescription = name,
+            modifier = Modifier.size(38.dp),
+        )
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(name, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
@@ -178,7 +178,7 @@ private fun ServiceLine(
 
 /** Two ways to export from Apple Music, then pick the file. */
 @Composable
-private fun AppleMusicImportDialog(onDismiss: () -> Unit, onImported: (Int) -> Unit) {
+internal fun AppleMusicImportDialog(onDismiss: () -> Unit, onImported: (Int) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }

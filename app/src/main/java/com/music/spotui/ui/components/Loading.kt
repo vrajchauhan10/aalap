@@ -20,6 +20,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.keyframes
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -35,36 +39,43 @@ import com.music.spotui.ui.theme.SaffronGold
 import com.music.spotui.ui.theme.SurfaceHigh
 
 /**
- * Aalap's loading animation: the logo itself. The replay arc spins and breathes
- * around the play button, which pulses gently, like the app is spinning up a song.
+ * Aalap's loader: three saffron dots that rise and brighten one after another. Calm,
+ * small, and readable on any background. [size] is the row's width.
  */
 @Composable
 fun AalapLoader(modifier: Modifier = Modifier, size: Dp = 44.dp) {
     val transition = rememberInfiniteTransition(label = "aalapLoader")
-    val rotation by transition.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing)),
-        label = "spin",
-    )
-    val arc by transition.animateFloat(
-        initialValue = 0.3f, targetValue = 0.92f,
-        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "arc",
-    )
-    val pulse by transition.animateFloat(
-        initialValue = 0.82f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "pulse",
-    )
-    AalapMark(
-        modifier = modifier.size(size),
-        arcColor = SaffronGold,
-        playColor = Saffron,
-        arcProgress = arc,
-        arcRotation = rotation,
-        playScale = pulse,
-        arrowAlpha = arc,
-    )
+    val dot = size / 5
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(dot * 0.7f),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier.height(dot * 2.2f),
+    ) {
+        repeat(3) { i ->
+            val t by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = keyframes {
+                        durationMillis = 1050
+                        0f at (i * 140) using FastOutSlowInEasing
+                        1f at (i * 140 + 300) using FastOutSlowInEasing
+                        0f at (i * 140 + 600)
+                        0f at 1050
+                    },
+                ),
+                label = "dot$i",
+            )
+            Box(
+                Modifier
+                    .offset(y = -dot * 0.45f * t)
+                    .size(dot)
+                    .graphicsLayer { scaleX = 0.8f + 0.2f * t; scaleY = 0.8f + 0.2f * t; alpha = 0.45f + 0.55f * t }
+                    .clip(CircleShape)
+                    .background(Brush.verticalGradient(listOf(SaffronGold, Saffron)))
+            )
+        }
+    }
 }
 
 /** Full-area centred loader. */

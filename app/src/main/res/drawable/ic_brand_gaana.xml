@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Gaana mark (shown only in the Connected list). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#E72C30" android:pathData="M5.5,0h13a5.5,5.5 0,0 1,5.5 5.5v13a5.5,5.5 0,0 1,-5.5 5.5h-13a5.5,5.5 0,0 1,-5.5 -5.5v-13a5.5,5.5 0,0 1,5.5 -5.5z"/>
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="2.3" android:fillColor="#00000000" android:pathData="M12,6.8a3.5,3.5 0,1 0,0.001 0z"/>
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="2.3" android:strokeLineCap="round" android:fillColor="#00000000" android:pathData="M15.5,10.3v4.4a3.5,3.5 0,0 1,-6.4 2"/>
+</vector>

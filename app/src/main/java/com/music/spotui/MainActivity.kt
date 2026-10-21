@@ -34,15 +34,17 @@ class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?){
         // Opening animation: keep the splash until the animated mark has played once,
-        // then the mark grows and the splash fades into the app.
+        // then the splash fades into the app.
         val splash = androidx.core.splashscreen.SplashScreen.run { this@MainActivity.installSplashScreen() }
         val openedAt = android.os.SystemClock.uptimeMillis()
         splash.setKeepOnScreenCondition { android.os.SystemClock.uptimeMillis() - openedAt < 850 }
         splash.setOnExitAnimationListener { view ->
             val icon = view.iconView
-            icon.animate().scaleX(1.35f).scaleY(1.35f).alpha(0f).setDuration(320)
-                .setInterpolator(android.view.animation.AccelerateInterpolator()).start()
-            view.view.animate().alpha(0f).setStartDelay(120).setDuration(320)
+            // A quiet hand-off: the mark eases back a touch as the splash fades into Home.
+            icon.animate().scaleX(0.92f).scaleY(0.92f).alpha(0f).setDuration(260)
+                .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()).start()
+            view.view.animate().alpha(0f).setStartDelay(60).setDuration(280)
+                .setInterpolator(android.view.animation.DecelerateInterpolator())
                 .withEndAction { view.remove() }.start()
         }
 

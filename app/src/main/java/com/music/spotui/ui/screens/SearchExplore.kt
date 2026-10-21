@@ -51,7 +51,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.music.spotui.data.api.Mood
-import com.music.spotui.ui.components.AalapMark
 import com.music.spotui.ui.navigation.categoryRoute
 import com.music.spotui.ui.theme.AppBackground
 import com.music.spotui.ui.theme.Hairline
@@ -74,7 +73,6 @@ fun AalapSearchHeader() {
             Text("Search", color = TextPrimary, fontSize = 30.sp, fontWeight = FontWeight.Bold)
             Text("Any song, artist, album or mood", color = TextMuted, fontSize = 13.sp)
         }
-        AalapMark(Modifier.size(34.dp))
     }
 }
 
@@ -243,11 +241,6 @@ fun SearchExplore(navController: NavController, onQuickSearch: (String) -> Unit)
                                 navController.navigate(categoryRoute(tile.query, tile.title))
                             },
                     ) {
-                        // The Aalap mark as a soft watermark in the corner.
-                        AalapMark(
-                            Modifier.size(84.dp).align(Alignment.BottomEnd).offset(x = 18.dp, y = 18.dp),
-                            arcColor = Color.White.copy(alpha = 0.22f), playColor = Color.White.copy(alpha = 0.22f),
-                        )
                         Text(
                             tile.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(14.dp),

@@ -146,14 +146,15 @@ private fun AalapField(value: String, label: String, type: KeyboardType, onChang
 }
 
 /**
- * "Connect your music": each service once, with a tick when done. Spotify brings the
- * library (required); YouTube Music the main audio; JioSaavn and Gaana need no login.
- * Apple Music favourites are imported later from Profile.
+ * "Connect your music". Two sign-ins come first: Spotify (required: your library,
+ * playlists and likes) and YouTube Music (recommended: the main audio, including
+ * explicit and age-restricted songs). Then the backup sources, which need no login
+ * and can be switched off, and an Apple Music import.
  */
 @Composable
 fun ConnectServicesScreen(navController: NavController) {
     val context = LocalContext.current
-    // Re-read when coming back from a connect screen.
+    // Re-read when coming back from a sign-in screen.
     var tick by remember { mutableIntStateOf(0) }
     val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
     androidx.compose.runtime.DisposableEffect(lifecycle) {
@@ -165,6 +166,10 @@ fun ConnectServicesScreen(navController: NavController) {
     }
     val spotifyOk = remember(tick) { SpotifySession.spDc(context).isNotBlank() }
     val youtubeOk = remember(tick) { isYoutubeLoggedIn(context) }
+    var saavnOn by remember { mutableStateOf(com.music.spotui.data.preferences.isJioSaavnEnabled(context)) }
+    var gaanaOn by remember { mutableStateOf(com.music.spotui.data.preferences.isGaanaEnabled(context)) }
+    var appleCount by remember { mutableIntStateOf(com.music.spotui.data.local.AppleMusicImport.tracks(context).size) }
+    var appleDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -178,23 +183,48 @@ fun ConnectServicesScreen(navController: NavController) {
         Spacer(Modifier.height(36.dp))
         Text("Connect your music", color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Text(
-            "Aalap brings everything together. Connect once; it stays connected.",
-            color = TextMuted, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp, bottom = 22.dp),
+            "Sign in once. Aalap stays connected and brings it all together.",
+            color = TextMuted, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp, bottom = 18.dp),
         )
-        ServiceRow(
+
+        StepLabel("Sign in")
+        SignInRow(
+            logo = R.drawable.ic_brand_spotify,
             name = "Spotify",
+            tag = "Required",
             role = "Your library, playlists and likes",
-            done = spotifyOk,
-            required = true,
+            connected = spotifyOk,
         ) { navController.navigate(Routes.SpotifyConnect.route) }
-        ServiceRow(
+        SignInRow(
+            logo = R.drawable.ic_brand_ytmusic,
             name = "YouTube Music",
-            role = "Main audio source, explicit songs included",
-            done = youtubeOk,
+            tag = "Recommended",
+            role = "Plays your songs in high quality, explicit and age-restricted songs included",
+            connected = youtubeOk,
         ) { navController.navigate("${Routes.YouTubeLogin.route}?next=") }
-        ServiceRow(name = "JioSaavn", role = "Backup audio in 320 kbps", done = true, auto = true) {}
-        ServiceRow(name = "Gaana", role = "Last backup source", done = true, auto = true) {}
-        ServiceRow(name = "Apple Music", role = "Import favourites later from Profile", done = false, later = true) {}
+
+        StepLabel("Backup sources · no login")
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Surface).border(1.dp, Hairline, RoundedCornerShape(18.dp))) {
+            ServiceLine(
+                logo = R.drawable.ic_brand_jiosaavn, name = "JioSaavn",
+                status = "Plays in 320 kbps when YouTube can't", switch = saavnOn,
+            ) { saavnOn = !saavnOn; com.music.spotui.data.preferences.setJioSaavnEnabled(context, saavnOn) }
+            androidx.compose.material3.HorizontalDivider(color = Hairline, modifier = Modifier.padding(start = 66.dp))
+            ServiceLine(
+                logo = R.drawable.ic_brand_gaana, name = "Gaana",
+                status = "Last backup, so a song always plays", switch = gaanaOn,
+            ) { gaanaOn = !gaanaOn; com.music.spotui.data.preferences.setGaanaEnabled(context, gaanaOn) }
+        }
+
+        StepLabel("Bring your taste · optional")
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Surface).border(1.dp, Hairline, RoundedCornerShape(18.dp))) {
+            ServiceLine(
+                logo = R.drawable.ic_brand_apple_music, name = "Apple Music",
+                status = if (appleCount > 0) "$appleCount songs imported" else "Import your library so recommendations know you",
+                action = if (appleCount > 0) "Update" else "Import",
+            ) { appleDialog = true }
+        }
+        if (appleDialog) AppleMusicImportDialog(onDismiss = { appleDialog = false }) { appleCount = it }
 
         Spacer(Modifier.height(26.dp))
         Box(
@@ -212,8 +242,15 @@ fun ConnectServicesScreen(navController: NavController) {
                 .padding(vertical = 16.dp),
         ) {
             Text(
-                if (spotifyOk) "Start listening" else "Connect Spotify to continue",
+                if (spotifyOk) "Start listening" else "Sign in to Spotify to continue",
                 color = if (spotifyOk) OnSaffron else TextMuted, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+            )
+        }
+        if (spotifyOk && !youtubeOk) {
+            Text(
+                "You can sign in to YouTube Music later from Profile.",
+                color = TextMuted, fontSize = 12.sp, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
             )
         }
         Spacer(Modifier.height(28.dp))
@@ -221,44 +258,52 @@ fun ConnectServicesScreen(navController: NavController) {
 }
 
 @Composable
-private fun ServiceRow(
-    name: String,
-    role: String,
-    done: Boolean,
-    required: Boolean = false,
-    auto: Boolean = false,
-    later: Boolean = false,
-    onConnect: () -> Unit,
-) {
+private fun StepLabel(text: String) {
+    Text(
+        text.uppercase(), color = Saffron, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
+        modifier = Modifier.padding(top = 18.dp, bottom = 8.dp),
+    )
+}
+
+/** A sign-in card: logo, what it brings, and a clear Sign in / Connected state. */
+@Composable
+private fun SignInRow(logo: Int, name: String, tag: String, role: String, connected: Boolean, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp)
+            .padding(vertical = 5.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(Surface)
-            .border(1.dp, if (done && !auto) Saffron.copy(alpha = 0.5f) else Hairline, RoundedCornerShape(18.dp))
-            .clickable(enabled = !done && !auto && !later, onClick = onConnect)
-            .padding(16.dp),
+            .border(1.dp, if (connected) Saffron.copy(alpha = 0.5f) else Hairline, RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .padding(14.dp),
     ) {
+        Image(painterResource(logo), contentDescription = name, modifier = Modifier.size(42.dp))
+        Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(name, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                if (required) {
-                    Spacer(Modifier.width(8.dp))
-                    Text("Required", color = Saffron, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clip(RoundedCornerShape(50)).background(Saffron.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 2.dp))
-                }
+                Spacer(Modifier.width(8.dp))
+                Text(tag, color = Saffron, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Saffron.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 2.dp))
             }
-            Text(role, color = TextMuted, fontSize = 12.sp)
+            Text(role, color = TextMuted, fontSize = 12.sp, lineHeight = 15.sp)
         }
-        when {
-            done -> Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.size(28.dp).clip(CircleShape).background(Saffron),
-            ) { Text("✓", color = OnSaffron, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
-            later -> Text("Later", color = TextMuted, fontSize = 13.sp, modifier = Modifier.alpha(0.8f))
-            else -> Text("Connect", color = Saffron, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.width(10.dp))
+        if (connected) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(26.dp).clip(CircleShape).background(Saffron),
+                ) { Text("✓", color = OnSaffron, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
+                Text("Change", color = TextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+            }
+        } else {
+            Text(
+                "Sign in", color = OnSaffron, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(Saffron).padding(horizontal = 14.dp, vertical = 8.dp),
+            )
         }
     }
 }

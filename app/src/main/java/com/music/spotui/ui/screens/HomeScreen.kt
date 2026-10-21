@@ -193,7 +193,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
             .background(com.music.spotui.ui.theme.AppBackground)
     ) {
         item { HomeHeaderRow(navController) }
-        item { MoodRow(navController) }
+        // Moods live in Aalap Radio below (and in Search), not as a second row of pills.
         // Aalap Radio replaces the feed's featured playlist (whose art carried another brand).
         item { com.music.spotui.ui.components.AalapRadioSection() }
         item { ChartsRow(navController) }
