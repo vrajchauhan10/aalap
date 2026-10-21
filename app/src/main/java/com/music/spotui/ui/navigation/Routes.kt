@@ -27,6 +27,7 @@ sealed class Routes(
     object History : Routes(0, "History", "history")
     object Sound : Routes(0, "Sound", "sound")
     object Wrapped : Routes(0, "Wrapped", "wrapped")
+    object ArtistPicker : Routes(0, "ArtistPicker", "artistpicker")
     object MusicSource : Routes(0, "MusicSource", "musicsource")
     object YouTubeLogin : Routes(0, "YouTubeLogin", "youtubelogin")
     object LocalFiles : Routes(0, "LocalFiles", "localfiles")

@@ -140,6 +140,11 @@ fun SettingsScreen(navController: NavController) {
                 ) { com.music.spotui.ui.theme.ThemeState.set(context, mode) }
             }
 
+            SectionTitle("Your music")
+            NavRow("Your artists", "Follow artists, with suggestions from what you play") {
+                navController.navigate(com.music.spotui.ui.navigation.Routes.ArtistPicker.route)
+            }
+
             SectionTitle("Sound")
             NavRow("Sound and equalizer", "Presets, bass boost, normalize volume, playback speed") {
                 navController.navigate(com.music.spotui.ui.navigation.Routes.Sound.route)
@@ -698,7 +703,7 @@ private fun ProfileHeader(navController: NavController) {
                 navController.navigate(com.music.spotui.ui.navigation.Routes.Liked.route)
             }
             ProfileStat("$artists", "Artists", Modifier.weight(1f)) {
-                navController.navigate(com.music.spotui.ui.navigation.Routes.Library.route)
+                navController.navigate(com.music.spotui.ui.navigation.Routes.ArtistPicker.route)
             }
             ProfileStat("$plays", "Plays", Modifier.weight(1f)) {
                 navController.navigate(com.music.spotui.ui.navigation.Routes.History.route)

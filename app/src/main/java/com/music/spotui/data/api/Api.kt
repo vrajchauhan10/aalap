@@ -128,6 +128,18 @@ class Api @Inject constructor(
         )
     }
 
+    /** Artists matching [query] (artist picker search and name → id lookups). */
+    suspend fun searchArtists(query: String, limit: Int = 12): List<ArtistsModel> {
+        if (query.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
+        return Spotify.search(query, listOf("artist"), limit = limit).getOrNull()?.artists?.items.orEmpty().map { it.toArtistModel() }
+    }
+
+    /** Artists similar to [artistId] ("fans also like"). */
+    suspend fun relatedArtists(artistId: String): List<ArtistsModel> {
+        if (artistId.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
+        return Spotify.artistRelatedArtists(artistId).getOrNull().orEmpty().map { it.toArtistModel() }
+    }
+
     /** Artists the user follows on Spotify (library "Artists" filter). */
     suspend fun getFollowedArtists(): List<ArtistsModel> {
         if (!SpotifyTokenProvider.ensureToken(context)) return emptyList()

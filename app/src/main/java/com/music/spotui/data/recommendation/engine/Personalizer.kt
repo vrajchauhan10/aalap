@@ -117,7 +117,8 @@ object Personalizer {
         val names = context.getSharedPreferences("FollowedArtists", Context.MODE_PRIVATE).all.values.mapNotNull { it as? String } +
             com.music.spotui.data.preferences.getCachedFollowedArtists(context).map { it.name } +
             com.music.spotui.data.api.YouTubeLibrary.artists(context).map { it.name }
-        return names.mapNotNull { SongMatcher.artistKeys(it).firstOrNull() }.toSet()
+        val hidden = com.music.spotui.data.api.YouTubeLibrary.hiddenArtists(context)
+        return names.mapNotNull { SongMatcher.artistKeys(it).firstOrNull() }.filter { it !in hidden }.toSet()
     }
 
     /** Scores [candidates] (with their normalised global scores) after [seed]. */
@@ -136,6 +137,24 @@ object Personalizer {
             val habit = habits[song.id]?.let { TasteProfile.habit(it.count, it.lastAt, now) } ?: 0.0
             Scored(song, global, taste, habit, TasteProfile.final(global, taste, habit, profile.isNew), sourcesById[song.id].orEmpty())
         }
+    }
+
+    /** Finished plays per artist (main credit), most played first, with the name as you see it. */
+    fun artistPlayCounts(context: Context): List<Pair<String, Int>> {
+        val userId = RecoDb.userId(context)
+        val db = RecoDb.get(context)
+        val plays = db.plays(userId, limit = 5000).filter { !it.skipped }
+        val songs = db.songs(plays.map { it.songId }.toSet())
+        val counts = HashMap<String, Int>()
+        val display = HashMap<String, String>()
+        plays.forEach { p ->
+            val s = songs[p.songId] ?: return@forEach
+            val name = s.artists.split(",").firstOrNull()?.trim().orEmpty()
+            val key = SongMatcher.artistKeys(name).firstOrNull() ?: return@forEach
+            counts[key] = (counts[key] ?: 0) + 1
+            display.putIfAbsent(key, name)
+        }
+        return counts.entries.sortedByDescending { it.value }.map { (display[it.key] ?: it.key) to it.value }
     }
 
     /** Human-readable summary for Profile: top artists, languages, and when you listen. */

@@ -199,6 +199,14 @@ fun MyNavHost(
             PullDownToClose(navHostController) { com.music.spotui.ui.screens.SoundScreen(navHostController) }
         }
 
+        composable(Routes.ArtistPicker.route){
+            LaunchedEffect(playerState) {
+                bottomBarState.value = true
+                bottomBarPlayerState.value = playerState != ""
+            }
+            PullDownToClose(navHostController) { com.music.spotui.ui.screens.ArtistPickerScreen(navHostController) }
+        }
+
         composable(Routes.Wrapped.route){
             LaunchedEffect(Unit) {
                 bottomBarState.value = false

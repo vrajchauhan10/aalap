@@ -49,9 +49,20 @@ object YouTubeLibrary {
     }.getOrDefault(emptyList())
 
     fun artists(c: Context): List<ArtistsModel> = runCatching {
+        val hidden = hiddenArtists(c)
         val a = JSONArray(prefs(c).getString("artists", "[]"))
         (0 until a.length()).map { i -> a.getJSONObject(i).let { ArtistsModel(it.optString("name"), it.optString("cover"), "") } }
+            .filter { SongMatcher.artistKeys(it.name).firstOrNull() !in hidden }
     }.getOrDefault(emptyList())
+
+    /** Artists unfollowed in Aalap (keys): kept out of the library even if a service still lists them. */
+    fun hiddenArtists(c: Context): Set<String> = prefs(c).getStringSet("hidden_artists", null).orEmpty()
+
+    fun setArtistHidden(c: Context, name: String, hidden: Boolean) {
+        val key = SongMatcher.artistKeys(name).firstOrNull() ?: return
+        val now = hiddenArtists(c).toMutableSet().apply { if (hidden) add(key) else remove(key) }
+        prefs(c).edit().putStringSet("hidden_artists", now).apply()
+    }
 
     /** Artist → plays in your recent YouTube Music history (a taste signal). */
     fun historyArtistCounts(c: Context): Map<String, Int> = runCatching {
@@ -189,7 +200,9 @@ object YouTubeLibrary {
 
     /** Followed artists from both services, each artist once. */
     fun mergeArtists(spotify: List<ArtistsModel>, youtube: List<ArtistsModel>): List<ArtistsModel> {
-        val keys = spotify.mapNotNullTo(HashSet()) { SongMatcher.artistKeys(it.name).firstOrNull() }
-        return spotify + youtube.filter { y -> SongMatcher.artistKeys(y.name).firstOrNull()?.let { it !in keys } ?: false }
+        val hidden = hiddenArtists(com.music.spotui.MyApplication.instance)
+        val sp = spotify.filter { SongMatcher.artistKeys(it.name).firstOrNull() !in hidden }.distinctBy { SongMatcher.artistKeys(it.name).firstOrNull() ?: it.name }
+        val keys = sp.mapNotNullTo(HashSet()) { SongMatcher.artistKeys(it.name).firstOrNull() }
+        return sp + youtube.filter { y -> SongMatcher.artistKeys(y.name).firstOrNull()?.let { it !in keys } ?: false }
     }
 }

@@ -78,7 +78,12 @@ fun AalapSearchHeader() {
 
 /** The search field: a soft pill that lights up in saffron while typing, with a clear button. */
 @Composable
-fun AalapSearchBar(text: String, onFocusChange: (Boolean) -> Unit, onTextChange: (String) -> Unit) {
+fun AalapSearchBar(
+    text: String,
+    onFocusChange: (Boolean) -> Unit,
+    placeholder: String = "Songs, artists, albums or a mood",
+    onTextChange: (String) -> Unit,
+) {
     var focused by remember { mutableStateOf(false) }
     val focus = LocalFocusManager.current
     Box(Modifier.fillMaxWidth().background(AppBackground).padding(horizontal = 16.dp, vertical = 10.dp)) {
@@ -95,7 +100,7 @@ fun AalapSearchBar(text: String, onFocusChange: (Boolean) -> Unit, onTextChange:
             Icon(Icons.Default.Search, contentDescription = null, tint = if (focused) Saffron else TextMuted, modifier = Modifier.size(22.dp))
             Spacer(Modifier.width(12.dp))
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                if (text.isEmpty()) Text("Songs, artists, albums or a mood", color = TextMuted, fontSize = 15.sp)
+                if (text.isEmpty()) Text(placeholder, color = TextMuted, fontSize = 15.sp)
                 BasicTextField(
                     value = text,
                     onValueChange = onTextChange,
