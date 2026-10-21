@@ -71,3 +71,16 @@ fun removeListeningHistory(context: Context, entry: HistoryEntry) {
 fun clearListeningHistory(context: Context) {
     context.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit().remove(KEY).apply()
 }
+
+private const val KEY_LIST_CLEARED_AT = "list_cleared_at"
+
+/**
+ * "Clear all" on History hides the recent-plays list without deleting the plays, so
+ * stats, top artists, Wrapped and recommendations keep everything.
+ */
+fun getHistoryListClearedAt(context: Context): Long =
+    context.getSharedPreferences(PREF, Context.MODE_PRIVATE).getLong(KEY_LIST_CLEARED_AT, 0L)
+
+fun clearHistoryList(context: Context) =
+    context.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
+        .putLong(KEY_LIST_CLEARED_AT, System.currentTimeMillis()).apply()
