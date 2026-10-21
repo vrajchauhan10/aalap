@@ -261,7 +261,9 @@ fun SumUpSearchScreen(
                 }
             }
         } else {
-            items(mixed.size) { i ->
+            // Keyed rows glide into place when a filter (Songs, Artists…) changes the list.
+            items(mixed.size, key = { i -> mixed[i].key }) { i ->
+                Box(Modifier.animateItemPlacement(androidx.compose.animation.core.tween(300))) {
                 when (val row = mixed[i]) {
                     is SearchRow.Song -> com.music.spotui.ui.components.SwipeToQueue(row.song) {
                         SearchSongRow(row.song, searchedList, searchViewModel, onPlayed = {
@@ -287,6 +289,7 @@ fun SumUpSearchScreen(
                         ))
                         navController.navigate(albumRoute(row.album.name, row.album.artists))
                     }
+                }
                 }
             }
             // ── Podcasts: shows (→ detail) then individual episodes (→ play) ──
@@ -322,9 +325,10 @@ fun SumUpSearchScreen(
 
 /** A single row in the search results: a track, an artist, or an album. */
 sealed class SearchRow {
-    data class Song(val song: SongsModel) : SearchRow()
-    data class Artist(val artist: com.music.spotui.data.entity.ArtistsModel) : SearchRow()
-    data class Album(val album: com.music.spotui.data.entity.AlbumsModel) : SearchRow()
+    abstract val key: String
+    data class Song(val song: SongsModel) : SearchRow() { override val key get() = "s:${song.id}" }
+    data class Artist(val artist: com.music.spotui.data.entity.ArtistsModel) : SearchRow() { override val key get() = "a:${artist.id.ifBlank { artist.name }}" }
+    data class Album(val album: com.music.spotui.data.entity.AlbumsModel) : SearchRow() { override val key get() = "l:${album.id}:${album.name}" }
 }
 
 /**
@@ -342,7 +346,7 @@ private fun mixSearchResults(results: SearchResults): List<SearchRow> {
         if (artists.hasNext()) out += SearchRow.Artist(artists.next())
         if (albums.hasNext()) out += SearchRow.Album(albums.next())
     }
-    return out
+    return out.distinctBy { it.key } // unique keys for the animated list
 }
 
 /** Maps a tapped search-result song to a persisted recent item. */

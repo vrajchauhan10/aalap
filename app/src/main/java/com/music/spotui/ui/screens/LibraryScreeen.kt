@@ -1,5 +1,6 @@
 package com.music.spotui.ui.screens
 
+import androidx.compose.animation.togetherWith
 import com.bumptech.glide.integration.compose.placeholder
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.material.icons.filled.Favorite
@@ -260,27 +261,47 @@ fun LibraryScreen(navController: NavController) {
             is Response.Loading -> LibrarySkeleton(PaddingValues(0.dp))
             is Response.Success -> {
                 val q = searchQuery.trim()
+                // Switching filter slides the content in from the side you tapped (All →
+                // Artists moves left, back moves right); grid/list cross-fades.
+                androidx.compose.animation.AnimatedContent(
+                    targetState = filter to gridView,
+                    transitionSpec = {
+                        val (from, fromGrid) = initialState
+                        val (to, toGrid) = targetState
+                        val spec = androidx.compose.animation.core.tween<androidx.compose.ui.unit.IntOffset>(320, easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f))
+                        if (from == to && fromGrid != toGrid) {
+                            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(240)) togetherWith
+                                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160))
+                        } else {
+                            val dir = if (to.ordinal >= from.ordinal) 1 else -1
+                            (androidx.compose.animation.slideInHorizontally(spec) { dir * it / 4 } + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(240))) togetherWith
+                                (androidx.compose.animation.slideOutHorizontally(spec) { -dir * it / 6 } + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)))
+                        }
+                    },
+                    label = "libraryFilter",
+                ) { (shownFilter, shownGrid) ->
                 val shownEntries = listEntries
-                    .filter { when (filter) {
+                    .filter { when (shownFilter) {
                         LibraryFilter.ALL -> true
                         LibraryFilter.PLAYLISTS -> it.isPlaylist
                         LibraryFilter.ALBUMS -> !it.isPlaylist
                         LibraryFilter.ARTISTS -> false
                     } }
                     .filter { q.isBlank() || it.name.contains(q, true) || it.subtitle.contains(q, true) }
-                val shownArtists = if (filter == LibraryFilter.ALL || filter == LibraryFilter.ARTISTS)
+                val shownArtists = if (shownFilter == LibraryFilter.ALL || shownFilter == LibraryFilter.ARTISTS)
                     followedArtists.filter { q.isBlank() || it.name.contains(q, true) } else emptyList()
                 LibraryContent(
                     navController = navController,
-                    showTiles = filter == LibraryFilter.ALL && q.isBlank(),
+                    showTiles = shownFilter == LibraryFilter.ALL && q.isBlank(),
                     entries = shownEntries,
                     artists = shownArtists,
-                    artistsAsGrid = filter == LibraryFilter.ARTISTS,
-                    grid = gridView,
-                    favouriteAlbums = if (q.isBlank() && (filter == LibraryFilter.ALL || filter == LibraryFilter.ALBUMS)) favouriteAlbums else emptyList(),
-                    favouriteAlbumsAsGrid = filter == LibraryFilter.ALBUMS,
+                    artistsAsGrid = shownFilter == LibraryFilter.ARTISTS,
+                    grid = shownGrid,
+                    favouriteAlbums = if (q.isBlank() && (shownFilter == LibraryFilter.ALL || shownFilter == LibraryFilter.ALBUMS)) favouriteAlbums else emptyList(),
+                    favouriteAlbumsAsGrid = shownFilter == LibraryFilter.ALBUMS,
                     onSeeAll = { filter = it },
                 )
+                }
             }
             else -> Box(modifier = Modifier.padding(20.dp, 100.dp)) { Snackbar(showMessage = "Couldn't load your library") }
         }

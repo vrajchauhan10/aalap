@@ -85,16 +85,30 @@ fun MyNavHost(
     NavHost(
         navController = navHostController,
         startDestination = startDestination,
-        // Quick fade between screens. The screen under the player/queue stays put
-        // (no fade) so the sheet visibly slides over it and back down into the mini player.
-        enterTransition = { fadeIn(animationSpec = tween(150)) },
+        // Smooth, directional motion everywhere: a page opens by gliding in from the right
+        // (the one beneath drifts left and dims), and closes the reverse way. The bottom tabs
+        // cross-fade. The screen under the player/queue stays put so the sheet visibly
+        // slides over it and back down into the mini player.
+        enterTransition = {
+            if (isTabSwitch(initialState.destination.route, targetState.destination.route)) TabEnter else PushEnter
+        },
         exitTransition = {
-            if (targetState.destination.route in SheetRoutes) ExitTransition.None else fadeOut(animationSpec = tween(150))
+            when {
+                targetState.destination.route in SheetRoutes -> ExitTransition.None
+                isTabSwitch(initialState.destination.route, targetState.destination.route) -> TabExit
+                else -> PushExit
+            }
         },
         popEnterTransition = {
-            if (initialState.destination.route in SheetRoutes) EnterTransition.None else fadeIn(animationSpec = tween(150))
+            when {
+                initialState.destination.route in SheetRoutes -> EnterTransition.None
+                isTabSwitch(initialState.destination.route, targetState.destination.route) -> TabEnter
+                else -> PopEnter
+            }
         },
-        popExitTransition = { fadeOut(animationSpec = tween(150)) },
+        popExitTransition = {
+            if (isTabSwitch(initialState.destination.route, targetState.destination.route)) TabExit else PopExit
+        },
     ){
         composable(Routes.Login.route){
             LaunchedEffect(Unit) {
@@ -352,6 +366,28 @@ fun MyNavHost(
 
 /** Full-screen sheets that rise out of / sink back into the mini player. */
 private val SheetRoutes = setOf(Routes.Player.route, Routes.Queue.route)
+
+private val TabRoutes = setOf(Routes.Home.route, Routes.Search.route, Routes.Library.route)
+private fun isTabSwitch(from: String?, to: String?) = from in TabRoutes && to in TabRoutes
+
+private val MotionEasing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f) // Material "emphasized"
+
+/** Opening a page: glide in from the right. */
+private val PushEnter: EnterTransition =
+    androidx.compose.animation.slideInHorizontally(tween(340, easing = MotionEasing)) { it / 3 } + fadeIn(tween(240))
+/** The page beneath drifts a little left and fades. */
+private val PushExit: ExitTransition =
+    androidx.compose.animation.slideOutHorizontally(tween(340, easing = MotionEasing)) { -it / 10 } + fadeOut(tween(200))
+/** Going back: the page beneath glides back from the left… */
+private val PopEnter: EnterTransition =
+    androidx.compose.animation.slideInHorizontally(tween(320, easing = MotionEasing)) { -it / 10 } + fadeIn(tween(240))
+/** …while the closing page slides off to the right. */
+private val PopExit: ExitTransition =
+    androidx.compose.animation.slideOutHorizontally(tween(300, easing = MotionEasing)) { it / 3 } + fadeOut(tween(200))
+/** Bottom tabs: a soft cross-fade with a hint of scale. */
+private val TabEnter: EnterTransition =
+    fadeIn(tween(260, delayMillis = 60)) + androidx.compose.animation.scaleIn(tween(320, easing = MotionEasing), initialScale = 0.98f)
+private val TabExit: ExitTransition = fadeOut(tween(160))
 
 private val SheetEasing = androidx.compose.animation.core.FastOutSlowInEasing
 private val SheetOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
