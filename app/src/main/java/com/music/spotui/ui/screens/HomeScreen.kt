@@ -2,6 +2,7 @@
 
 package com.music.spotui.ui.screens
 
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.border
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material.icons.filled.Favorite
@@ -118,7 +119,17 @@ fun HomeScreen(navController: NavController){
             .statusBarsPadding()
             .nestedScroll(pullState.nestedScrollConnection)
     ) {
-        Box(Modifier.fillMaxSize()) {
+        // The page stretches down with the pull, stays down while refreshing, then springs
+        // back up with a little bounce when the refresh is done.
+        val stretch = remember { androidx.compose.animation.core.Animatable(0f) }
+        androidx.compose.runtime.LaunchedEffect(pullState) {
+            androidx.compose.runtime.snapshotFlow { pullState.verticalOffset to pullState.isRefreshing }.collect { (off, busy) ->
+                if (busy) stretch.animateTo(maxOf(off, pullState.positionalThreshold) * 0.55f, androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMedium))
+                else if (off > 0f) stretch.snapTo(off * 0.55f)
+                else stretch.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.42f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
+            }
+        }
+        Box(Modifier.fillMaxSize().graphicsLayer { translationY = stretch.value }) {
         val feed = (home as? Response.Success)?.data
         // Each feed resolves independently — albums (new releases) often succeeds
         // while artists (personalized) gets rate-limited. Render whatever arrived
@@ -202,6 +213,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
     val releases by homeViewModel.newReleases.collectAsState()
     val today by homeViewModel.today.collectAsState()
 
+    val gen by homeViewModel.refreshGen.collectAsState()
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     androidx.compose.runtime.LaunchedEffect(Unit) {
         com.music.spotui.ui.navigation.HomeTabEvents.refresh.collect { listState.animateScrollToItem(0) }
@@ -213,24 +225,47 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
             .fillMaxSize()
             .background(com.music.spotui.ui.theme.AppBackground)
     ) {
-        item { HomeHeaderRow(navController) }
+        item { BounceIn(0, gen) { HomeHeaderRow(navController) } }
         // Moods live in Aalap Radio below (and in Search), not as a second row of pills.
         // Aalap Radio replaces the feed's featured playlist (whose art carried another brand).
         // Order: today's poster (opens the 30), Quick picks to choose from, then moods.
-        item { com.music.spotui.ui.components.TodayPlaylistSection(today) { navController.navigate(com.music.spotui.ui.navigation.Routes.Today.route) } }
-        item { QuickPicksSection(quick) }
-        item { com.music.spotui.ui.components.AalapRadioSection() }
-        item { ChartsRow(navController) }
-        item { MadeForYouSection(mixes) }
-        if (jump.isNotEmpty()) item { JumpBackInRow(navController, jump) }
-        if (recent.isNotEmpty()) item { SongTileRow("Recently played", recent) }
-        item { DailySongRows() }
-        item { ArtistRadiosSection(stations) }
-        item { NewReleasesSection(navController, releases) }
+        // After a refresh, every section drops in one after another, top to bottom.
+        item { BounceIn(1, gen) { com.music.spotui.ui.components.TodayPlaylistSection(today) { navController.navigate(com.music.spotui.ui.navigation.Routes.Today.route) } } }
+        item { BounceIn(2, gen) { QuickPicksSection(quick) } }
+        item { BounceIn(3, gen) { com.music.spotui.ui.components.AalapRadioSection() } }
+        item { BounceIn(4, gen) { ChartsRow(navController) } }
+        item { BounceIn(5, gen) { MadeForYouSection(mixes) } }
+        if (jump.isNotEmpty()) item { BounceIn(6, gen) { JumpBackInRow(navController, jump) } }
+        if (recent.isNotEmpty()) item { BounceIn(7, gen) { SongTileRow("Recently played", recent) } }
+        item { BounceIn(8, gen) { DailySongRows() } }
+        item { BounceIn(9, gen) { ArtistRadiosSection(stations) } }
+        item { BounceIn(10, gen) { NewReleasesSection(navController, releases) } }
         items(carousels.size) { i ->
-            HomeFeedSection(navController, carousels[i])
+            BounceIn(11 + i, gen) { HomeFeedSection(navController, carousels[i]) }
         }
     }
+}
+
+/**
+ * Drops a section in from above with a soft spring each time [gen] changes (after a
+ * refresh), [index] sections after the first, so the page fills top to bottom.
+ */
+@Composable
+private fun BounceIn(index: Int, gen: Int, content: @Composable () -> Unit) {
+    val t = remember { androidx.compose.animation.core.Animatable(1f) }
+    androidx.compose.runtime.LaunchedEffect(gen) {
+        if (gen == 0) return@LaunchedEffect
+        t.snapTo(0f)
+        kotlinx.coroutines.delay(minOf(index, 10) * 55L)
+        t.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = androidx.compose.animation.core.Spring.StiffnessLow))
+    }
+    // Starts invisible a little above its place and drops in with a slight overshoot,
+    // so sections never show on top of each other mid-animation.
+    // A Column (not a Box): some sections are several pieces that must stack, not overlap.
+    Column(Modifier.graphicsLayer {
+        translationY = (1f - t.value) * -24.dp.toPx()
+        alpha = (t.value * 1.4f - 0.4f).coerceIn(0f, 1f)
+    }) { content() }
 }
 
 /** Greeting with the listener's name, profile avatar (opens Profile), and shortcut chips. */

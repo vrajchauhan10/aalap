@@ -25,6 +25,8 @@ class HomeViewModel @Inject constructor(
     val dailyPicks: StateFlow<List<com.music.spotui.data.entity.SongsModel>> = _dailyPicks
     private val _favourites = MutableStateFlow<List<com.music.spotui.data.entity.SongsModel>>(emptyList())
     val favourites: StateFlow<List<com.music.spotui.data.entity.SongsModel>> = _favourites
+    /** Bumped each time a refresh finishes (Home plays its bounce-in then). */
+    val refreshGen = MutableStateFlow(0)
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing
     /** 6-hour window the page was last built for; a new window triggers a rebuild. */
@@ -113,6 +115,7 @@ class HomeViewModel @Inject constructor(
         if (force) launch { runCatching { dailyMixes.value = M.dailyMixes(appContext, true) } }
         kotlinx.coroutines.withTimeoutOrNull(6_000) { quick.join(); feed.join() }
         _refreshing.value = false
+        refreshGen.value++
     }
 
     private fun fetchHome() = viewModelScope.launch(Dispatchers.IO) {
