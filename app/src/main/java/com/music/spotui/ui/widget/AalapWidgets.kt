@@ -50,6 +50,11 @@ abstract class AalapWidgetBase(private val layout: Int, private val large: Boole
         AalapWidgets.render(context, AalapWidgets.lastState(context))
     }
 
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: android.os.Bundle) {
+        // Resized: redraw the backdrop to the new size.
+        AalapWidgets.render(context, AalapWidgets.lastState(context))
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         val action = intent.action ?: return
@@ -108,13 +113,26 @@ object AalapWidgets {
             renderLock.withLock {
                 val s = latest
                 val (rounded, round) = artwork(app, s.coverUri)
-                if (largeIds.isNotEmpty()) manager.updateAppWidget(largeIds, views(app, R.layout.widget_large, true, s, rounded))
-                if (compactIds.isNotEmpty()) manager.updateAppWidget(compactIds, views(app, R.layout.widget_compact, false, s, round))
+                // One update per widget, so each gets its backdrop drawn to its own size.
+                largeIds.forEach { id ->
+                    manager.updateAppWidget(id, views(app, R.layout.widget_large, true, s, rounded).withArt(app, manager, id, true))
+                }
+                compactIds.forEach { id ->
+                    manager.updateAppWidget(id, views(app, R.layout.widget_compact, false, s, round).withArt(app, manager, id, false))
+                }
             }
         }
     }
 
     private val renderLock = kotlinx.coroutines.sync.Mutex()
+
+    /** Adds the hand-made backdrop, sized to this widget (portrait: min width × max height). */
+    private fun RemoteViews.withArt(context: Context, manager: AppWidgetManager, id: Int, large: Boolean): RemoteViews = apply {
+        val o = manager.getAppWidgetOptions(id)
+        val w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH).takeIf { it > 0 } ?: 300
+        val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT).takeIf { it > 0 } ?: if (large) 170 else 64
+        WidgetArt.render(context, w, h, large)?.let { setImageViewBitmap(R.id.widget_bg_art, it) }
+    }
     @Volatile private var latest = WidgetState()
 
     private fun artwork(context: Context, uri: String): Pair<Bitmap?, Bitmap?> {

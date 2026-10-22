@@ -6,7 +6,7 @@
     <color name="widget_text">#FF1A1226</color>
     <color name="widget_text_muted">#FF6E6280</color>
     <color name="widget_icon">#FF1A1226</color>
-    <color name="widget_track">#FFF0E2D4</color>
+    <color name="widget_track">#33D9600F</color>
     <color name="widget_play">#FFD9600F</color>
     <color name="widget_on_play">#FFFFFFFF</color>
 </resources>

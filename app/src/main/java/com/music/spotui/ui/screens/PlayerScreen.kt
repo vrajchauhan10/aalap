@@ -74,6 +74,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.alpha
@@ -722,9 +724,17 @@ fun PlayerInfo(
             } // AnimatedContent(trackInfo)
         }
 
-        Icon(
+        var likeCenter by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+        com.music.spotui.ui.components.LikeFillIcon(
+            liked = isLiked.value,
+            outline = painterResource(id = R.drawable.ic_add),
+            filled = painterResource(id = R.drawable.added),
+            fillColor = Color(AppPalette.toArgb()),
+            outlineColor = Color.White,
+            contentDescription = if (isLiked.value) "Saved" else "Add to Liked Songs",
+            size = 26.dp,
             modifier = Modifier
-                .size(26.dp)
+                .onGloballyPositioned { likeCenter = it.boundsInRoot().center }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
@@ -739,29 +749,17 @@ fun PlayerInfo(
                     if (isLiked.value) {
                         removeLikedSongId(context, songId.toString())
                         snackbarMessage = "Removed from Liked Songs"
+                        snackbarVisible = true
                     } else {
+                        // No message when liking: the hearts say it.
                         addLikedSongId(context, songId.toString())
-                        snackbarMessage = "Added to Liked Songs"
                     }
-                    snackbarVisible = true
                     isLiked.value = isSongLiked(context, songId.toString())
+                    // Liked: hearts float up from the button.
+                    if (isLiked.value) com.music.spotui.ui.components.LikeCelebration.burst(likeCenter)
                     // Mirror the like to the real Spotify account.
                     com.music.spotui.data.api.SpotifySync.setTrackSaved(context, spotifyTrackId, isLiked.value)
                 },
-            painter = if (isLiked.value){
-                painterResource(id = R.drawable.added)
-            }
-            else{
-                painterResource(id = R.drawable.ic_add)
-            }
-            ,
-            tint = if (isLiked.value){
-                Color(AppPalette.toArgb())
-            }
-            else{
-                Color.White
-            },
-            contentDescription = ""
         )
     }
     }

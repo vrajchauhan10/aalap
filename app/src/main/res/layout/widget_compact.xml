@@ -1,53 +1,66 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Aalap 4x1 widget: round artwork, title, play/pause and next. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_bg_pill"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:paddingStart="8dp"
-    android:paddingEnd="10dp">
+    android:background="@drawable/widget_bg_pill">
 
+    <!-- Hand-made backdrop (mandala, toran, block-print border), drawn to the widget's size. -->
     <ImageView
-        android:id="@+id/widget_art"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:contentDescription="@string/widget_open"
-        android:scaleType="centerCrop"
-        android:src="@drawable/logo" />
+        android:id="@+id/widget_bg_art"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="fitXY" />
 
-    <TextView
-        android:id="@+id/widget_title"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:layout_weight="1"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:text="@string/widget_idle_title"
-        android:textColor="@color/widget_text"
-        android:textSize="14sp"
-        android:textStyle="bold" />
+    <LinearLayout android:id="@+id/widget_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="10dp">
 
-    <ImageView
-        android:id="@+id/widget_play"
-                android:tint="@color/widget_on_play"
-        android:layout_width="38dp"
-        android:layout_height="38dp"
-        android:background="@drawable/widget_play_bg"
-        android:contentDescription="@string/widget_play"
-        android:padding="9dp"
-        android:src="@drawable/ic_widget_play" />
+        <ImageView
+            android:id="@+id/widget_art"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:contentDescription="@string/widget_open"
+            android:scaleType="centerCrop"
+            android:src="@drawable/logo" />
 
-    <ImageView
-        android:id="@+id/widget_next"
-                android:tint="@color/widget_icon"
-        android:layout_width="38dp"
-        android:layout_height="38dp"
-        android:layout_marginStart="4dp"
-        android:contentDescription="@string/widget_next"
-        android:padding="7dp"
-        android:src="@drawable/ic_widget_next" />
-</LinearLayout>
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/widget_idle_title"
+            android:textColor="@color/widget_text"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:id="@+id/widget_play"
+                    android:tint="@color/widget_on_play"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:background="@drawable/widget_play_bg"
+            android:contentDescription="@string/widget_play"
+            android:padding="9dp"
+            android:src="@drawable/ic_widget_play" />
+
+        <ImageView
+            android:id="@+id/widget_next"
+                    android:tint="@color/widget_icon"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:layout_marginStart="4dp"
+            android:contentDescription="@string/widget_next"
+            android:padding="7dp"
+            android:src="@drawable/ic_widget_next" />
+    </LinearLayout>
+</FrameLayout>

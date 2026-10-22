@@ -42,6 +42,7 @@ fun App() {
         }
     }
 
+    androidx.compose.foundation.layout.Box {
     Scaffold(
         modifier = Modifier,
         bottomBar = {
@@ -49,6 +50,9 @@ fun App() {
         }
     ) {
         MyNavHost(navHostController = navController, bottomBarState = bottomBarState, bottomBarPlayerState)
+    }
+    // Hearts that float up over everything when a song is liked in the player.
+    com.music.spotui.ui.components.HeartShower()
     }
 }
 

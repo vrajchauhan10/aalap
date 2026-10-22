@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.graphicsLayer
@@ -158,12 +159,28 @@ fun MiniPlayer(navController: NavHostController) {
     val cardColor = androidx.compose.ui.graphics.lerp(
         com.music.spotui.ui.theme.Surface, darkVibrantColor, if (com.music.spotui.ui.theme.AalapPalette.isLight) 0.22f else 0.55f)
     val cardShape = RoundedCornerShape(20.dp)
+    // Liking from here: a light marigold wash sweeps across the bar from left to right, then fades.
+    val likeSweep = remember { androidx.compose.animation.core.Animatable(0f) }
+    val likeGlow = remember { androidx.compose.animation.core.Animatable(0f) }
     Column(
         modifier = Modifier
             .padding(horizontal = 16.dp)
             .shadow(10.dp, cardShape)
             .clip(cardShape)
             .background(cardColor)
+            .drawBehind {
+                if (likeGlow.value > 0f) {
+                    val edge = size.width * likeSweep.value
+                    drawRect(
+                        androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            0f to Color(0xFFFFE08A).copy(alpha = 0.42f * likeGlow.value),
+                            1f to Color(0xFFFFC56B).copy(alpha = 0.55f * likeGlow.value),
+                            startX = 0f, endX = edge.coerceAtLeast(1f),
+                        ),
+                        size = androidx.compose.ui.geometry.Size(edge, size.height),
+                    )
+                }
+            }
             .padding(start = 10.dp, end = 10.dp, top = 4.dp)
             .clipToBounds()
     ) {
@@ -258,40 +275,33 @@ fun MiniPlayer(navController: NavHostController) {
                 modifier = Modifier.width(84.dp)
             ) {
 
-                // Plus = save; green check = already saved. A second tap opens the
+                // Plus = save: it fills with saffron from left to right. Once saved, a tap opens the
                 // "Saved in" sheet (Liked Songs + playlists) instead of unliking.
-                if (isLiked) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        tint = com.music.spotui.ui.theme.Saffron,
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { showSavedIn = true },
-                        contentDescription = "Saved",
-                    )
-                } else {
-                    Icon(
-                        modifier = Modifier
-                            .size(22.dp)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                addLikedSongId(context, songId.toString())
-                                isLiked = true
-                                miniPlayerViewModel.updateLikeState(!likeState)
-                                // Mirror the like to the real Spotify account.
-                                com.music.spotui.data.api.SpotifySync.setTrackSaved(
-                                    context, currentTrack?.spotifyTrackId.orEmpty(), true)
-                            },
-                        painter = painterResource(id = R.drawable.ic_add),
-                        tint = com.music.spotui.ui.theme.TextPrimary,
-                        contentDescription = "Add",
-                    )
-                }
+                LikeFillIcon(
+                    liked = isLiked,
+                    outline = painterResource(id = R.drawable.ic_add),
+                    filled = painterResource(id = R.drawable.added),
+                    fillColor = com.music.spotui.ui.theme.Saffron,
+                    outlineColor = com.music.spotui.ui.theme.TextPrimary,
+                    contentDescription = if (isLiked) "Saved" else "Add",
+                    modifier = Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        if (isLiked) { showSavedIn = true; return@clickable }
+                        addLikedSongId(context, songId.toString())
+                        isLiked = true
+                        swipeScope.launch {
+                            likeSweep.snapTo(0f); likeGlow.snapTo(1f)
+                            likeSweep.animateTo(1f, androidx.compose.animation.core.tween(650, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                            likeGlow.animateTo(0f, androidx.compose.animation.core.tween(500))
+                        }
+                        miniPlayerViewModel.updateLikeState(!likeState)
+                        // Mirror the like to the real Spotify account.
+                        com.music.spotui.data.api.SpotifySync.setTrackSaved(
+                            context, currentTrack?.spotifyTrackId.orEmpty(), true)
+                    },
+                )
 
 
                 Icon(
