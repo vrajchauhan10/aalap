@@ -167,20 +167,32 @@ private fun DrawScope.drawPetal(center: Offset, size: Float, color: Color, degre
     }
 }
 
+/** One petal of the bar's rain: where it falls, when it starts, how long it takes. */
+internal class BarPetal(val x: Float, val start: Float, val fall: Float, val scale: Float, val color: Color, val spin: Float)
+
 /**
- * The mini player's like moment: marigold petals drop from the bar's top edge to its
- * bottom, falling in a wave from left to right, while a light gold border draws
+ * The mini player's like moment: marigold petals rain down through the bar, top to
+ * bottom, the shower drifting from left to right, while a light gold border draws
  * itself around the bar the same way. Call [play] on like; add [Modifier.barCelebration].
  */
 class BarCelebration {
     internal val t = Animatable(1f)
-    internal var petals: List<Triple<Float, Float, Color>> = emptyList() // x fraction, size, colour
+    internal var petals: List<BarPetal> = emptyList()
     suspend fun play() {
-        petals = List(18) { i ->
-            Triple((i + Random.nextFloat() * 0.8f) / 18f, 0.75f + Random.nextFloat() * 0.5f, PetalColors[Random.nextInt(5)])
+        petals = List(56) {
+            val x = Random.nextFloat()
+            BarPetal(
+                x = x,
+                // Starts spread through the shower, earlier on the left: rain sweeping across.
+                start = x * 0.3f + Random.nextFloat() * 0.38f,
+                fall = 0.2f + Random.nextFloat() * 0.14f,
+                scale = 0.6f + Random.nextFloat() * 0.6f,
+                color = PetalColors[if (Random.nextInt(10) == 0) 5 else Random.nextInt(5)],
+                spin = Random.nextFloat() * 360f,
+            )
         }
         t.snapTo(0f)
-        t.animateTo(1f, tween(1700, easing = LinearEasing))
+        t.animateTo(1f, tween(2000, easing = LinearEasing))
     }
 }
 
@@ -205,15 +217,15 @@ fun Modifier.barCelebration(c: BarCelebration, corner: Dp) = drawWithContent {
             style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
         )
     }
-    // Petals fall top to bottom, the wave travelling left to right.
+    // Petals rain top to bottom, the shower sweeping left to right.
     val petal = 9.dp.toPx()
-    c.petals.forEachIndexed { i, (fx, scale, color) ->
-        val local = ((t - fx * 0.45f) / 0.5f)
+    c.petals.forEachIndexed { i, p ->
+        val local = (t - p.start) / p.fall
         if (local <= 0f || local >= 1f) return@forEachIndexed
         val y = -petal + local * (h + petal * 2)
-        val x = w * fx + kotlin.math.sin(local * 6f + i) * 4.dp.toPx()
-        val a = if (local < 0.75f) 1f else (1f - local) / 0.25f
-        drawPetal(Offset(x, y), petal * scale, color.copy(alpha = a * fade), i * 40f + local * 300f)
+        val x = w * p.x + kotlin.math.sin(local * 5f + i) * 3.dp.toPx()
+        val a = if (local < 0.8f) 1f else (1f - local) / 0.2f
+        drawPetal(Offset(x, y), petal * p.scale, p.color.copy(alpha = a), p.spin + local * 280f)
     }
 }
 

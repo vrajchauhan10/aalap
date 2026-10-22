@@ -111,10 +111,7 @@ fun TodayScreen(navController: NavController) {
                     Text(t.song.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(t.song.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    ReasonTag(t.reason, reasonColor(t.reason))
-                    if (t.matches && t.reason != "Your taste" && t.reason != "Liked") ReasonTag("Your taste", reasonColor("Your taste"), filled = true)
-                }
+                com.music.spotui.ui.components.SongTags(t)
             }
         }
         item { Spacer(Modifier.height(20.dp)) }

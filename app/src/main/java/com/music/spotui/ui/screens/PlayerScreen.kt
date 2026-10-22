@@ -720,7 +720,8 @@ fun PlayerInfo(
                 )
                 // No source badge: users only ever see Aalap, not which service plays a song.
                 // Instead, why this song is special for you: Trending, Top hit, Liked, Your taste.
-                val why by androidx.compose.runtime.produceState<com.music.spotui.data.recommendation.HomeMixes.TodaySong?>(null, songId) {
+                val likeVersion by com.music.spotui.data.preferences.likedVersion.collectAsState()
+                val why by androidx.compose.runtime.produceState<com.music.spotui.data.recommendation.HomeMixes.TodaySong?>(null, songId, likeVersion) {
                     value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         runCatching {
                             com.music.spotui.data.recommendation.HomeMixes.reasonFor(
@@ -730,14 +731,8 @@ fun PlayerInfo(
                         }.getOrNull()
                     }
                 }
-                why?.let { t ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 6.dp)) {
-                        // The player is always dark, so the bright tag colours are used here.
-                        com.music.spotui.ui.components.ReasonTag(t.reason, com.music.spotui.ui.components.reasonColor(t.reason, onDark = true), onDark = true)
-                        if (t.matches && t.reason != "Your taste" && t.reason != "Liked")
-                            com.music.spotui.ui.components.ReasonTag("Your taste", com.music.spotui.ui.components.reasonColor("Your taste", onDark = true), filled = true, onDark = true)
-                    }
-                }
+                // The player is always dark, so the bright tag colours are used here.
+                why?.let { t -> com.music.spotui.ui.components.SongTags(t, horizontal = true, onDark = true, modifier = Modifier.padding(top = 6.dp)) }
             }
             } // AnimatedContent(trackInfo)
         }

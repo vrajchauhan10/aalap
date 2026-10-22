@@ -194,11 +194,12 @@ object HomeMixes {
         val why = when {
             inChart(VIRAL50_INDIA) -> "Trending"
             inChart(TOP50_INDIA) || inChart(TOP50_GLOBAL) -> "Top hit"
-            liked -> "Liked"
+            // Your taste first: liking a song adds a "Liked" tag beside it (see SongTags).
             matches -> "Your taste"
+            liked -> "Liked"
             else -> return null
         }
-        return TodaySong(song, why, matches || liked)
+        return TodaySong(song, why, matches)
     }
 
     /** Tags a list (Quick picks) with reasons; songs with none show as "For you". */

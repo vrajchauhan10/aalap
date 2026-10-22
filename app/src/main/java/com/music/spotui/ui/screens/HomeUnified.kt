@@ -103,7 +103,7 @@ fun QuickPicksSection(picks: List<HomeMixes.TodaySong>) {
                         Text(s.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     // Why it's here: Trending, Top hit, Liked, Your taste.
-                    if (t.reason != "For you") com.music.spotui.ui.components.ReasonTag(t.reason, com.music.spotui.ui.components.reasonColor(t.reason))
+                    if (t.reason != "For you") com.music.spotui.ui.components.SongTags(t)
                 }
             }
         }

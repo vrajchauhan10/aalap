@@ -3,11 +3,15 @@ package com.music.spotui.data.preferences
 import android.content.Context
 import com.music.spotui.data.entity.SongsModel
 
+/** Bumped on every like or unlike, so song tags on screen can refresh. */
+val likedVersion = kotlinx.coroutines.flow.MutableStateFlow(0)
+
 fun addLikedSongId(context: Context, songId: String) {
     val sharedPreferences = context.getSharedPreferences("LikedSongs", Context.MODE_PRIVATE)
     val editor = sharedPreferences.edit()
     editor.putString(songId, songId)
     editor.apply()
+    likedVersion.value++
 }
 
 fun removeLikedSongId(context: Context, songId: String) {
@@ -15,6 +19,7 @@ fun removeLikedSongId(context: Context, songId: String) {
     val editor = sharedPreferences.edit()
     editor.remove(songId)
     editor.apply()
+    likedVersion.value++
 }
 
 fun isSongLiked(context: Context, songId: String): Boolean {
