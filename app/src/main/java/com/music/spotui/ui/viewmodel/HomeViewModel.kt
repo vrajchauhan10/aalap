@@ -42,7 +42,8 @@ class HomeViewModel @Inject constructor(
 
     // ── Sections made from all your music (Spotify + YouTube Music + Aalap + imports) ──
     private val M = com.music.spotui.data.recommendation.HomeMixes
-    val quickPicks = MutableStateFlow<List<com.music.spotui.data.entity.SongsModel>>(emptyList())
+    /** Quick picks, each tagged with why it's there (Trending, Top hit, Liked, Your taste…). */
+    val quickPicks = MutableStateFlow<List<com.music.spotui.data.recommendation.HomeMixes.TodaySong>>(emptyList())
     val recentlyPlayed = MutableStateFlow<List<com.music.spotui.data.entity.SongsModel>>(emptyList())
     val jumpBackIn = MutableStateFlow<List<com.music.spotui.data.entity.HomeItem>>(emptyList())
     val dailyMixes = MutableStateFlow<List<com.music.spotui.data.recommendation.HomeMixes.Mix>>(emptyList())
@@ -54,7 +55,7 @@ class HomeViewModel @Inject constructor(
         recentlyPlayed.value = M.recentlyPlayed(appContext)
         _favourites.value = M.allTimeFavourites(appContext)
         launch { runCatching { jumpBackIn.value = M.jumpBackIn(appContext) } }
-        launch { runCatching { quickPicks.value = M.quickPicks(appContext, force) } }
+        launch { loadQuickPicks(force) }
         launch { runCatching { today.value = M.todayPlaylist(appContext) } }
         launch { runCatching { stations.value = M.artistStations(appContext) } }
         launch { runCatching { newReleases.value = M.newReleases(appContext) } }
@@ -64,11 +65,15 @@ class HomeViewModel @Inject constructor(
         launch { runCatching { M.yourMix(appContext) } }
     }
 
+    private suspend fun loadQuickPicks(force: Boolean) {
+        runCatching { quickPicks.value = M.tagged(appContext, M.quickPicks(appContext, force)) }
+    }
+
     /** Home came back on screen: Recently played and favourites change with every play. */
     fun onResumeRefresh() = viewModelScope.launch(Dispatchers.IO) {
         if (_home.value is Response.Error) fetchHome()
         if (today.value.isEmpty()) launch { runCatching { today.value = M.todayPlaylist(appContext) } }
-        if (quickPicks.value.isEmpty()) launch { runCatching { quickPicks.value = M.quickPicks(appContext) } }
+        if (quickPicks.value.isEmpty()) launch { loadQuickPicks(false) }
         recentlyPlayed.value = M.recentlyPlayed(appContext)
         _favourites.value = M.allTimeFavourites(appContext)
     }
@@ -99,9 +104,14 @@ class HomeViewModel @Inject constructor(
             com.music.spotui.data.api.Discover.clearToday(appContext)
             com.music.spotui.data.api.Api.HomeCache.clear()
         }
-        fetchHome().join()
-        loadDiscovery().join()
-        loadUnified(force).join()
+        // The spinner waits only for what you see first (new Quick picks and the feed),
+        // and never more than 6 s; the slower mixes keep rebuilding in the background.
+        val feed = fetchHome()
+        val quick = launch { loadQuickPicks(force) }
+        loadDiscovery()
+        loadUnified(force = false)
+        if (force) launch { runCatching { dailyMixes.value = M.dailyMixes(appContext, true) } }
+        kotlinx.coroutines.withTimeoutOrNull(6_000) { quick.join(); feed.join() }
         _refreshing.value = false
     }
 

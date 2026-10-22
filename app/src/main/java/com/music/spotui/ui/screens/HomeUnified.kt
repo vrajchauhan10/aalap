@@ -78,16 +78,17 @@ fun HomeHeader(title: String, subtitle: String? = null) {
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalGlideComposeApi::class)
 @Composable
-fun QuickPicksSection(songs: List<SongsModel>) {
-    if (songs.isEmpty()) return
+fun QuickPicksSection(picks: List<HomeMixes.TodaySong>) {
+    if (picks.isEmpty()) return
     val context = LocalContext.current
     val player: PlayerViewModel = hiltViewModel()
-    HomeHeader("Quick picks", "From everything you listen to · new every few hours")
-    val pages = songs.chunked(4)
+    HomeHeader("Quick picks", "Trending, your taste and your likes · new every day and on refresh")
+    val pages = picks.chunked(4)
     val pager = rememberPagerState { pages.size }
     HorizontalPager(state = pager, contentPadding = PaddingValues(start = 20.dp, end = 48.dp), pageSpacing = 12.dp) { p ->
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            pages[p].forEach { s ->
+            pages[p].forEach { t ->
+                val s = t.song
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { player.playWithRadio(s, context) },
@@ -101,6 +102,8 @@ fun QuickPicksSection(songs: List<SongsModel>) {
                         Text(s.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(s.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
+                    // Why it's here: Trending, Top hit, Liked, Your taste.
+                    if (t.reason != "For you") com.music.spotui.ui.components.ReasonTag(t.reason, com.music.spotui.ui.components.reasonColor(t.reason))
                 }
             }
         }

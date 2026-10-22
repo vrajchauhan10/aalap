@@ -207,9 +207,10 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
         item { HomeHeaderRow(navController) }
         // Moods live in Aalap Radio below (and in Search), not as a second row of pills.
         // Aalap Radio replaces the feed's featured playlist (whose art carried another brand).
-        item { com.music.spotui.ui.components.TodayPlaylistSection(today) }
-        item { com.music.spotui.ui.components.AalapRadioSection() }
+        // Order: today's poster (opens the 30), Quick picks to choose from, then moods.
+        item { com.music.spotui.ui.components.TodayPlaylistSection(today) { navController.navigate(com.music.spotui.ui.navigation.Routes.Today.route) } }
         item { QuickPicksSection(quick) }
+        item { com.music.spotui.ui.components.AalapRadioSection() }
         item { ChartsRow(navController) }
         item { MadeForYouSection(mixes) }
         if (jump.isNotEmpty()) item { JumpBackInRow(navController, jump) }

@@ -149,6 +149,40 @@ object HomeMixes {
 
     fun todayUpdatedAt(c: Context): Long = prefs(c).getLong("today.at", 0)
 
+    /** The cached Aaj ka Aalap (no network); empty until it's been built today. */
+    fun todayCached(): List<TodaySong> =
+        if (prefs(appCtx).getString("today.stamp", null) == today()) readToday().orEmpty() else emptyList()
+
+    /**
+     * Why a song is worth a tag anywhere in the app: "Trending" (in today's Trending
+     * chart), "Top hit" (today's Top 50), "Liked" (liked on any service) or
+     * "Your taste" (fits your taste closely). Null when none apply. Works offline from
+     * today's cached charts.
+     */
+    fun reasonFor(c: Context, song: SongsModel): TodaySong? {
+        // A song in today's 30 keeps the tag it has there, so it reads the same everywhere.
+        todayCached().firstOrNull { it.song.id == song.id || (it.song.title.equals(song.title, true) && key(it.song.singer) == key(song.singer)) }
+            ?.let { return it.copy(song = song) }
+        fun inChart(id: String) = readSongs("chart.$id", today()).orEmpty().any { it.id == song.id || it.title.equals(song.title, true) && key(it.singer) == key(song.singer) }
+        val taste = runCatching {
+            Personalizer.profile(c).taste(SongBridge.toCandidate(song), RecoDb.get(c).songBySpotifyId(song.spotifyTrackId)?.id)
+        }.getOrDefault(0.0)
+        val matches = taste >= 0.3
+        val liked = com.music.spotui.data.preferences.isSongLiked(c, song.id.toString())
+        val why = when {
+            inChart(VIRAL50_INDIA) -> "Trending"
+            inChart(TOP50_INDIA) || inChart(TOP50_GLOBAL) -> "Top hit"
+            liked -> "Liked"
+            matches -> "Your taste"
+            else -> return null
+        }
+        return TodaySong(song, why, matches || liked)
+    }
+
+    /** Tags a list (Quick picks) with reasons; songs with none show as "For you". */
+    fun tagged(c: Context, songs: List<SongsModel>): List<TodaySong> =
+        songs.map { reasonFor(c, it) ?: TodaySong(it, "For you", false) }
+
     /**
      * Aaj ka Aalap: 30 songs, new every day. About 8 trending now, 7 of today's top
      * hits, 9 new songs for your taste and 6 of your likes from every service, each

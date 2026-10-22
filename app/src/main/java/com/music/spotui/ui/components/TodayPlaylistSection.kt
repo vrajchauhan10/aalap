@@ -54,8 +54,8 @@ private val Marigold = Color(0xFFFFC56B)
 private val Cream = Color(0xFFFFF3E0)
 
 /** Each reason's colour on the song tags: deeper shades on the light theme so they read on cream. */
-private fun reasonColor(reason: String): Color {
-    val light = com.music.spotui.ui.theme.AalapPalette.isLight
+fun reasonColor(reason: String, onDark: Boolean = !com.music.spotui.ui.theme.AalapPalette.isLight): Color {
+    val light = !onDark
     return when (reason) {
         "Your taste" -> if (light) Color(0xFFC2550F) else Color(0xFFFF8A3D)
         "Trending" -> if (light) Color(0xFFB8235A) else Color(0xFFE5397A)
@@ -70,12 +70,8 @@ private fun reasonColor(reason: String): Color {
  */
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
-fun TodayPlaylistSection(songs: List<HomeMixes.TodaySong>) {
+fun TodayPlaylistSection(songs: List<HomeMixes.TodaySong>, action: String = "Open", onOpen: () -> Unit) {
     val context = LocalContext.current
-    val player: PlayerViewModel = hiltViewModel()
-    var expanded by remember { mutableStateOf(false) }
-    val list = songs.map { it.song }
-    fun play(i: Int) { if (list.isNotEmpty()) { player.updateQueue(list); player.playSongAt(list, i, context) } }
     val updated = HomeMixes.todayUpdatedAt(context).takeIf { it > 0 }
         ?.let { java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(it)) }
 
@@ -86,7 +82,7 @@ fun TodayPlaylistSection(songs: List<HomeMixes.TodaySong>) {
                 .fillMaxWidth()
                 .heightIn(min = 212.dp) // grows with large system font sizes instead of overlapping
                 .clip(RoundedCornerShape(24.dp))
-                .clickable { play(0) },
+                .clickable(onClick = onOpen), // opens the full list of today's 30
         ) {
             Canvas(Modifier.matchParentSize()) {
                 val w = size.width; val h = size.height
@@ -125,45 +121,13 @@ fun TodayPlaylistSection(songs: List<HomeMixes.TodaySong>) {
                     }
                 }
                 Column(Modifier.padding(start = 10.dp)) {
-                    Text(if (songs.isEmpty()) "Making today's playlist" else "Play today's ${songs.size}", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(if (songs.isEmpty()) "Making today's playlist" else "$action today's ${songs.size}", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     if (updated != null) Text("Updated $updated", color = Cream.copy(alpha = 0.85f), fontSize = 10.sp)
                 }
             }
             }
         }
 
-        // The songs, with why each one is in today's list.
-        Column(Modifier.padding(horizontal = 20.dp, vertical = 6.dp).animateContentSize()) {
-            val shown = if (expanded) songs else songs.take(5)
-            shown.forEachIndexed { i, t ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { play(i) }.padding(vertical = 6.dp),
-                ) {
-                    GlideImage(
-                        model = t.song.coverUri, contentDescription = t.song.title, contentScale = ContentScale.Crop,
-                        loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
-                        modifier = Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)),
-                    )
-                    Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                        Text(t.song.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(t.song.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Tag(t.reason, reasonColor(t.reason))
-                        // A trending or top hit that's also right up your street.
-                        if (t.matches && t.reason != "Your taste" && t.reason != "Liked") Tag("Your taste", reasonColor("Your taste"), filled = true)
-                    }
-                }
-            }
-            if (songs.size > 5) {
-                Text(
-                    if (expanded) "Show less" else "Show all ${songs.size} songs",
-                    color = com.music.spotui.ui.theme.Saffron, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable { expanded = !expanded }.padding(vertical = 8.dp, horizontal = 2.dp),
-                )
-            }
-        }
     }
 }
 
@@ -176,9 +140,9 @@ private fun Chip(text: String) {
 }
 
 @Composable
-private fun Tag(text: String, color: Color, filled: Boolean = false) {
+fun ReasonTag(text: String, color: Color, filled: Boolean = false, onDark: Boolean = !com.music.spotui.ui.theme.AalapPalette.isLight) {
     Text(
-        text, color = if (filled) (if (com.music.spotui.ui.theme.AalapPalette.isLight) Color.White else Color(0xFF1A0E05)) else color, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+        text, color = if (filled) (if (!onDark) Color.White else Color(0xFF1A0E05)) else color, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
         modifier = Modifier.clip(RoundedCornerShape(50))
             .background(if (filled) color else Color.Transparent)
             .border(1.dp, color, RoundedCornerShape(50))
