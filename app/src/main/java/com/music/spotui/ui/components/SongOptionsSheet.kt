@@ -152,7 +152,7 @@ fun SongOptionsSheet(
                 iconTint = if (liked) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary,
             ) {
                 if (liked) removeLikedSongId(context, song.id.toString())
-                else { addLikedSongId(context, song.id.toString()); LikeCelebration.burst() }
+                else { addLikedSongId(context, song.id.toString(), song); LikeCelebration.burst() }
                 liked = !liked
                 // Mirror the like to the real Spotify account.
                 com.music.spotui.data.api.SpotifySync.setTrackSaved(context, song.spotifyTrackId, liked)

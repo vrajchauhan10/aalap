@@ -180,8 +180,8 @@ fun HistoryScreen(navController: NavController) {
         )
     }
 
-    // Aalap's pull-to-refresh (the same on every screen).
-    com.music.spotui.ui.components.AalapRefresh(Modifier.fillMaxSize(), onRefresh = { history = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { getListeningHistory(context) } }) {
+    // Pulling down only stretches and springs back: this page never refreshes on a pull.
+    com.music.spotui.ui.components.AalapBounce(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().background(AppBackground)) {
             // Soft saffron glow in the top-right corner.
             Canvas(Modifier.fillMaxWidth().height(420.dp)) {

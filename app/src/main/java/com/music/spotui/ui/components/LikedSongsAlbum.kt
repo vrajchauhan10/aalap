@@ -303,7 +303,7 @@ fun LikedSongsScreen(
                                     if (isLiked) {
                                         removeLikedSongId(context, songId.toString())
                                     } else {
-                                        addLikedSongId(context, songId.toString())
+                                        addLikedSongId(context, songId.toString(), likedSongs[song])
                                         com.music.spotui.ui.components.LikeCelebration.burst()
                                     }
                                     //isLiked = isSongLiked(context, songId.toString())

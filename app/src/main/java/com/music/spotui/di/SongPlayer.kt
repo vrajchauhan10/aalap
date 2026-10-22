@@ -1650,6 +1650,10 @@ object SongPlayer {
      *  app's notion of "current track" itself when a crossfade fires. Called once at startup. */
     fun bindState(state: CurrentSongState) { boundState = state }
 
+    /** The queue's copy of a song (title, cover, ids), e.g. to remember a like's details. */
+    fun queuedSong(id: Int): com.music.spotui.data.entity.SongsModel? =
+        runCatching { boundState?.queue?.value?.firstOrNull { it.id == id } }.getOrNull()
+
     fun isCrossfadeActive(): Boolean = isCrossfading
 
     private fun sigmoid(t: Float): Float = 1.0f / (1.0f + exp(-CF_SIGMOID_K * (t - 0.5f)))

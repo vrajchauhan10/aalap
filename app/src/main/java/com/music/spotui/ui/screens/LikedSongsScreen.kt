@@ -22,6 +22,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Favorite
@@ -75,7 +77,45 @@ fun LikedSongsScreen(navController: NavController) {
     val songsResp by likedSongsViewModel.songs.collectAsState()
     val context = LocalContext.current
 
-    val songs = (songsResp as? Response.Success)?.data.orEmpty()
+    val allSongs = (songsResp as? Response.Success)?.data.orEmpty()
+
+    // Filter: search, where the like came from, an artist, and the order.
+    var query by remember { mutableStateOf("") }
+    var filter by remember { mutableStateOf<LikedFilter?>(null) }
+    var sort by remember { mutableStateOf(LikedSort.RECENT) }
+    val sources by androidx.compose.runtime.produceState(LikedSources(), allSongs) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            LikedSources(
+                spotify = com.music.spotui.data.api.YouTubeLibrary.spotifyLiked(context).mapTo(HashSet()) { it.id },
+                youtube = com.music.spotui.data.api.YouTubeLibrary.likedSongs(context).mapTo(HashSet()) { it.id },
+            )
+        }
+    }
+    val topArtists = remember(allSongs) {
+        allSongs.groupingBy { it.singer.split(",").first().trim() }.eachCount()
+            .filter { it.key.isNotBlank() && it.value >= 2 }
+            .entries.sortedByDescending { it.value }.take(8).map { it.key }
+    }
+    val songs = remember(allSongs, query, filter, sort, sources) {
+        allSongs
+            .filter { s ->
+                when (val f = filter) {
+                    null -> true
+                    LikedFilter.Spotify -> s.id in sources.spotify
+                    LikedFilter.YouTube -> s.id in sources.youtube
+                    LikedFilter.Aalap -> s.id !in sources.spotify && s.id !in sources.youtube
+                    is LikedFilter.Artist -> s.singer.split(",").any { it.trim().equals(f.name, ignoreCase = true) }
+                }
+            }
+            .filter { s -> query.isBlank() || s.title.contains(query, true) || s.singer.contains(query, true) || s.album.contains(query, true) }
+            .let { list ->
+                when (sort) {
+                    LikedSort.RECENT -> list
+                    LikedSort.TITLE -> list.sortedBy { it.title.lowercase() }
+                    LikedSort.ARTIST -> list.sortedBy { it.singer.lowercase() }
+                }
+            }
+    }
 
 
     var menuSong by remember { mutableStateOf<com.music.spotui.data.entity.SongsModel?>(null) }
@@ -98,8 +138,8 @@ fun LikedSongsScreen(navController: NavController) {
     // Spotify's Liked Songs uses a purple → dark gradient.
     val likedColor = Color(0xFF5038A0)
 
-    // Aalap's pull-to-refresh (the same on every screen).
-    com.music.spotui.ui.components.AalapRefresh(Modifier.fillMaxSize(), onRefresh = { likedSongsViewModel.refresh() }) {
+    // Pulling down only stretches and springs back: this page never refreshes on a pull.
+    com.music.spotui.ui.components.AalapBounce(Modifier.fillMaxSize()) {
         Surface(
             modifier = Modifier
                 .fillMaxSize()
@@ -191,7 +231,7 @@ fun LikedSongsScreen(navController: NavController) {
                             )
                             Text(
                                 modifier = Modifier.padding(20.dp, 4.dp, 20.dp, 0.dp),
-                                text = "${songs.size} songs",
+                                text = if (songs.size == allSongs.size) "${allSongs.size} songs" else "${songs.size} of ${allSongs.size} songs",
                                 color = Color.Gray,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
@@ -311,6 +351,19 @@ fun LikedSongsScreen(navController: NavController) {
                         }
                     }
 
+                    item(key = "filters") {
+                        LikedFilters(
+                            query = query, onQuery = { query = it },
+                            filter = filter, onFilter = { filter = it },
+                            sort = sort, onSort = { sort = it },
+                            artists = topArtists,
+                            hasAalapOnly = allSongs.any { it.id !in sources.spotify && it.id !in sources.youtube } && sources.spotify.isNotEmpty(),
+                        )
+                    }
+                    if (songs.isEmpty() && allSongs.isNotEmpty()) item(key = "none") {
+                        Text("No liked songs match.", color = com.music.spotui.ui.theme.TextMuted, fontSize = 14.sp, modifier = Modifier.padding(20.dp, 24.dp))
+                    }
+
                     itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
                         com.music.spotui.ui.components.SwipeToQueue(song) {
                         val currentColor = if (song.id == likedSongsViewModel.currentSongId.value)
@@ -375,4 +428,91 @@ fun LikedSongsScreen(navController: NavController) {
             }
         }
     }
+}
+
+
+private sealed interface LikedFilter {
+    data object Spotify : LikedFilter
+    data object YouTube : LikedFilter
+    data object Aalap : LikedFilter
+    data class Artist(val name: String) : LikedFilter
+}
+
+private enum class LikedSort(val label: String) { RECENT("Recently added"), TITLE("Title"), ARTIST("Artist") }
+
+private data class LikedSources(val spotify: Set<Int> = emptySet(), val youtube: Set<Int> = emptySet())
+
+/** Search box, then a row of chips: the order, where the like came from, your top artists. */
+@Composable
+private fun LikedFilters(
+    query: String, onQuery: (String) -> Unit,
+    filter: LikedFilter?, onFilter: (LikedFilter?) -> Unit,
+    sort: LikedSort, onSort: (LikedSort) -> Unit,
+    artists: List<String>,
+    hasAalapOnly: Boolean,
+) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+        androidx.compose.foundation.text.BasicTextField(
+            value = query,
+            onValueChange = onQuery,
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(color = com.music.spotui.ui.theme.TextPrimary, fontSize = 14.sp),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(com.music.spotui.ui.theme.Saffron),
+            modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth(),
+            decorationBox = { field ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(com.music.spotui.ui.theme.SurfaceHigh).padding(horizontal = 12.dp, vertical = 10.dp),
+                ) {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = com.music.spotui.ui.theme.TextMuted, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Box(Modifier.weight(1f)) {
+                        if (query.isEmpty()) Text("Find in Liked Songs", color = com.music.spotui.ui.theme.TextMuted, fontSize = 14.sp)
+                        field()
+                    }
+                    if (query.isNotEmpty()) Icon(
+                        Icons.Default.Close, contentDescription = "Clear", tint = com.music.spotui.ui.theme.TextMuted,
+                        modifier = Modifier.size(18.dp).clickable { onQuery("") },
+                    )
+                }
+            },
+        )
+        androidx.compose.foundation.lazy.LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp),
+            modifier = Modifier.padding(top = 10.dp),
+        ) {
+            // Tap to change the order.
+            item {
+                LikedChip("↕ " + sort.label, selected = sort != LikedSort.RECENT) {
+                    onSort(LikedSort.entries[(sort.ordinal + 1) % LikedSort.entries.size])
+                }
+            }
+            val sourceChips = buildList {
+                add(LikedFilter.Spotify to "Spotify"); add(LikedFilter.YouTube to "YouTube Music")
+                if (hasAalapOnly) add(LikedFilter.Aalap to "Liked in Aalap")
+            }
+            sourceChips.forEach { (f, label) ->
+                item { LikedChip(label, selected = filter == f) { onFilter(if (filter == f) null else f) } }
+            }
+            artists.forEach { a ->
+                val f = LikedFilter.Artist(a)
+                item { LikedChip(a, selected = filter == f) { onFilter(if (filter == f) null else f) } }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LikedChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        text,
+        color = if (selected) com.music.spotui.ui.theme.OnSaffron else com.music.spotui.ui.theme.TextPrimary,
+        fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) com.music.spotui.ui.theme.Saffron else com.music.spotui.ui.theme.SurfaceHigh)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+    )
 }

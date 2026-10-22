@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -622,10 +623,10 @@ private fun ProfileHeader(navController: NavController) {
     // One library: Spotify and YouTube Music together, each song and artist once
     // (the same list the Liked page shows).
     // Counted in the background so opening Profile never waits on it.
-    val liked by androidx.compose.runtime.produceState(0) {
+    val likeVersion by com.music.spotui.data.preferences.likedVersion.collectAsState()
+    val liked by androidx.compose.runtime.produceState(0, likeVersion) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            com.music.spotui.data.api.YouTubeLibrary.unifiedLiked(context).size
-                .takeIf { it > 0 } ?: com.music.spotui.data.preferences.getLikedSongIds(context).size
+            com.music.spotui.data.preferences.LikedLibrary.count(context)
         }
     }
     val artists by androidx.compose.runtime.produceState(0) {

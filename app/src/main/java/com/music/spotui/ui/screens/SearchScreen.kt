@@ -157,12 +157,8 @@ fun SumUpSearchScreen(
     val showPodcasts = filter == SearchFilter.ALL || filter == SearchFilter.PODCASTS
 
     var refreshKey by remember { androidx.compose.runtime.mutableIntStateOf(0) }
-    // Aalap's pull-to-refresh: runs the search again, or reloads trending searches.
-    com.music.spotui.ui.components.AalapRefresh(Modifier.fillMaxSize(), onRefresh = {
-        if (text.isNotBlank()) searchViewModel.search(text)
-        refreshKey++
-        kotlinx.coroutines.delay(700)
-    }) {
+    // Pulling down only stretches and springs back: this page never refreshes on a pull.
+    com.music.spotui.ui.components.AalapBounce(Modifier.fillMaxSize()) {
         LazyColumn(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 130.dp),
             modifier = Modifier

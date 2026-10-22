@@ -18,7 +18,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.music.spotui.ui.theme.Saffron
 import com.music.spotui.ui.theme.Surface
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -75,5 +77,45 @@ fun AalapRefresh(
             containerColor = Surface,
             contentColor = Saffron,
         )
+    }
+}
+
+/**
+ * Pages that don't refresh (Liked Songs, History, Library, Search): pulling down at
+ * the top stretches the page with the finger and springs it straight back on
+ * release. No spinner, nothing reloads. A long pull still goes on to the page
+ * underneath, so detail pages can be pulled down to close.
+ */
+@Composable
+fun AalapBounce(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val stretch = remember { Animatable(0f) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val maxStretch = with(androidx.compose.ui.platform.LocalDensity.current) { 72.dp.toPx() }
+    val connection = remember(maxStretch) {
+        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+            // Stretched and now dragging back up: shrink the stretch before the list scrolls.
+            override fun onPreScroll(available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                if (source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag || stretch.value <= 0f || available.y >= 0f) return androidx.compose.ui.geometry.Offset.Zero
+                val used = maxOf(available.y * 0.5f, -stretch.value)
+                scope.launch { stretch.snapTo(stretch.value + used) }
+                return androidx.compose.ui.geometry.Offset(0f, used / 0.5f)
+            }
+            // At the top and pulled further: stretch (half the finger's distance) up to a limit,
+            // then let the page underneath have the rest.
+            override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                if (source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag || available.y <= 0f || stretch.value >= maxStretch) return androidx.compose.ui.geometry.Offset.Zero
+                val room = maxStretch - stretch.value
+                val used = minOf(available.y * 0.5f, room)
+                scope.launch { stretch.snapTo(stretch.value + used) }
+                return androidx.compose.ui.geometry.Offset(0f, used / 0.5f)
+            }
+            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                if (stretch.value > 0f) scope.launch { stretch.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium)) }
+                return androidx.compose.ui.unit.Velocity.Zero
+            }
+        }
+    }
+    Box(modifier.nestedScroll(connection)) {
+        Box(Modifier.fillMaxSize().graphicsLayer { translationY = stretch.value }) { content() }
     }
 }

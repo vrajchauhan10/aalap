@@ -43,9 +43,9 @@ class LikedSongsViewModel @Inject constructor(
 
     private val ctx get() = com.music.spotui.MyApplication.instance
 
-    /** The saved unified list (Spotify + YouTube Music, each song once): the same list Profile counts. */
+    /** Liked Songs (Spotify + YouTube Music + likes made here, each song once): the list every screen counts. */
     private fun publish() {
-        val list = com.music.spotui.data.api.YouTubeLibrary.unifiedLiked(ctx)
+        val list = com.music.spotui.data.preferences.LikedLibrary.all(ctx)
         if (list.isNotEmpty() || _songs.value !is Response.Success) _songs.value = Response.Success(list)
     }
 
@@ -53,12 +53,16 @@ class LikedSongsViewModel @Inject constructor(
         // Show the saved list at once (built off the main thread), then refresh it after
         // Spotify's pages have all arrived, so the count doesn't climb page by page.
         viewModelScope.launch(Dispatchers.IO) {
-            if (com.music.spotui.data.api.YouTubeLibrary.unifiedLiked(ctx).isNotEmpty()) publish()
+            if (com.music.spotui.data.preferences.LikedLibrary.all(ctx).isNotEmpty()) publish()
+        }
+        // A like or unlike anywhere (player, menus, notification) updates the list here too.
+        viewModelScope.launch(Dispatchers.IO) {
+            com.music.spotui.data.preferences.likedVersion.collect { if (_songs.value is Response.Success) publish() }
         }
         viewModelScope.launch(Dispatchers.IO) {
             var failed: Response<List<SongsModel>>? = null
             repository.provideLikedSongs().collect { r -> if (r is Response.Error) failed = r }
-            if (com.music.spotui.data.api.YouTubeLibrary.unifiedLiked(ctx).isEmpty() && failed != null) _songs.value = failed!!
+            if (com.music.spotui.data.preferences.LikedLibrary.all(ctx).isEmpty() && failed != null) _songs.value = failed!!
             else publish()
         }
         viewModelScope.launch(Dispatchers.IO) {

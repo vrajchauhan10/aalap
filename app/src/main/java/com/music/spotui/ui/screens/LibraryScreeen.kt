@@ -137,8 +137,8 @@ fun LibraryScreen(navController: NavController) {
     val playlists = listEntries.count { it.isPlaylist }
     val albums = listEntries.size - playlists
 
-    // Aalap's pull-to-refresh (the same on every screen).
-    com.music.spotui.ui.components.AalapRefresh(Modifier.fillMaxSize(), onRefresh = { libraryViewModel.refreshAll() }) {
+    // Pulling down only stretches and springs back: this page never refreshes on a pull.
+    com.music.spotui.ui.components.AalapBounce(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -352,7 +352,11 @@ private fun openLibraryEntry(entry: LibraryEntry, navController: NavController) 
 @Composable
 private fun LibraryTiles(navController: NavController) {
     val context = LocalContext.current
-    val liked = remember { com.music.spotui.data.preferences.getLikedSongIds(context).size }
+    // The same count as the Liked Songs page and Profile.
+    val likeVersion by com.music.spotui.data.preferences.likedVersion.collectAsState()
+    val liked by androidx.compose.runtime.produceState(0, likeVersion) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.music.spotui.data.preferences.LikedLibrary.count(context) }
+    }
     val downloads = remember { com.music.spotui.data.preferences.getDownloadedSongs(context).size }
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp),

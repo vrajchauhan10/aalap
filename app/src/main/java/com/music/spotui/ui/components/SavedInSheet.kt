@@ -198,7 +198,7 @@ fun SavedInSheet(
                 },
             ) {
                 liked = !liked
-                if (liked) { addLikedSongId(context, song.id.toString()); LikeCelebration.burst() }
+                if (liked) { addLikedSongId(context, song.id.toString(), song); LikeCelebration.burst() }
                 else removeLikedSongId(context, song.id.toString())
                 SpotifySync.setTrackSaved(context, song.spotifyTrackId, liked)
                 onLikedChanged(liked)

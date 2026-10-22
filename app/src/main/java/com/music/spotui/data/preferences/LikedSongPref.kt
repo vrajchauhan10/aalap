@@ -10,7 +10,15 @@ val likedVersion = kotlinx.coroutines.flow.MutableStateFlow(0)
 @Volatile var lastLikedId: String? = null
 @Volatile var lastLikedAtMs: Long = 0L
 
-fun addLikedSongId(context: Context, songId: String) {
+/**
+ * Likes a song. [song] (or, without it, the queue's copy) is remembered with the like,
+ * so a song liked here shows in Liked Songs straight away, even one Spotify and
+ * YouTube Music don't have. Song id 0 is "nothing playing" and is never liked.
+ */
+fun addLikedSongId(context: Context, songId: String, song: SongsModel? = null) {
+    val id = songId.toIntOrNull() ?: return
+    if (id == 0) return
+    (song ?: com.music.spotui.di.SongPlayer.queuedSong(id))?.let { AalapLikes.add(context, it) }
     val sharedPreferences = context.getSharedPreferences("LikedSongs", Context.MODE_PRIVATE)
     val editor = sharedPreferences.edit()
     editor.putString(songId, songId)
@@ -25,6 +33,7 @@ fun removeLikedSongId(context: Context, songId: String) {
     val editor = sharedPreferences.edit()
     editor.remove(songId)
     editor.apply()
+    songId.toIntOrNull()?.let { AalapLikes.remove(context, it) }
     likedVersion.value++
 }
 

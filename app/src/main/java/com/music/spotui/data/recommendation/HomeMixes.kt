@@ -220,7 +220,7 @@ object HomeMixes {
         val trendingJob = async { chart(c, VIRAL50_INDIA) }
         val topJob = async { (chart(c, TOP50_INDIA) + chart(c, TOP50_GLOBAL).take(20)).distinctBy { it.id } }
         val tasteJob = async { runCatching { QueueEngine.freshPicks(c, salt = stamp.hashCode().toLong() + 7, limit = 20) }.getOrDefault(emptyList()) }
-        val liked = YouTubeLibrary.unifiedLiked(c)
+        val liked = com.music.spotui.data.preferences.LikedLibrary.all(c)
 
         fun pick(list: List<SongsModel>, n: Int, pool: Int) = QueueEngine.rerank(c, list, familiar = 0.3f).take(pool).shuffled(rnd).take(n)
         val trending = pick(trendingJob.await(), 8, 18)
@@ -479,7 +479,7 @@ object HomeMixes {
             byId.putIfAbsent(h.songId, SongsModel(h.songId, h.title, h.album, h.singer, h.image, h.url, h.spotifyTrackId, durationMs = h.durationMs))
         }
         YouTubeLibrary.historySongs(c).forEach { s -> score[s.id] = (score[s.id] ?: 0.0) + 1.0; byId.putIfAbsent(s.id, s) }
-        val liked = YouTubeLibrary.unifiedLiked(c)
+        val liked = com.music.spotui.data.preferences.LikedLibrary.all(c)
         liked.forEachIndexed { i, s ->
             // Liked counts like a few plays, recent likes a bit more.
             score[s.id] = (score[s.id] ?: 0.0) + 2.0 + 1.0 * (1.0 - i.toDouble() / liked.size.coerceAtLeast(1))
