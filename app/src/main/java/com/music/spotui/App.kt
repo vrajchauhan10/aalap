@@ -51,8 +51,8 @@ fun App() {
     ) {
         MyNavHost(navHostController = navController, bottomBarState = bottomBarState, bottomBarPlayerState)
     }
-    // Hearts that float up over everything when a song is liked in the player.
-    com.music.spotui.ui.components.HeartShower()
+    // Marigold petals that fall over everything when a song is liked anywhere.
+    com.music.spotui.ui.components.PetalShower()
     }
 }
 

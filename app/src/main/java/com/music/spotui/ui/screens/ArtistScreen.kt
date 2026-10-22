@@ -486,7 +486,7 @@ private fun PopularTrackRow(
                     indication = null,
                 ) {
                     if (isLiked) removeLikedSongId(context, song.id.toString())
-                    else addLikedSongId(context, song.id.toString())
+                    else { addLikedSongId(context, song.id.toString()); com.music.spotui.ui.components.LikeCelebration.burst() }
                     isLiked = isSongLiked(context, song.id.toString())
                     artistViewModel.updateLikeState(!artistViewModel.likeState.value)
                 },

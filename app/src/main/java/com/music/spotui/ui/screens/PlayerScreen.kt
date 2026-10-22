@@ -74,8 +74,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.alpha
@@ -375,11 +376,27 @@ fun PlayerScreen(navController: NavController) {
             // old 385dp size. On short/scaled displays the fixed-size version pushed
             // the slider and playback buttons off the bottom of the screen; now the
             // artwork shrinks instead and the controls always fit.
+            // Double-tap the artwork to like: a heart pops where you tapped (and the
+            // petals fall if it wasn't liked yet). Double-tapping a liked song only pops the heart.
+            val bloom = com.music.spotui.ui.components.rememberHeartBloom()
+            val bloomScope = rememberCoroutineScope()
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .pointerInput(songId) {
+                        detectTapGestures(onDoubleTap = { at ->
+                            bloomScope.launch { bloom.show(at) }
+                            if (!isLiked.value) {
+                                addLikedSongId(context, songId.toString())
+                                isLiked.value = isSongLiked(context, songId.toString())
+                                com.music.spotui.ui.components.LikeCelebration.burst()
+                                com.music.spotui.data.api.SpotifySync.setTrackSaved(
+                                    context, queueSongs.firstOrNull { it.id == songId }?.spotifyTrackId.orEmpty(), true)
+                            }
+                        })
+                    }
             ) {
                 if (queueSongs.isEmpty()) {
                     GlideImage(
@@ -410,6 +427,7 @@ fun PlayerScreen(navController: NavController) {
                             contentDescription = "")
                     }
                 }
+                com.music.spotui.ui.components.HeartBloomLayer(bloom, Modifier.matchParentSize())
             }
             //Spacer(modifier = Modifier.padding(30.dp))
 
@@ -724,7 +742,6 @@ fun PlayerInfo(
             } // AnimatedContent(trackInfo)
         }
 
-        var likeCenter by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
         com.music.spotui.ui.components.LikeFillIcon(
             liked = isLiked.value,
             outline = painterResource(id = R.drawable.ic_add),
@@ -734,7 +751,6 @@ fun PlayerInfo(
             contentDescription = if (isLiked.value) "Saved" else "Add to Liked Songs",
             size = 26.dp,
             modifier = Modifier
-                .onGloballyPositioned { likeCenter = it.boundsInRoot().center }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
@@ -751,12 +767,12 @@ fun PlayerInfo(
                         snackbarMessage = "Removed from Liked Songs"
                         snackbarVisible = true
                     } else {
-                        // No message when liking: the hearts say it.
+                        // No message when liking: the petals say it.
                         addLikedSongId(context, songId.toString())
                     }
                     isLiked.value = isSongLiked(context, songId.toString())
-                    // Liked: hearts float up from the button.
-                    if (isLiked.value) com.music.spotui.ui.components.LikeCelebration.burst(likeCenter)
+                    // Liked: marigold petals fall over the screen.
+                    if (isLiked.value) com.music.spotui.ui.components.LikeCelebration.burst()
                     // Mirror the like to the real Spotify account.
                     com.music.spotui.data.api.SpotifySync.setTrackSaved(context, spotifyTrackId, isLiked.value)
                 },
@@ -1274,6 +1290,7 @@ fun PlayerOptionsSheet(
                         removeLikedSongId(context, songId.toString())
                     } else {
                         addLikedSongId(context, songId.toString())
+                        com.music.spotui.ui.components.LikeCelebration.burst()
                     }
                     isLiked.value = isSongLiked(context, songId.toString())
                     // Mirror the like to the real Spotify account.

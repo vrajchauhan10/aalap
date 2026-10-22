@@ -32,7 +32,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.graphicsLayer
@@ -159,28 +158,15 @@ fun MiniPlayer(navController: NavHostController) {
     val cardColor = androidx.compose.ui.graphics.lerp(
         com.music.spotui.ui.theme.Surface, darkVibrantColor, if (com.music.spotui.ui.theme.AalapPalette.isLight) 0.22f else 0.55f)
     val cardShape = RoundedCornerShape(20.dp)
-    // Liking from here: a light marigold wash sweeps across the bar from left to right, then fades.
-    val likeSweep = remember { androidx.compose.animation.core.Animatable(0f) }
-    val likeGlow = remember { androidx.compose.animation.core.Animatable(0f) }
+    // Liking from here: marigold petals drop through the bar and a gold border draws itself, left to right.
+    val likeBurst = rememberBarCelebration()
     Column(
         modifier = Modifier
             .padding(horizontal = 16.dp)
             .shadow(10.dp, cardShape)
             .clip(cardShape)
             .background(cardColor)
-            .drawBehind {
-                if (likeGlow.value > 0f) {
-                    val edge = size.width * likeSweep.value
-                    drawRect(
-                        androidx.compose.ui.graphics.Brush.horizontalGradient(
-                            0f to Color(0xFFFFE08A).copy(alpha = 0.42f * likeGlow.value),
-                            1f to Color(0xFFFFC56B).copy(alpha = 0.55f * likeGlow.value),
-                            startX = 0f, endX = edge.coerceAtLeast(1f),
-                        ),
-                        size = androidx.compose.ui.geometry.Size(edge, size.height),
-                    )
-                }
-            }
+            .barCelebration(likeBurst, 20.dp)
             .padding(start = 10.dp, end = 10.dp, top = 4.dp)
             .clipToBounds()
     ) {
@@ -291,11 +277,7 @@ fun MiniPlayer(navController: NavHostController) {
                         if (isLiked) { showSavedIn = true; return@clickable }
                         addLikedSongId(context, songId.toString())
                         isLiked = true
-                        swipeScope.launch {
-                            likeSweep.snapTo(0f); likeGlow.snapTo(1f)
-                            likeSweep.animateTo(1f, androidx.compose.animation.core.tween(650, easing = androidx.compose.animation.core.FastOutSlowInEasing))
-                            likeGlow.animateTo(0f, androidx.compose.animation.core.tween(500))
-                        }
+                        swipeScope.launch { likeBurst.play() }
                         miniPlayerViewModel.updateLikeState(!likeState)
                         // Mirror the like to the real Spotify account.
                         com.music.spotui.data.api.SpotifySync.setTrackSaved(

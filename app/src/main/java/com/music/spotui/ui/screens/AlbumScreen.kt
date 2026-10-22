@@ -535,6 +535,7 @@ fun SumUpAlbumScreen(
                                         removeLikedSongId(context, songId.toString())
                                     } else {
                                         addLikedSongId(context, songId.toString())
+                                        com.music.spotui.ui.components.LikeCelebration.burst()
                                     }
                                     isLiked = isSongLiked(context, songId.toString())
                                     albumViewModel.updateLikeState(!albumViewModel.likeState.value)
