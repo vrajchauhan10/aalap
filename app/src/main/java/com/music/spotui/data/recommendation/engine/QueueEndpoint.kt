@@ -51,6 +51,15 @@ object QueueEndpoint {
     private fun handle(context: Context, socket: Socket) {
         val line = socket.getInputStream().bufferedReader().readLine().orEmpty() // "GET /queue?… HTTP/1.1"
         val target = line.split(" ").getOrNull(1).orEmpty()
+        if (target.startsWith("/yttrending")) {
+            val out = runBlocking { com.metrolist.innertube.YouTube.trendingSongs().map { l -> l.take(15).map { "${it.title} — ${it.artists}" } }.getOrElse { listOf("error: $it") } }
+            val bytes = JSONArray(out).toString(2).toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
         if (target.startsWith("/pl?id=")) {
             val id = target.substringAfter("id=")
             val n = runBlocking {

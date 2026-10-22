@@ -257,6 +257,64 @@ object HomeMixes {
         }.takeIf { it.isNotEmpty() }
     }.getOrNull()
 
+    // ── Trending searches (Search page): 5 from YouTube Music + 5 from Spotify, daily ──
+
+    /** A trending search: what the chip says and what it searches for. */
+    data class TrendingSearch(val label: String, val query: String)
+
+    /** "KAALI HOODIE (MUSIC VIDEO) … | THE KIDD" → "Kaali Hoodie"; "#Video | हमरी अंगनवा | …" → "हमरी अंगनवा". */
+    private fun cleanTitle(raw: String, artists: String): String {
+        var t = raw.replace(Regex("""#\S+"""), " ").replace(Regex("""\(.*?\)|\[.*?\]"""), " ")
+        val parts = t.split(" | ", " - ", " – ", "|").map { it.trim() }.filter { it.length > 1 }
+        val artistKeys = SongMatcher.artistKeys(artists).toSet()
+        t = parts.firstOrNull { p -> SongMatcher.artistKeys(p).firstOrNull() !in artistKeys && !p.contains("video", true) && !p.contains("song", true) } ?: parts.firstOrNull() ?: raw
+        // Drop "ft. …", upload words and the artists' own names from the label.
+        t = t.replace(Regex("""\s(ft\.?|feat\.?|featuring|x)\s.*$""", RegexOption.IGNORE_CASE), " ")
+        t = t.replace(Regex("""\b(official|music video|video song|video|lyrical|lyrics?|full song|audio|song)\b""", RegexOption.IGNORE_CASE), " ")
+        artists.split(",").map { it.trim() }.filter { it.length > 2 }.forEach { a ->
+            t = t.replace(Regex(Regex.escape(a), RegexOption.IGNORE_CASE), " ")
+        }
+        t = t.replace(Regex("""\s+"""), " ").trim().trimEnd('-', '|', ':', ',').trim()
+        // Shouting titles read better in title case.
+        if (t.length > 3 && t == t.uppercase() && t.any { it.isLetter() && it.code < 128 }) {
+            t = t.lowercase().split(" ").joinToString(" ") { w -> w.replaceFirstChar(Char::titlecase) }
+        }
+        return t.take(32)
+    }
+
+    suspend fun trendingSearches(c: Context): List<TrendingSearch> = coroutineScope {
+        val p = prefs(c)
+        if (p.getString("searches.stamp", null) == today() + "v2") runCatching {
+            val a = JSONArray(p.getString("searches", "[]"))
+            val list = (0 until a.length()).map { i -> a.getJSONObject(i).let { TrendingSearch(it.getString("l"), it.getString("q")) } }
+            if (list.size >= 8) return@coroutineScope list
+        }
+        val ytJob = async {
+            com.metrolist.innertube.YouTube.trendingSongs().getOrNull().orEmpty().map { s ->
+                val label = cleanTitle(s.title, s.artists)
+                val artist = s.artists.split(",").firstOrNull()?.trim().orEmpty()
+                TrendingSearch(label, "$label $artist".trim())
+            }
+        }
+        val spJob = async {
+            chart(c, VIRAL50_INDIA).map { s ->
+                val label = cleanTitle(s.title, s.singer)
+                TrendingSearch(label, "$label ${s.singer.substringBefore(",").trim()}".trim())
+            }
+        }
+        fun top5(list: List<TrendingSearch>, skip: Set<String>) =
+            list.filter { it.label.isNotBlank() && it.label.lowercase() !in skip }.distinctBy { it.label.lowercase() }.take(5)
+        val yt = top5(ytJob.await(), emptySet())
+        val sp = top5(spJob.await(), yt.mapTo(HashSet()) { it.label.lowercase() })
+        val mixed = ArrayList<TrendingSearch>()
+        for (i in 0 until 5) { yt.getOrNull(i)?.let(mixed::add); sp.getOrNull(i)?.let(mixed::add) }
+        if (mixed.size >= 8) {
+            val a = JSONArray(); mixed.forEach { a.put(JSONObject().put("l", it.label).put("q", it.query)) }
+            p.edit().putString("searches", a.toString()).putString("searches.stamp", today() + "v2").apply()
+        }
+        mixed
+    }
+
     // ── Recently played: your plays in Aalap, then on YouTube Music ─────────
 
     fun recentlyPlayed(c: Context, limit: Int = 20): List<SongsModel> {

@@ -251,6 +251,15 @@ object YouTube {
         }.distinctBy { it.videoId }
     }
 
+    /**
+     * What's trending on YouTube Music right now (Explore → Trending, falling back to
+     * the Charts page), songs only, in page order.
+     */
+    suspend fun trendingSongs(): Result<List<LibrarySong>> = runCatching {
+        val explore = runCatching { pages("FEmusic_explore", 1) { json -> parseSongs(json) } }.getOrDefault(emptyList())
+        explore.ifEmpty { pages("FEmusic_charts", 1) { json -> parseSongs(json) } }.distinctBy { it.videoId }
+    }
+
     /** Artists the signed-in user subscribes to on YouTube Music. */
     suspend fun libraryArtists(maxPages: Int = 10): Result<List<LibraryArtist>> = runCatching {
         check(cookie != null) { "not signed in" }

@@ -182,33 +182,33 @@ internal val EXPLORE = listOf(
 @Composable
 fun SearchExplore(navController: NavController, onQuickSearch: (String) -> Unit) {
     val context = LocalContext.current
-    val quick by produceState(emptyList<String>()) {
+    // Today's 10 trending searches: 5 from YouTube Music, 5 from Spotify (new every day).
+    val quick by produceState(emptyList<com.music.spotui.data.recommendation.HomeMixes.TrendingSearch>()) {
         value = withContext(Dispatchers.IO) {
-            val mine = runCatching { com.music.spotui.data.recommendation.engine.Personalizer.summary(context).artists }.getOrDefault(emptyList())
-            (mine.take(4) + listOf("Arijit Singh", "Punjabi hits", "Garba", "Lofi", "90s romance")).distinct().take(8)
+            runCatching { com.music.spotui.data.recommendation.HomeMixes.trendingSearches(context) }.getOrDefault(emptyList())
         }
     }
     Column(Modifier.fillMaxWidth()) {
         if (quick.isNotEmpty()) {
-            ExploreHeader("Quick searches")
+            ExploreHeader("Trending searches")
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(horizontal = 16.dp),
             ) {
-                quick.forEach { q ->
+                quick.forEach { t ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
                             .background(Surface)
                             .border(1.dp, Hairline, RoundedCornerShape(50))
-                            .clickable { onQuickSearch(q) }
+                            .clickable { onQuickSearch(t.query) }
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                     ) {
-                        Icon(Icons.Default.Search, null, tint = Saffron, modifier = Modifier.size(14.dp))
+                        Text("↗", color = Saffron, fontSize = 14.sp, fontWeight = FontWeight.Bold) // trending
                         Spacer(Modifier.width(6.dp))
-                        Text(q, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(t.label, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                     }
                 }
             }

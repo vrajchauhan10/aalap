@@ -82,7 +82,7 @@ fun QuickPicksSection(picks: List<HomeMixes.TodaySong>) {
     if (picks.isEmpty()) return
     val context = LocalContext.current
     val player: PlayerViewModel = hiltViewModel()
-    HomeHeader("Quick picks", "Trending, your taste and your likes · new every day and on refresh")
+    HomeHeader("Quick picks")
     val pages = picks.chunked(4)
     val pager = rememberPagerState { pages.size }
     HorizontalPager(state = pager, contentPadding = PaddingValues(start = 20.dp, end = 48.dp), pageSpacing = 12.dp) { p ->
