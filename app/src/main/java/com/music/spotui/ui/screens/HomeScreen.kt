@@ -106,6 +106,10 @@ fun HomeScreen(navController: NavController){
         androidx.compose.runtime.LaunchedEffect(Unit) { homeViewModel.refresh() }
     }
     androidx.compose.runtime.LaunchedEffect(refreshing) { if (!refreshing) pullState.endRefresh() }
+    // Double-tap Home: show the refresh spinner and refresh (the list also scrolls to the top).
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.music.spotui.ui.navigation.HomeTabEvents.refresh.collect { pullState.startRefresh() }
+    }
 
     Surface(
         modifier = Modifier
@@ -198,7 +202,12 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
     val releases by homeViewModel.newReleases.collectAsState()
     val today by homeViewModel.today.collectAsState()
 
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.music.spotui.ui.navigation.HomeTabEvents.refresh.collect { listState.animateScrollToItem(0) }
+    }
     LazyColumn(
+        state = listState,
         contentPadding = PaddingValues(bottom = 190.dp),
         modifier = Modifier
             .fillMaxSize()

@@ -116,6 +116,14 @@ fun MainBottomNavigation(navController: NavHostController, bottomBarState: Mutab
                                 item = item,
                                 selected = currentRoute == item.route,
                                 onClick = {
+                                    if (item == Routes.Home && currentRoute == Routes.Home.route) {
+                                        val now = System.currentTimeMillis()
+                                        if (now - HomeTabEvents.lastHomeTap < 450) {
+                                            HomeTabEvents.refresh.tryEmit(Unit)
+                                            HomeTabEvents.lastHomeTap = 0L
+                                        } else HomeTabEvents.lastHomeTap = now
+                                        return@NavTab
+                                    }
                                     navController.navigate(item.route) {
                                         navController.graph.startDestinationRoute?.let {
                                             popUpTo(item.route)
@@ -131,6 +139,12 @@ fun MainBottomNavigation(navController: NavHostController, bottomBarState: Mutab
             }
         }
     )
+}
+
+/** Double-tapping Home while on Home: jump to the top and refresh the page. */
+object HomeTabEvents {
+    val refresh = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    internal var lastHomeTap = 0L
 }
 
 @Composable
