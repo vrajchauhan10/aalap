@@ -182,3 +182,33 @@ private fun Pill(text: String, filled: Boolean = false, onClick: () -> Unit) {
             .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp),
     )
 }
+
+/**
+ * Removing a playlist. An Aalap playlist is deleted. A Spotify playlist is only hidden
+ * in Aalap: it stays on Spotify, and syncing won't bring it back here.
+ */
+@Composable
+fun RemovePlaylistDialog(playlistId: String, name: String, onDismiss: () -> Unit, onRemoved: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val local = com.music.spotui.data.local.AalapPlaylists.isLocal(playlistId)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = com.music.spotui.ui.theme.Surface,
+        title = { Text(if (local) "Delete \"$name\"?" else "Remove \"$name\" from Aalap?", color = com.music.spotui.ui.theme.TextPrimary) },
+        text = {
+            Text(
+                if (local) "The playlist is removed from Aalap. The songs stay in your library."
+                else "It stays in your Spotify account and won't come back here when Aalap syncs. You can show it again from your account menu in Library.",
+                color = com.music.spotui.ui.theme.TextMuted,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (local) com.music.spotui.data.local.AalapPlaylists.delete(context, playlistId)
+                else com.music.spotui.data.local.HiddenPlaylists.hide(context, playlistId)
+                onRemoved()
+            }) { Text(if (local) "Delete" else "Remove", color = androidx.compose.ui.graphics.Color(0xFFE57373)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = com.music.spotui.ui.theme.TextPrimary) } },
+    )
+}

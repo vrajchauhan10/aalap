@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -99,6 +100,11 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
     var addingSongs by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var removingSpotify by remember { mutableStateOf(false) }
+    if (removingSpotify) com.music.spotui.ui.components.RemovePlaylistDialog(
+        playlistId, playlist.name, onDismiss = { removingSpotify = false },
+        onRemoved = { removingSpotify = false; navController.navigateUp() },
+    )
     if (addingSongs) com.music.spotui.ui.components.AddSongsSheet(playlistId) { addingSongs = false }
     if (renaming) com.music.spotui.ui.components.PlaylistNameDialog("Rename playlist", playlist.name, "Save", { renaming = false }) {
         com.music.spotui.data.local.AalapPlaylists.rename(context, playlistId, it); renaming = false
@@ -170,7 +176,19 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                             containerColor = Color.Transparent,
                             titleContentColor = com.music.spotui.ui.theme.TextPrimary,
                         ),
-                        title = { Text(text = "") }
+                        title = { Text(text = "") },
+                        // Spotify playlists can be removed from here (Aalap ones from the edit bar below).
+                        actions = {
+                            if (!isLocal && playlistId != com.music.spotui.data.api.Api.HomeCache.LIKED_SONGS_ID) Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Remove playlist",
+                                tint = com.music.spotui.ui.theme.TextPrimary,
+                                modifier = Modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                ) { removingSpotify = true },
+                            )
+                        },
                     )
                 }
             ) { innerPadding ->

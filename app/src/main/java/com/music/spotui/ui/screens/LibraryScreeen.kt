@@ -9,6 +9,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -128,8 +129,10 @@ fun LibraryScreen(navController: NavController) {
         val id = com.music.spotui.data.local.AalapPlaylists.create(context, name)
         navController.navigate(com.music.spotui.ui.navigation.playlistRoute(id, name))
     }
+    val hiddenVersion by com.music.spotui.data.local.HiddenPlaylists.version.collectAsState()
+    val hidden = remember(hiddenVersion) { com.music.spotui.data.local.HiddenPlaylists.ids(context) }
     val listEntries = localPlaylists + allEntries.filter {
-        it.spotifyId != Api.HomeCache.LIKED_SONGS_ID && it.spotifyId != Api.HomeCache.DOWNLOADS_ID
+        it.spotifyId != Api.HomeCache.LIKED_SONGS_ID && it.spotifyId != Api.HomeCache.DOWNLOADS_ID && it.spotifyId !in hidden
     }.distinctBy { it.spotifyId.ifBlank { it.name } } // a playlist both saved and owned is listed once
     val playlists = listEntries.count { it.isPlaylist }
     val albums = listEntries.size - playlists
@@ -417,7 +420,7 @@ private fun LibrarySectionTitle(text: String) {
 }
 
 /** The Library body: tiles, then playlists/albums as rows or a grid, then artists. */
-@OptIn(ExperimentalGlideComposeApi::class)
+@OptIn(ExperimentalGlideComposeApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun LibraryContent(
     navController: NavController,
@@ -430,6 +433,17 @@ private fun LibraryContent(
     favouriteAlbumsAsGrid: Boolean = false,
     onSeeAll: (LibraryFilter) -> Unit = {},
 ) {
+    // Long-press a playlist to remove it (Aalap playlists are deleted; Spotify ones hidden in Aalap only).
+    var removing by remember { mutableStateOf<LibraryEntry?>(null) }
+    removing?.let { e ->
+        com.music.spotui.ui.components.RemovePlaylistDialog(e.spotifyId, e.name, onDismiss = { removing = null }, onRemoved = { removing = null })
+    }
+    val press: (LibraryEntry) -> Modifier = { entry ->
+        Modifier.combinedClickable(
+            onClick = { openLibraryEntry(entry, navController) },
+            onLongClick = if (entry.isPlaylist) ({ removing = entry }) else null,
+        )
+    }
     LazyVerticalGrid(
         columns = GridCells.Fixed(if (grid) 3 else 1),
         contentPadding = PaddingValues(bottom = 200.dp),
@@ -467,7 +481,7 @@ private fun LibraryContent(
                     Column(
                         modifier = Modifier
                             .padding(6.dp)
-                            .clickable { openLibraryEntry(entry, navController) }
+                            .then(press(entry))
                             .padding(4.dp),
                     ) {
                         GlideImage(
@@ -483,7 +497,7 @@ private fun LibraryContent(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { openLibraryEntry(entry, navController) }
+                            .then(press(entry))
                             .padding(horizontal = 20.dp, vertical = 7.dp),
                     ) {
                         GlideImage(
@@ -816,6 +830,12 @@ private fun AccountSheet(
             AccountRow("Listening history") {
                 onDismiss()
                 navController.navigate(Routes.History.route)
+            }
+            // Spotify playlists removed from Aalap (they stay on Spotify) can come back from here.
+            val hiddenCount = remember { com.music.spotui.data.local.HiddenPlaylists.ids(context).size }
+            if (hiddenCount > 0) AccountRow("Show $hiddenCount hidden playlist${if (hiddenCount == 1) "" else "s"}") {
+                com.music.spotui.data.local.HiddenPlaylists.showAll(context)
+                onDismiss()
             }
             HorizontalDivider(color = com.music.spotui.ui.theme.SurfaceHigh)
             AccountRow("Log out", tint = Color(0xFFE57373)) {
