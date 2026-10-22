@@ -487,24 +487,8 @@ fun SearchSongRow(
                 Text(text = "Song • ${song.singer}", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
             }
         }
-        com.music.spotui.ui.components.SongTasteTag(song, modifier = Modifier.padding(end = 10.dp))
-
-        Icon(
-            modifier = Modifier
-                .size(20.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) {
-                    if (isLiked) removeLikedSongId(context, song.id.toString())
-                    else addLikedSongId(context, song.id.toString())
-                    isLiked = isSongLiked(context, song.id.toString())
-                    searchViewModel.updateLikeState(!searchViewModel.likeState.value)
-                },
-            painter = if (isLiked) painterResource(id = R.drawable.added) else painterResource(id = R.drawable.ic_add),
-            tint = if (isLiked) com.music.spotui.ui.theme.TextPrimary else Color.Gray,
-            contentDescription = "",
-        )
+        // The tag ("Liked", "Your taste"…) says it all; like/unlike stays in the long-press menu.
+        com.music.spotui.ui.components.SongTasteTag(song)
     }
 }
 
