@@ -47,27 +47,6 @@ private val Shibori = PosterDesign("Shibori", "Japan", Color(0xFF0E1B33)) {
     hem(Color.White.copy(alpha = 0.3f))
 }
 
-/** Talavera pottery from Puebla: cobalt rosettes with yellow hearts on white tiles. */
-private val Talavera = PosterDesign("Talavera", "Mexico", Color(0xFF12306B)) {
-    val h = size.height
-    drawRect(Color(0xFFFAF6EC))
-    val t = h * 0.34f
-    artArea {
-        tiles(t) { c, _, _ ->
-            drawRect(Color(0xFF1F4E9E).copy(alpha = 0.25f), Offset(c.x - t / 2, c.y - t / 2), Size(t, t), style = Stroke(h * 0.004f))
-            for (a in listOf(0f, 90f, 45f, 135f)) rotate(a, c) {
-                drawOval(Color(0xFF1F4E9E), Offset(c.x - t * 0.09f, c.y - t * 0.4f), Size(t * 0.18f, t * 0.8f))
-            }
-            drawCircle(Color(0xFFF2B705), t * 0.13f, c)
-            for ((dx, dy) in listOf(-1f to -1f, 1f to -1f, -1f to 1f, 1f to 1f)) {
-                drawCircle(Color(0xFFE07B24), t * 0.11f, Offset(c.x + dx * t / 2, c.y + dy * t / 2))
-            }
-        }
-    }
-    panel(Color(0xFF12306B), Edge.ARCH)
-    hem(Color(0xFFF2B705).copy(alpha = 0.6f))
-}
-
 /** Malian mudcloth (bògòlanfini): black marks painted on cream cotton. */
 private val Bogolan = PosterDesign("Mudcloth", "Mali", Color(0xFF2A1C12)) {
     val w = size.width; val h = size.height
@@ -131,29 +110,6 @@ private val Kalamkari = PosterDesign("Kalamkari", "India", Color(0xFF3B2414)) {
     }
     panel(Color(0xFF3B2414), Edge.ARCH)
     hem(ochre.copy(alpha = 0.6f))
-}
-
-/** Pichwai temple painting from Nathdwara: a lotus pond. */
-private val Pichwai = PosterDesign("Pichwai", "India", Color(0xFF0F3B2E)) {
-    val w = size.width; val h = size.height
-    drawRect(Color(0xFF1F5C46))
-    val leaf = Color(0xFF3E8E5F); val pink = Color(0xFFF29BB2); val deep = Color(0xFFD8607F)
-    fun lotus(c: Offset, r: Float) {
-        for (a in listOf(-60f, -30f, 0f, 30f, 60f)) rotate(a, Offset(c.x, c.y + r * 0.3f)) {
-            drawOval(if (a == 0f) deep else pink, Offset(c.x - r * 0.2f, c.y - r * 0.7f), Size(r * 0.4f, r))
-        }
-    }
-    artArea {
-        for ((fx, fy, r) in listOf(Triple(0.62f, 0.78f, 0.2f), Triple(0.9f, 0.86f, 0.24f), Triple(0.95f, 0.3f, 0.16f), Triple(0.66f, 0.24f, 0.13f))) {
-            val c = Offset(w * fx, h * fy)
-            drawArc(leaf, 20f, 320f, true, Offset(c.x - h * r, c.y - h * r * 0.6f), Size(h * r * 2, h * r * 1.2f))
-        }
-        lotus(Offset(w * 0.8f, h * 0.48f), h * 0.3f)
-        lotus(Offset(w * 0.62f, h * 0.55f), h * 0.16f)
-        for (i in 0 until 4) drawLine(Color.White.copy(alpha = 0.3f), Offset(w * (0.55f + i * 0.1f), h * (0.12f + (i % 2) * 0.05f)), Offset(w * (0.6f + i * 0.1f), h * (0.12f + (i % 2) * 0.05f)), h * 0.006f, cap = StrokeCap.Round)
-    }
-    panel(Color(0xFF0F3B2E), Edge.WAVE)
-    hem(pink.copy(alpha = 0.45f))
 }
 
 /** Gond painting from central India: leaves filled with lines and dots. */
@@ -304,27 +260,6 @@ private val FairIsle = PosterDesign("Fair Isle", "Scotland", Color(0xFF1F2A33)) 
     hem(Color.White.copy(alpha = 0.4f))
 }
 
-/** Suzani embroidery from Uzbekistan: red sun medallions with leaves. */
-private val Suzani = PosterDesign("Suzani", "Uzbekistan", Color(0xFF2E1A12)) {
-    val w = size.width; val h = size.height
-    drawRect(Color(0xFFF3E6D3))
-    val red = Color(0xFFB5262E); val green = Color(0xFF3E7C4A); val dark = Color(0xFF2E1A12)
-    fun medallion(c: Offset, r: Float) {
-        for (k in 0 until 10) rotate(k * 36f, c) { drawArc(green, 200f, 140f, false, Offset(c.x - r * 0.3f, c.y - r * 1.35f), Size(r * 0.6f, r * 0.6f), style = Stroke(r * 0.09f)) }
-        drawCircle(red, r, c)
-        drawCircle(Color(0xFFF3E6D3), r * 0.72f, c, style = Stroke(r * 0.07f))
-        drawCircle(dark, r * 0.35f, c)
-        drawCircle(red, r * 0.15f, c)
-    }
-    artArea {
-        medallion(Offset(w * 0.8f, h * 0.45f), h * 0.22f)
-        medallion(Offset(w * 0.6f, h * 0.88f), h * 0.1f)
-        medallion(Offset(w * 0.98f, h * 0.9f), h * 0.1f)
-    }
-    panel(Color(0xFF2E1A12), Edge.SLANT)
-    hem(red.copy(alpha = 0.55f))
-}
-
 /** Kuba cloth from Congo: maze-like lines on raffia. */
 private val Kuba = PosterDesign("Kuba cloth", "Congo", Color(0xFF2B1D10)) {
     val h = size.height
@@ -363,27 +298,6 @@ private val Ndebele = PosterDesign("Ndebele", "South Africa", Color(0xFF111111))
     }
     panel(Color(0xFF111111), Edge.STRAIGHT)
     hem(Color.White.copy(alpha = 0.4f))
-}
-
-/** Chinese paper cutting (jianzhi): a red medallion with cut-out blossoms. */
-private val Jianzhi = PosterDesign("Paper cutting", "China", Color(0xFF5A0B0B)) {
-    val w = size.width; val h = size.height
-    drawRect(Color(0xFFF6E7D0))
-    val red = Color(0xFFC8102E); val paper = Color(0xFFF6E7D0)
-    val c = Offset(w * 0.8f, h * 0.5f); val r = h * 0.4f
-    artArea {
-        for (k in 0 until 24) rotate(k * 15f, c) { drawCircle(red, r * 0.12f, Offset(c.x, c.y - r)) }
-        drawCircle(red, r, c)
-        for (k in 0 until 8) {
-            val a = k * PI / 4
-            val p = Offset(c.x + cos(a).toFloat() * r * 0.62f, c.y + sin(a).toFloat() * r * 0.62f)
-            for (q in 0 until 5) rotate(q * 72f, p) { drawCircle(paper, r * 0.06f, Offset(p.x, p.y - r * 0.07f)) }
-        }
-        drawCircle(paper, r * 0.32f, c, style = Stroke(r * 0.05f))
-        for (q in 0 until 5) rotate(q * 72f, c) { drawCircle(paper, r * 0.09f, Offset(c.x, c.y - r * 0.12f)) }
-    }
-    panel(Color(0xFF5A0B0B), Edge.ARCH)
-    hem(Color(0xFFF2C14E).copy(alpha = 0.5f))
 }
 
 /** A Persian carpet: a layered medallion with an ivory border. */
@@ -438,31 +352,7 @@ private val Andean = PosterDesign("Andean weaving", "Peru", Color(0xFF2A1A3A)) {
     hem(yellow.copy(alpha = 0.55f))
 }
 
-/** Kantha embroidery from Bengal: running stitches and stitched flowers. */
-private val Kantha = PosterDesign("Kantha", "Bangladesh", Color(0xFF1D3557)) {
-    val w = size.width; val h = size.height
-    drawRect(Color(0xFFF1E9DA))
-    val threads = listOf(Color(0xFFE63946), Color(0xFF1D3557), Color(0xFF2A9D8F), Color(0xFFF4A261))
-    artArea {
-        var y = h * 0.05f; var k = 0
-        while (y < h) {
-            drawLine(threads[k % threads.size].copy(alpha = 0.7f), Offset(w * 0.5f, y), Offset(w, y), h * 0.007f, pathEffect = dashes(h * 0.025f, h * 0.018f), cap = StrokeCap.Round)
-            y += h * 0.06f; k++
-        }
-        for ((fx, fy, r) in listOf(Triple(0.8f, 0.45f, 0.18f), Triple(0.62f, 0.8f, 0.1f), Triple(0.95f, 0.85f, 0.1f))) {
-            val c = Offset(w * fx, h * fy)
-            drawCircle(Color(0xFFF1E9DA), h * r * 1.15f, c)
-            for (p in 0 until 8) rotate(p * 45f, c) {
-                drawOval(threads[p % 2 * 2], Offset(c.x - h * r * 0.18f, c.y - h * r), Size(h * r * 0.36f, h * r * 0.7f), style = Stroke(h * 0.008f, pathEffect = dashes(h * 0.015f, h * 0.01f)))
-            }
-            drawCircle(threads[3], h * r * 0.2f, c)
-        }
-    }
-    panel(Color(0xFF1D3557), Edge.WAVE)
-    hem(Color(0xFFE63946).copy(alpha = 0.45f))
-}
-
 internal val MoreDesigns: List<PosterDesign> = listOf(
-    Shibori, Phulkari, Talavera, Bogolan, Kalamkari, Azulejo, Pichwai, Kuba, Gond, FairIsle,
-    Ajrakh, Mola, Bandhani, Navajo, Suzani, Jianzhi, Ndebele, PersianCarpet, Andean, Kantha,
+    Shibori, Phulkari, Bogolan, Kalamkari, Azulejo, Kuba, Gond, FairIsle,
+    Ajrakh, Mola, Bandhani, Navajo, Ndebele, PersianCarpet, Andean,
 )

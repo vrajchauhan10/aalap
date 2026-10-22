@@ -28,44 +28,6 @@ private inline fun DrawScope.micro(step: Float, stepY: Float = step, shift: Floa
     }
 }
 
-private fun DrawScope.petals(c: Offset, r: Float, n: Int, color: Color, petal: Float = 0.42f) {
-    for (k in 0 until n) rotate(k * 360f / n, c) {
-        drawOval(color, Offset(c.x - r * petal / 2, c.y - r), Size(r * petal, r * 0.75f))
-    }
-}
-
-/** Chikankari from Lucknow: tiny white shadow-work flowers on pastel. */
-private val Chikankari = PosterDesign("Chikankari", "India", Color(0xFF2F4858)) {
-    val h = size.height
-    drawRect(Color(0xFFCFE3E2))
-    artArea {
-        micro(h * 0.11f, shift = h * 0.055f) { c, i, j ->
-            if ((i + j) % 3 == 0) {
-                petals(c, h * 0.035f, 6, Color.White.copy(alpha = 0.9f))
-                drawCircle(Color(0xFFCFE3E2), h * 0.008f, c)
-            } else drawCircle(Color.White.copy(alpha = 0.85f), h * 0.007f, c)
-        }
-    }
-    panel(Color(0xFF2F4858), Edge.WAVE)
-    hem(Color.White.copy(alpha = 0.45f))
-}
-
-/** Sanganeri block print from Jaipur: small flower butis in rows. */
-private val Sanganeri = PosterDesign("Sanganeri print", "India", Color(0xFF5B1A2E)) {
-    val h = size.height
-    drawRect(Color(0xFFFBF3E4))
-    artArea {
-        micro(h * 0.12f, shift = h * 0.06f) { c, i, _ ->
-            val col = if (i % 2 == 0) Color(0xFFC0392B) else Color(0xFF2E6B4F)
-            petals(c, h * 0.032f, 5, col, 0.55f)
-            drawCircle(Color(0xFFE0A526), h * 0.009f, c)
-            drawLine(Color(0xFF2E6B4F), Offset(c.x, c.y + h * 0.02f), Offset(c.x + h * 0.02f, c.y + h * 0.04f), h * 0.005f, cap = StrokeCap.Round)
-        }
-    }
-    panel(Color(0xFF5B1A2E), Edge.SLANT)
-    hem(Color(0xFFE0A526).copy(alpha = 0.55f))
-}
-
 /** Kasuti from Karnataka: tiny counted cross-stitch motifs. */
 private val Kasuti = PosterDesign("Kasuti", "India", Color(0xFF1E1E3F)) {
     val h = size.height
@@ -101,24 +63,6 @@ private val Shisha = PosterDesign("Mirror work", "India", Color(0xFF0F2A3F)) {
     }
     panel(Color(0xFF0F2A3F), Edge.ARCH)
     hem(Color(0xFFF2C14E).copy(alpha = 0.5f))
-}
-
-/** Bruges bobbin lace: a fine net with small rosettes. */
-private val Lace = PosterDesign("Bobbin lace", "Belgium", Color(0xFF2B2B2B)) {
-    val w = size.width; val h = size.height
-    drawRect(Color(0xFF3D3D46))
-    val thread = Color(0xFFF4F1EA)
-    artArea {
-        val s = h * 0.06f
-        var x = w * 0.5f
-        while (x < w + h) { drawLine(thread.copy(alpha = 0.35f), Offset(x, 0f), Offset(x - h, h), h * 0.003f); drawLine(thread.copy(alpha = 0.35f), Offset(x - h, 0f), Offset(x, h), h * 0.003f); x += s }
-        micro(h * 0.18f, shift = h * 0.09f) { c, _, _ ->
-            for (k in 0 until 8) rotate(k * 45f, c) { drawOval(thread, Offset(c.x - h * 0.008f, c.y - h * 0.04f), Size(h * 0.016f, h * 0.03f), style = Stroke(h * 0.004f)) }
-            drawCircle(thread, h * 0.012f, c, style = Stroke(h * 0.004f))
-        }
-    }
-    panel(Color(0xFF2B2B2B), Edge.WAVE)
-    hem(thread.copy(alpha = 0.4f))
 }
 
 /** Batik parang from Java: fine diagonal blade-and-dot bands. */
@@ -217,22 +161,6 @@ private val Aran = PosterDesign("Aran knit", "Ireland", Color(0xFF2F3E46)) {
     hem(Color.White.copy(alpha = 0.4f))
 }
 
-/** Matyó embroidery from Hungary: dense little roses in bright silk. */
-private val Matyo = PosterDesign("Matyó", "Hungary", Color(0xFF111111)) {
-    val h = size.height
-    drawRect(Color(0xFF1C1C1C))
-    val roses = listOf(Color(0xFFE63946), Color(0xFFFFB703), Color(0xFF219EBC), Color(0xFF8ECA4B), Color(0xFFF15BB5))
-    artArea {
-        micro(h * 0.1f, shift = h * 0.05f) { c, i, j ->
-            val col = roses[(i * 2 + j) % roses.size]
-            petals(c, h * 0.035f, 6, col, 0.6f)
-            drawCircle(roses[(i + j + 2) % roses.size], h * 0.011f, c)
-        }
-    }
-    panel(Color(0xFF111111), Edge.SLANT)
-    hem(Color(0xFFFFB703).copy(alpha = 0.45f))
-}
-
 /** Beni Ourain rugs from the Atlas: fine dark diamond lattice on cream wool. */
 private val BeniOurain = PosterDesign("Beni Ourain rug", "Morocco", Color(0xFF2B2622)) {
     val w = size.width; val h = size.height
@@ -306,23 +234,6 @@ private val Songket = PosterDesign("Songket", "Malaysia", Color(0xFF3D0C1C)) {
     }
     panel(Color(0xFF3D0C1C), Edge.WAVE)
     hem(gold.copy(alpha = 0.5f))
-}
-
-/** Kanjeevaram silk from Tamil Nadu: tiny gold buttas and a temple border. */
-private val Kanjeevaram = PosterDesign("Kanjeevaram silk", "India", Color(0xFF3A0A3A)) {
-    val w = size.width; val h = size.height
-    drawRect(Color(0xFF8E1A6E))
-    val gold = Color(0xFFE8C468)
-    artArea {
-        micro(h * 0.1f, shift = h * 0.05f) { c, _, _ -> petals(c, h * 0.018f, 4, gold, 0.6f) }
-        // Temple border along the edge: little gold triangles.
-        val b = w - h * 0.08f
-        drawRect(Color(0xFF2E7D32), Offset(b, 0f), Size(h * 0.08f, h))
-        var y = 0f
-        while (y < h) { drawPath(Path().apply { moveTo(b, y); lineTo(b - h * 0.03f, y + h * 0.025f); lineTo(b, y + h * 0.05f); close() }, gold); y += h * 0.05f }
-    }
-    panel(Color(0xFF3A0A3A), Edge.SLANT)
-    hem(gold.copy(alpha = 0.55f))
 }
 
 /** Shippo (seven treasures): overlapping circles in a fine chain. */
@@ -434,6 +345,6 @@ private val Lahariya = PosterDesign("Lahariya", "India", Color(0xFF4A1048)) {
 }
 
 internal val MicroDesigns: List<PosterDesign> = listOf(
-    Chikankari, Komon, Sanganeri, Kumiko, Kasuti, Lace, Shisha, Parang, Matyo, Aran,
-    Kanjeevaram, BeniOurain, Shippo, Cintemani, Lahariya, Huipil, Songket, GreekKey, Bojagi, Tapa,
+    Komon, Kumiko, Kasuti, Shisha, Parang, Aran,
+    BeniOurain, Shippo, Cintemani, Lahariya, Huipil, Songket, GreekKey, Bojagi, Tapa,
 )

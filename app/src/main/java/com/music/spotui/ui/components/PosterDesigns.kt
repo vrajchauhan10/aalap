@@ -208,31 +208,6 @@ private val Warli = PosterDesign("Warli", "India", Color(0xFF4A1E10)) {
         pathEffect = PathEffect.dashPathEffect(floatArrayOf(0.1f, h * 0.03f)), cap = StrokeCap.Round)
 }
 
-/** Iznik ceramics: a cobalt tulip with saz leaves on white tile. */
-private val Iznik = PosterDesign("Iznik", "Türkiye", Color(0xFF173A78)) {
-    val w = size.width; val h = size.height
-    drawRect(Color(0xFFF7F4EC))
-    val cobalt = Color(0xFF1F4E9E); val turq = Color(0xFF2A9D8F); val red = Color(0xFFC0392B)
-    fun tulip(base: Offset, s: Float, tilt: Float) = rotate(tilt, base) {
-        drawLine(turq, base, Offset(base.x, base.y - s * 0.9f), s * 0.05f, cap = StrokeCap.Round)
-        val top = Offset(base.x, base.y - s)
-        drawPath(Path().apply { moveTo(top.x, top.y - s * 0.5f); cubicTo(top.x + s * 0.32f, top.y - s * 0.3f, top.x + s * 0.3f, top.y + s * 0.1f, top.x, top.y + s * 0.12f); cubicTo(top.x - s * 0.3f, top.y + s * 0.1f, top.x - s * 0.32f, top.y - s * 0.3f, top.x, top.y - s * 0.5f) }, cobalt)
-        drawPath(Path().apply { moveTo(top.x - s * 0.12f, top.y); cubicTo(top.x - s * 0.45f, top.y - s * 0.2f, top.x - s * 0.4f, top.y - s * 0.5f, top.x - s * 0.3f, top.y - s * 0.55f); cubicTo(top.x - s * 0.22f, top.y - s * 0.3f, top.x - s * 0.1f, top.y - s * 0.15f, top.x - s * 0.12f, top.y) }, red)
-        drawPath(Path().apply { moveTo(top.x + s * 0.12f, top.y); cubicTo(top.x + s * 0.45f, top.y - s * 0.2f, top.x + s * 0.4f, top.y - s * 0.5f, top.x + s * 0.3f, top.y - s * 0.55f); cubicTo(top.x + s * 0.22f, top.y - s * 0.3f, top.x + s * 0.1f, top.y - s * 0.15f, top.x + s * 0.12f, top.y) }, red)
-        // Saz leaves.
-        drawPath(Path().apply { moveTo(base.x, base.y - s * 0.35f); cubicTo(base.x + s * 0.3f, base.y - s * 0.5f, base.x + s * 0.55f, base.y - s * 0.4f, base.x + s * 0.65f, base.y - s * 0.15f); cubicTo(base.x + s * 0.4f, base.y - s * 0.25f, base.x + s * 0.2f, base.y - s * 0.25f, base.x, base.y - s * 0.35f) }, turq)
-        drawPath(Path().apply { moveTo(base.x, base.y - s * 0.2f); cubicTo(base.x - s * 0.3f, base.y - s * 0.35f, base.x - s * 0.55f, base.y - s * 0.25f, base.x - s * 0.65f, base.y); cubicTo(base.x - s * 0.4f, base.y - s * 0.1f, base.x - s * 0.2f, base.y - s * 0.1f, base.x, base.y - s * 0.2f) }, turq)
-    }
-    artArea {
-        tulip(Offset(w * 0.8f, h * 0.95f), h * 0.62f, 0f)
-        tulip(Offset(w * 0.64f, h * 0.9f), h * 0.36f, -14f)
-        tulip(Offset(w * 0.96f, h * 0.9f), h * 0.36f, 14f)
-        for (i in 0 until 6) drawCircle(red, h * 0.012f, Offset(w * (0.62f + i * 0.07f), h * 0.12f))
-    }
-    panel(Color(0xFF173A78), Edge.ARCH)
-    hem(Color.White.copy(alpha = 0.5f))
-}
-
 /** Central Asian ikat: woven diamonds with soft, feathered edges. */
 private val Ikat = PosterDesign("Ikat", "Uzbekistan", Color(0xFF4A1D40)) {
     val w = size.width; val h = size.height
@@ -291,41 +266,6 @@ private val Batik = PosterDesign("Batik kawung", "Indonesia", Color(0xFF2B1A10))
     hem(cream.copy(alpha = 0.45f))
 }
 
-/** Otomi embroidery from Hidalgo: one bold colour, flowers and a bird on cream. */
-private val Otomi = PosterDesign("Otomi", "Mexico", Color(0xFF8E1450)) {
-    val w = size.width; val h = size.height
-    drawRect(Color(0xFFFBF6EE))
-    val ink = Color(0xFFC2185B)
-    fun flower(c: Offset, r: Float) {
-        for (i in 0 until 8) rotate(i * 45f, c) {
-            drawOval(ink, topLeft = Offset(c.x - r * 0.22f, c.y - r), size = Size(r * 0.44f, r * 0.7f))
-        }
-        drawCircle(Color(0xFFFBF6EE), r * 0.3f, c)
-        drawCircle(ink, r * 0.18f, c)
-    }
-    artArea {
-        flower(Offset(w * 0.82f, h * 0.36f), h * 0.2f)
-        flower(Offset(w * 0.64f, h * 0.78f), h * 0.11f)
-        // A bird.
-        val b = Offset(w * 0.86f, h * 0.76f); val s = h * 0.18f
-        drawPath(Path().apply {
-            moveTo(b.x - s, b.y)
-            cubicTo(b.x - s * 0.6f, b.y - s * 0.6f, b.x + s * 0.2f, b.y - s * 0.6f, b.x + s * 0.5f, b.y - s * 0.4f)
-            lineTo(b.x + s * 0.75f, b.y - s * 0.45f); lineTo(b.x + s * 0.55f, b.y - s * 0.28f)
-            cubicTo(b.x + s * 0.4f, b.y + s * 0.2f, b.x - s * 0.2f, b.y + s * 0.3f, b.x - s, b.y)
-            close()
-        }, ink)
-        drawPath(Path().apply { moveTo(b.x - s * 0.1f, b.y - s * 0.3f); lineTo(b.x + s * 0.15f, b.y - s * 1.0f); lineTo(b.x + s * 0.3f, b.y - s * 0.35f); close() }, ink)
-        drawCircle(Color(0xFFFBF6EE), s * 0.06f, Offset(b.x + s * 0.42f, b.y - s * 0.38f))
-        // Leaves.
-        for ((i, a) in listOf(-30f, 20f, 70f).withIndex()) rotate(a, Offset(w * 0.68f, h * 0.2f)) {
-            drawOval(ink, topLeft = Offset(w * 0.68f - h * 0.03f, h * 0.2f - h * (0.16f + i * 0.01f)), size = Size(h * 0.06f, h * 0.16f))
-        }
-    }
-    panel(Color(0xFF8E1450), Edge.SLANT)
-    hem(Color.White.copy(alpha = 0.4f))
-}
-
 /** Madhubani painting from Mithila: a pair of fish, lined and filled, on parchment. */
 private val Madhubani = PosterDesign("Madhubani", "India", Color(0xFF7A1F16)) {
     val w = size.width; val h = size.height
@@ -360,17 +300,18 @@ private val Madhubani = PosterDesign("Madhubani", "India", Color(0xFF7A1F16)) {
 }
 
 /**
- * All 50: the first ten here, twenty more in PosterDesigns2 and twenty fine micro
- * patterns in PosterDesigns3, mixed so two micro patterns rarely come on back-to-back days.
+ * All 50: bold crafts (here and in PosterDesigns2) and fine micro patterns
+ * (PosterDesigns3 and the geometric ones in PosterDesigns4), spread evenly through the days.
  */
 val PosterDesigns: List<PosterDesign> = buildList {
-    val bold = listOf(Mandala, Sashiko, Zellige, Kente, Warli, Iznik, Ikat, Batik, Otomi, Madhubani) + MoreDesigns
-    var m = 0
-    bold.forEachIndexed { i, d ->
-        add(d)
-        if (i % 3 != 2 && m < MicroDesigns.size) add(MicroDesigns[m++])
+    val bold = listOf(Mandala, Sashiko, Zellige, Kente, Warli, Ikat, Batik, Madhubani) + MoreDesigns
+    val micro = MicroDesigns + GeometricMicroDesigns
+    // Spread the two kinds evenly through the 50 days.
+    var b = 0; var m = 0
+    while (b < bold.size || m < micro.size) {
+        val takeMicro = m < micro.size && (b >= bold.size || m * bold.size < b * micro.size)
+        if (takeMicro) add(micro[m++]) else add(bold[b++])
     }
-    addAll(MicroDesigns.drop(m))
 }
 
 /** Debug builds can show a chosen design (for checking each one); -1 = today's. */
