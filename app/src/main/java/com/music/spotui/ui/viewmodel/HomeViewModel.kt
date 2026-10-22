@@ -48,12 +48,14 @@ class HomeViewModel @Inject constructor(
     val dailyMixes = MutableStateFlow<List<com.music.spotui.data.recommendation.HomeMixes.Mix>>(emptyList())
     val stations = MutableStateFlow<List<ArtistsModel>>(emptyList())
     val newReleases = MutableStateFlow<List<com.music.spotui.data.entity.LibraryEntry>>(emptyList())
+    val today = MutableStateFlow<List<com.music.spotui.data.recommendation.HomeMixes.TodaySong>>(emptyList())
 
     private fun loadUnified(force: Boolean = false) = viewModelScope.launch(Dispatchers.IO) {
         recentlyPlayed.value = M.recentlyPlayed(appContext)
         _favourites.value = M.allTimeFavourites(appContext)
         launch { runCatching { jumpBackIn.value = M.jumpBackIn(appContext) } }
         launch { runCatching { quickPicks.value = M.quickPicks(appContext, force) } }
+        launch { runCatching { today.value = M.todayPlaylist(appContext) } }
         launch { runCatching { stations.value = M.artistStations(appContext) } }
         launch { runCatching { newReleases.value = M.newReleases(appContext) } }
         launch { runCatching { dailyMixes.value = M.dailyMixes(appContext, force) } }
@@ -64,6 +66,9 @@ class HomeViewModel @Inject constructor(
 
     /** Home came back on screen: Recently played and favourites change with every play. */
     fun onResumeRefresh() = viewModelScope.launch(Dispatchers.IO) {
+        if (_home.value is Response.Error) fetchHome()
+        if (today.value.isEmpty()) launch { runCatching { today.value = M.todayPlaylist(appContext) } }
+        if (quickPicks.value.isEmpty()) launch { runCatching { quickPicks.value = M.quickPicks(appContext) } }
         recentlyPlayed.value = M.recentlyPlayed(appContext)
         _favourites.value = M.allTimeFavourites(appContext)
     }

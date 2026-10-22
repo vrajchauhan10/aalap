@@ -128,9 +128,10 @@ fun HomeScreen(navController: NavController){
                 OfflineHome(navController)
             }
 
-            // Preferred: the real personalized Spotify home feed.
-            feed != null && feed.sections.isNotEmpty() -> {
-                HomeFeedContent(navController, feed)
+            // Aalap's own sections always show; Spotify's discovery rows join when they load
+            // (a failed Spotify feed is retried when you come back to Home).
+            feed != null || home is Response.Error -> {
+                HomeFeedContent(navController, feed ?: com.music.spotui.data.entity.HomeFeedModel(greeting = "", sections = emptyList()))
             }
 
             // Still resolving the real personalized home feed. Show the loader even
@@ -195,6 +196,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
     val mixes by homeViewModel.dailyMixes.collectAsState()
     val stations by homeViewModel.stations.collectAsState()
     val releases by homeViewModel.newReleases.collectAsState()
+    val today by homeViewModel.today.collectAsState()
 
     LazyColumn(
         contentPadding = PaddingValues(bottom = 190.dp),
@@ -205,6 +207,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
         item { HomeHeaderRow(navController) }
         // Moods live in Aalap Radio below (and in Search), not as a second row of pills.
         // Aalap Radio replaces the feed's featured playlist (whose art carried another brand).
+        item { com.music.spotui.ui.components.TodayPlaylistSection(today) }
         item { com.music.spotui.ui.components.AalapRadioSection() }
         item { QuickPicksSection(quick) }
         item { ChartsRow(navController) }

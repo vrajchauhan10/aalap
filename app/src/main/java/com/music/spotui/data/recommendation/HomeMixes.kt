@@ -119,23 +119,87 @@ object HomeMixes {
         return result
     }
 
-    /** Today's Top 50 India + Trending India (cached for the day). */
+    private const val TOP50_INDIA = "37i9dQZEVXbLZ52XmnySJg"
+    private const val TOP50_GLOBAL = "37i9dQZEVXbMDoHDwVN2tF"
+    private const val VIRAL50_INDIA = "37i9dQZEVXbMWDif5SCBJq"
+
+    /** A chart's songs, cached for the day. */
+    private suspend fun chart(c: Context, id: String): List<SongsModel> {
+        readSongs("chart.$id", today())?.let { return it } // (empty results aren't cached)
+        val songs = runCatching {
+            Api(c).getPlaylistSongs(id).toList()
+                .filterIsInstance<com.music.spotui.data.api.Response.Success<List<SongsModel>>>().lastOrNull()?.data.orEmpty()
+        }.getOrDefault(emptyList()).take(50)
+        writeSongs("chart.$id", today(), songs)
+        return songs
+    }
+
+    /** Today's Top 50 India + Trending India, interleaved. */
     suspend fun trendingSongs(c: Context): List<SongsModel> {
-        readSongs("trending", today())?.let { return it }
-        val api = Api(c)
-        val ids = listOf("37i9dQZEVXbLZ52XmnySJg", "37i9dQZEVXbMWDif5SCBJq")
-        val lists = ids.map { id ->
-            runCatching {
-                api.getPlaylistSongs(id).toList()
-                    .filterIsInstance<com.music.spotui.data.api.Response.Success<List<SongsModel>>>().lastOrNull()?.data.orEmpty()
-            }.getOrDefault(emptyList()).take(50)
-        }
+        val lists = listOf(chart(c, TOP50_INDIA), chart(c, VIRAL50_INDIA))
         val out = ArrayList<SongsModel>()
         for (i in 0 until 50) lists.forEach { l -> l.getOrNull(i)?.let(out::add) }
-        val result = out.distinctBy { it.id }
-        writeSongs("trending", today(), result)
-        return result
+        return out.distinctBy { it.id }
     }
+
+    // ── Aaj ka Aalap: today's 30, rebuilt every morning ────────────────────
+
+    /** A song in today's playlist and why it's there ("Trending", "Top hit", "Your taste", "Liked"); [matches] = close to your taste. */
+    data class TodaySong(val song: SongsModel, val reason: String, val matches: Boolean)
+
+    fun todayUpdatedAt(c: Context): Long = prefs(c).getLong("today.at", 0)
+
+    /**
+     * Aaj ka Aalap: 30 songs, new every day. About 8 trending now, 7 of today's top
+     * hits, 9 new songs for your taste and 6 of your likes from every service, each
+     * group picked closest to your taste and interleaved so no artist repeats.
+     */
+    suspend fun todayPlaylist(c: Context, force: Boolean = false): List<TodaySong> = coroutineScope {
+        val stamp = today()
+        val p = prefs(c)
+        if (!force && p.getString("today.stamp", null) == stamp) readToday()?.takeIf { it.size >= 25 }?.let { return@coroutineScope it }
+        QueueEngine.ensureImported(c)
+        val rnd = Random(stamp.hashCode().toLong())
+        val trendingJob = async { chart(c, VIRAL50_INDIA) }
+        val topJob = async { (chart(c, TOP50_INDIA) + chart(c, TOP50_GLOBAL).take(20)).distinctBy { it.id } }
+        val tasteJob = async { runCatching { QueueEngine.freshPicks(c, salt = stamp.hashCode().toLong() + 7, limit = 20) }.getOrDefault(emptyList()) }
+        val liked = YouTubeLibrary.unifiedLiked(c)
+
+        fun pick(list: List<SongsModel>, n: Int, pool: Int) = QueueEngine.rerank(c, list, familiar = 0.3f).take(pool).shuffled(rnd).take(n)
+        val trending = pick(trendingJob.await(), 8, 18)
+        val top = pick(topJob.await().filter { t -> trending.none { it.id == t.id } }, 7, 16)
+        val taste = tasteJob.await().take(9)
+        // Likes: weighted to recent ones, a few older gems.
+        val likes = (liked.take(30).shuffled(rnd).take(4) + liked.drop(30).shuffled(rnd).take(2))
+
+        val groups = listOf(taste.map { it to "Your taste" }, trending.map { it to "Trending" }, likes.map { it to "Liked" }, top.map { it to "Top hit" })
+        val mixed = ArrayList<Pair<SongsModel, String>>()
+        for (i in 0 until 10) groups.forEach { g -> g.getOrNull(i)?.let(mixed::add) }
+        val unique = mixed.distinctBy { "${it.first.title.lowercase()}|${key(it.first.singer)}" }
+        val ordered = Diversifier.spreadArtists(unique) { it.first.singer }.take(30)
+        // Mark songs that fit your taste closely, whatever brought them in.
+        val profile = Personalizer.profile(c)
+        val result = ordered.map { (s, why) ->
+            val score = profile.taste(SongBridge.toCandidate(s), RecoDb.get(c).songBySpotifyId(s.spotifyTrackId)?.id)
+            TodaySong(s, why, why == "Your taste" || why == "Liked" || score >= 0.3)
+        }
+        // Only a full list is kept for the day; a short one (charts didn't load) is rebuilt next time.
+        if (result.size >= 25 && trending.isNotEmpty() && top.isNotEmpty()) {
+            val a = JSONArray()
+            result.forEach { t -> a.put(JSONObject().put("song", songsJson(listOf(t.song)).getJSONObject(0)).put("why", t.reason).put("match", t.matches)) }
+            p.edit().putString("today", a.toString()).putString("today.stamp", stamp).putLong("today.at", System.currentTimeMillis()).apply()
+        }
+        result
+    }
+
+    private fun readToday(): List<TodaySong>? = runCatching {
+        val a = JSONArray(prefs(appCtx).getString("today", "[]"))
+        (0 until a.length()).map { i ->
+            a.getJSONObject(i).let { o ->
+                TodaySong(songsFrom(JSONArray().put(o.getJSONObject("song"))).first(), o.optString("why"), o.optBoolean("match"))
+            }
+        }.takeIf { it.isNotEmpty() }
+    }.getOrNull()
 
     // ── Recently played: your plays in Aalap, then on YouTube Music ─────────
 

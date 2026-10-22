@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import com.music.spotui.ui.components.craft
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -152,25 +153,25 @@ fun SearchFilterChips(selected: SearchFilter, available: Set<SearchFilter>, onSe
 }
 
 /** Explore categories: India first, each opening a page of playlists for it. */
-private data class ExploreTile(val title: String, val query: String, val colors: Pair<Long, Long>)
+private data class ExploreTile(val title: String, val query: String, val colors: Pair<Long, Long>, val craft: com.music.spotui.ui.components.Craft)
 
 private val EXPLORE = listOf(
-    ExploreTile("Bollywood", "Bollywood hits", 0xFFFF8A3D to 0xFFB8235A),
-    ExploreTile("Punjabi", "Punjabi hits", 0xFFFFC56B to 0xFFE0661B),
-    ExploreTile("Gujarati", "Gujarati songs", 0xFFE5397A to 0xFF6C1238),
-    ExploreTile("Haryanvi", "Haryanvi songs", 0xFF3BA55C to 0xFF1E5E33),
-    ExploreTile("Tamil", "Tamil hits", 0xFF5B7CFA to 0xFF2A3A8C),
-    ExploreTile("Telugu", "Telugu hits", 0xFF9B5DE5 to 0xFF4B2A8C),
-    ExploreTile("90s Bollywood", "90s Bollywood", 0xFFE08A00 to 0xFF7A2E0E),
-    ExploreTile("Ghazal and Sufi", "Sufi ghazal", 0xFF6E8B74 to 0xFF2F4A36),
-    ExploreTile("Indie India", "Indian indie", 0xFF2BB3C0 to 0xFF15606B),
-    ExploreTile("Garba", "Garba songs", 0xFFFF5E7E to 0xFF8C1F4A),
-    ExploreTile("Lo-fi", "Hindi lofi", 0xFF3D6BE0 to 0xFF1A2A6C),
-    ExploreTile("Desi Hip-Hop", "Desi hip hop", 0xFF777777 to 0xFF2A2140),
-    ExploreTile("International", "Top hits global", 0xFF2BB3C0 to 0xFF3A1F6B),
-    ExploreTile("K-Pop", "K-pop", 0xFFE5397A to 0xFF3D6BE0),
-    ExploreTile("New releases", "New releases India", 0xFFFF8A3D to 0xFF3A1F6B),
-    ExploreTile("Podcasts", "Podcast", 0xFF1E3264 to 0xFF100B1C),
+    ExploreTile("Bollywood", "Bollywood hits", 0xFFFF8A3D to 0xFFB8235A, com.music.spotui.ui.components.Craft.MIRROR),
+    ExploreTile("Punjabi", "Punjabi hits", 0xFFFFC56B to 0xFFE0661B, com.music.spotui.ui.components.Craft.PHULKARI),
+    ExploreTile("Gujarati", "Gujarati songs", 0xFFE5397A to 0xFF6C1238, com.music.spotui.ui.components.Craft.AJRAK),
+    ExploreTile("Haryanvi", "Haryanvi songs", 0xFF3BA55C to 0xFF1E5E33, com.music.spotui.ui.components.Craft.LEHERIYA),
+    ExploreTile("Tamil", "Tamil hits", 0xFF5B7CFA to 0xFF2A3A8C, com.music.spotui.ui.components.Craft.KOLAM),
+    ExploreTile("Telugu", "Telugu hits", 0xFF9B5DE5 to 0xFF4B2A8C, com.music.spotui.ui.components.Craft.RANGOLI),
+    ExploreTile("90s Bollywood", "90s Bollywood", 0xFFE08A00 to 0xFF7A2E0E, com.music.spotui.ui.components.Craft.TORAN),
+    ExploreTile("Ghazal and Sufi", "Sufi ghazal", 0xFF6E8B74 to 0xFF2F4A36, com.music.spotui.ui.components.Craft.PAISLEY),
+    ExploreTile("Indie India", "Indian indie", 0xFF2BB3C0 to 0xFF15606B, com.music.spotui.ui.components.Craft.WARLI),
+    ExploreTile("Garba", "Garba songs", 0xFFFF5E7E to 0xFF8C1F4A, com.music.spotui.ui.components.Craft.BANDHANI),
+    ExploreTile("Lo-fi", "Hindi lofi", 0xFF3D6BE0 to 0xFF1A2A6C, com.music.spotui.ui.components.Craft.BLOCK),
+    ExploreTile("Desi Hip-Hop", "Desi hip hop", 0xFF777777 to 0xFF2A2140, com.music.spotui.ui.components.Craft.PATOLA),
+    ExploreTile("International", "Top hits global", 0xFF2BB3C0 to 0xFF3A1F6B, com.music.spotui.ui.components.Craft.DHOKRA),
+    ExploreTile("K-Pop", "K-pop", 0xFFE5397A to 0xFF3D6BE0, com.music.spotui.ui.components.Craft.JAALI),
+    ExploreTile("New releases", "New releases India", 0xFFFF8A3D to 0xFF3A1F6B, com.music.spotui.ui.components.Craft.MANDALA),
+    ExploreTile("Podcasts", "Podcast", 0xFF1E3264 to 0xFF100B1C, com.music.spotui.ui.components.Craft.LOTUS),
 )
 
 /**
@@ -219,13 +220,15 @@ fun SearchExplore(navController: NavController, onQuickSearch: (String) -> Unit)
                 val mood = Mood.entries[i]
                 Box(
                     modifier = Modifier
-                        .size(width = 112.dp, height = 64.dp)
+                        .size(width = 120.dp, height = 72.dp)
                         .clip(RoundedCornerShape(18.dp))
-                        .background(Brush.linearGradient(listOf(Color(mood.colors.first), Color(mood.colors.second))))
-                        .clickable { navController.navigate("mood/${mood.name}") }
-                        .padding(12.dp),
+                        .clickable { navController.navigate("mood/${mood.name}") },
                     contentAlignment = Alignment.BottomStart,
-                ) { Text(mood.label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+                ) {
+                    com.music.spotui.ui.components.CraftCard(mood.craft(), Color(mood.colors.second), Modifier.matchParentSize(),
+                        ink = com.music.spotui.ui.components.craftInk(Color(mood.colors.first)))
+                    Text(mood.label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(12.dp))
+                }
             }
         }
 
@@ -241,14 +244,18 @@ fun SearchExplore(navController: NavController, onQuickSearch: (String) -> Unit)
                             .weight(1f)
                             .height(92.dp)
                             .clip(RoundedCornerShape(20.dp))
-                            .background(Brush.linearGradient(listOf(Color(tile.colors.first), Color(tile.colors.second))))
                             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                                 navController.navigate(categoryRoute(tile.query, tile.title))
                             },
                     ) {
+                        // Hand-drawn craft motif on every tile (no plain blocks).
+                        com.music.spotui.ui.components.CraftCard(
+                            tile.craft, Color(tile.colors.second), Modifier.matchParentSize(),
+                            ink = com.music.spotui.ui.components.craftInk(Color(tile.colors.first)),
+                        )
                         Text(
                             tile.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(14.dp),
+                            modifier = Modifier.align(Alignment.BottomStart).padding(14.dp), // clear of the motif up top
                         )
                     }
                 }

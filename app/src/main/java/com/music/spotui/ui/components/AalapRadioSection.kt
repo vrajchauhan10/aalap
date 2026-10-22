@@ -95,10 +95,10 @@ fun AalapRadioSection() {
         ) {
             Box(Modifier.size(width = 4.dp, height = 20.dp).clip(RoundedCornerShape(2.dp)).background(Saffron))
             Spacer(Modifier.width(10.dp))
-            Text("Aalap Radio", color = TextPrimary, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+            Text("Mood stations", color = TextPrimary, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
         }
         Text(
-            "Stations made from how you listen",
+            "Each mood ordered for your taste · tap to play",
             color = TextMuted, fontSize = 12.sp,
             modifier = Modifier.padding(start = 34.dp, bottom = 12.dp),
         )
@@ -184,16 +184,13 @@ private fun CoverCollage(covers: List<String>) {
 /** A mood station's artwork: its colours and name, nothing else. */
 @Composable
 private fun MoodArt(mood: Mood) {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(Brush.linearGradient(listOf(Color(mood.colors.first), Color(mood.colors.second))))
-            .padding(14.dp),
-        contentAlignment = Alignment.BottomStart,
-    ) {
-        Column {
+    // Each mood has its own hand-drawn craft: rangoli, paisley, bandhani, mirror work…
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomStart) {
+        val craft = mood.craft()
+        CraftCard(craft, Color(mood.colors.second), Modifier.fillMaxSize(), ink = craftInk(Color(mood.colors.first)))
+        Column(Modifier.padding(14.dp)) {
             Text(mood.label, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-            Text("RADIO", color = Color.White.copy(alpha = 0.75f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+            Text("${craft.label.uppercase()} · RADIO", color = craftInk(Color(mood.colors.first)), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, maxLines = 1)
         }
     }
 }
