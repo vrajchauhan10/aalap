@@ -107,12 +107,16 @@ fun AalapRadioSection() {
             contentPadding = PaddingValues(horizontal = 20.dp),
         ) {
             item {
+                // Rebuilt every 3 hours from all your music; the time shows how fresh it is.
+                val updated = com.music.spotui.data.recommendation.HomeMixes.yourMixUpdatedAt(context)
+                    .takeIf { it > 0 }?.let { java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(it)) }
                 Station(
                     title = "Your Mix",
-                    subtitle = if (artists.isEmpty()) "Favourites and new finds" else artists.joinToString(", ") + " and more",
+                    subtitle = (if (updated != null) "Updated $updated · " else "") +
+                        (if (artists.isEmpty()) "favourites and new finds" else artists.joinToString(", ") + " and more"),
                     loading = loading == "mix",
                     onClick = {
-                        start("mix") { AalapRadio.yourMix(context).ifEmpty { AalapRadio.moodRadio(context, moods.first()) } }
+                        start("mix") { com.music.spotui.data.recommendation.HomeMixes.yourMix(context).ifEmpty { AalapRadio.moodRadio(context, moods.first()) } }
                     },
                 ) { CoverCollage(covers) }
             }

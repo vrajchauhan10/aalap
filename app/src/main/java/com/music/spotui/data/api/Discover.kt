@@ -32,8 +32,8 @@ data class Chart(val id: String, val title: String, val subtitle: String, val co
 val CHARTS = listOf(
     Chart("37i9dQZEVXbLZ52XmnySJg", "Top 50 India", "Most played in India today", 0xFFFF8A3D to 0xFF7A2E0E),
     Chart("37i9dQZEVXbMDoHDwVN2tF", "Top 50 Global", "Most played worldwide today", 0xFF3D6BE0 to 0xFF1A2A6C),
-    Chart("37i9dQZEVXbMWDif5SCBJq", "Viral 50 India", "Blowing up in India right now", 0xFFE5397A to 0xFF6C1238),
-    Chart("37i9dQZEVXbLiRSasKsNU9", "Viral 50 Global", "Trending around the world", 0xFF2BB3C0 to 0xFF0F4C55),
+    Chart("37i9dQZEVXbMWDif5SCBJq", "Viral 50 India", "Rising fastest in India this week", 0xFFE5397A to 0xFF6C1238),
+    Chart("37i9dQZEVXbLiRSasKsNU9", "Viral 50 Global", "Rising fastest worldwide this week", 0xFF2BB3C0 to 0xFF0F4C55),
 )
 
 /**

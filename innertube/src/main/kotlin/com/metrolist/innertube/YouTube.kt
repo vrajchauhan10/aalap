@@ -144,6 +144,127 @@ object YouTube {
         }.filter { it.videoId != videoId }
     }
 
+    /** A song in the signed-in user's YouTube Music library. */
+    data class LibrarySong(
+        val videoId: String,
+        val title: String,
+        val artists: String,
+        val album: String,
+        val durationSec: Int,
+        val thumbnail: String,
+    )
+
+    /** An artist the signed-in user subscribes to on YouTube Music. */
+    data class LibraryArtist(val browseId: String, val name: String, val thumbnail: String)
+
+    private fun JsonElement?.obj() = this as? JsonObject
+    private fun JsonElement?.arr() = this as? JsonArray
+    private fun JsonElement?.str() = (this as? JsonPrimitive)?.contentOrNull
+    private fun runsText(e: JsonElement?) =
+        e.obj()?.get("runs").arr()?.joinToString("") { it.obj()?.get("text").str().orEmpty() }.orEmpty()
+
+    /** Every object stored under [key] anywhere in [root] (YouTube nests pages differently by layout). */
+    private fun findAll(root: JsonElement?, key: String, out: MutableList<JsonObject> = mutableListOf()): MutableList<JsonObject> {
+        when (root) {
+            is JsonObject -> root.forEach { (k, v) -> if (k == key) v.obj()?.let(out::add) else findAll(v, key, out) }
+            is JsonArray -> root.forEach { findAll(it, key, out) }
+            else -> {}
+        }
+        return out
+    }
+
+    private fun continuationToken(root: JsonElement?): String? {
+        findAll(root, "nextContinuationData").firstOrNull()?.get("continuation").str()?.let { return it }
+        return findAll(root, "continuationCommand").firstOrNull()?.get("token").str()
+    }
+
+    /** The largest thumbnail anywhere in [r] (the last entry of its first thumbnails list). */
+    private fun bestThumb(r: JsonObject): String {
+        fun first(e: JsonElement?): JsonArray? = when (e) {
+            is JsonObject -> e["thumbnails"].arr() ?: e.values.firstNotNullOfOrNull { first(it) }
+            is JsonArray -> e.firstNotNullOfOrNull { first(it) }
+            else -> null
+        }
+        return first(r)?.lastOrNull().obj()?.get("url").str().orEmpty()
+    }
+
+    /** Pages through a library list: [first] browse id, then continuations, at most [maxPages]. */
+    private suspend fun <T> pages(browseId: String, maxPages: Int, parse: (JsonElement) -> List<T>): List<T> {
+        val out = ArrayList<T>()
+        var json: JsonElement = Json.parseToJsonElement(innerTube.browse(WEB_REMIX, browseId).bodyAsText())
+        var page = 0
+        while (true) {
+            out += parse(json)
+            val token = continuationToken(json) ?: break
+            if (++page >= maxPages) break
+            json = Json.parseToJsonElement(innerTube.browse(WEB_REMIX, null, token).bodyAsText())
+        }
+        return out
+    }
+
+    /** The signed-in user's liked songs (the "Liked music" playlist), newest first. */
+    suspend fun likedSongs(maxPages: Int = 40): Result<List<LibrarySong>> = runCatching {
+        check(cookie != null) { "not signed in" }
+        pages("VLLM", maxPages) { json -> parseSongs(json) }.distinctBy { it.videoId }
+    }
+
+    private fun parseSongs(json: JsonElement): List<LibrarySong> =
+            findAll(json, "musicResponsiveListItemRenderer").mapNotNull { r ->
+                val videoId = r["playlistItemData"].obj()?.get("videoId").str()
+                    ?: findAll(r, "watchEndpoint").firstOrNull()?.get("videoId").str()
+                    ?: return@mapNotNull null
+                val cols = r["flexColumns"].arr().orEmpty().map {
+                    it.obj()?.get("musicResponsiveListItemFlexColumnRenderer").obj()?.get("text")
+                }
+                val title = runsText(cols.getOrNull(0)).ifBlank { return@mapNotNull null }
+                // Column 2 is "Artist & Artist" (sometimes "Artist • Album"); column 3 the album.
+                val artists = runsText(cols.getOrNull(1)).substringBefore(" • ").replace(" & ", ", ")
+                val album = runsText(cols.getOrNull(2))
+                val length = r["fixedColumns"].arr()?.firstOrNull().obj()
+                    ?.get("musicResponsiveListItemFixedColumnRenderer").obj()?.get("text").let(::runsText)
+                    .split(":").mapNotNull { it.trim().toIntOrNull() }.fold(0) { acc, n -> acc * 60 + n }
+                LibrarySong(videoId, title, artists, album, length, bestThumb(r))
+            }
+
+    /** The signed-in user's recently played songs on YouTube Music (newest first). */
+    suspend fun history(maxPages: Int = 3): Result<List<LibrarySong>> = runCatching {
+        check(cookie != null) { "not signed in" }
+        pages("FEmusic_history", maxPages) { json -> parseSongs(json) }
+    }
+
+    /**
+     * Songs YouTube Music suggests on its home page for this user ("Quick picks",
+     * "Listen again", "Mixed for you" shelves), in page order.
+     */
+    suspend fun homeSongs(maxPages: Int = 2): Result<List<LibrarySong>> = runCatching {
+        pages("FEmusic_home", maxPages) { json ->
+            val list = parseSongs(json).toMutableList()
+            // Card shelves (musicTwoRowItemRenderer) hold songs too when they open a watch page.
+            findAll(json, "musicTwoRowItemRenderer").forEach { r ->
+                val vid = r["navigationEndpoint"].obj()?.get("watchEndpoint").obj()?.get("videoId").str() ?: return@forEach
+                val title = runsText(r["title"]).ifBlank { return@forEach }
+                val sub = runsText(r["subtitle"]).split(" • ").map { it.trim() }
+                val artists = sub.firstOrNull { it.isNotBlank() && it != "Song" && it != "Video" && !it.contains("views") }.orEmpty()
+                list += LibrarySong(vid, title, artists.replace(" & ", ", "), "", 0, bestThumb(r))
+            }
+            list
+        }.distinctBy { it.videoId }
+    }
+
+    /** Artists the signed-in user subscribes to on YouTube Music. */
+    suspend fun libraryArtists(maxPages: Int = 10): Result<List<LibraryArtist>> = runCatching {
+        check(cookie != null) { "not signed in" }
+        pages("FEmusic_library_corpus_artists", maxPages) { json ->
+            findAll(json, "musicResponsiveListItemRenderer").mapNotNull { r ->
+                val id = r["navigationEndpoint"].obj()?.get("browseEndpoint").obj()?.get("browseId").str()
+                    ?: return@mapNotNull null
+                val name = r["flexColumns"].arr()?.firstOrNull().obj()
+                    ?.get("musicResponsiveListItemFlexColumnRenderer").obj()?.get("text").let(::runsText)
+                if (name.isBlank()) null else LibraryArtist(id, name, bestThumb(r))
+            }
+        }.distinctBy { it.browseId }
+    }
+
     suspend fun visitorData(): Result<String> = runCatching {
         Json.parseToJsonElement(innerTube.getSwJsData().bodyAsText().substring(5))
             .jsonArray[0]

@@ -95,7 +95,7 @@ fun HomeScreen(navController: NavController){
     val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
     androidx.compose.runtime.DisposableEffect(lifecycle) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, e ->
-            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) homeViewModel.refreshIfNewDay()
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) { homeViewModel.refreshIfNewDay(); homeViewModel.onResumeRefresh() }
         }
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
@@ -183,8 +183,18 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
     // Aalap home: greeting + shortcut chips, a featured banner, a "Jump back in" tile
     // row (the feed's untitled shortcuts section), then the titled carousels in feed order.
     val sections = feed.sections
-    val gridSection = sections.firstOrNull()?.takeIf { it.title.isBlank() }
-    val carousels = if (gridSection != null) sections.drop(1) else sections
+    // The personal rows (Jump back in, Made for you, stations, recently played, radios)
+    // are built by Aalap from every service below; only general discovery rows are
+    // kept from the Spotify feed.
+    val personal = Regex("jump back|made for|station|recently played|radio|mix|for you|discover|on repeat|repeat rewind|your top|recents|recommended|artists you follow|for today|based on|because you", RegexOption.IGNORE_CASE)
+    val carousels = sections.filter { it.title.isNotBlank() && !personal.containsMatchIn(it.title) }
+    val homeViewModel: HomeViewModel = hiltViewModel()
+    val quick by homeViewModel.quickPicks.collectAsState()
+    val recent by homeViewModel.recentlyPlayed.collectAsState()
+    val jump by homeViewModel.jumpBackIn.collectAsState()
+    val mixes by homeViewModel.dailyMixes.collectAsState()
+    val stations by homeViewModel.stations.collectAsState()
+    val releases by homeViewModel.newReleases.collectAsState()
 
     LazyColumn(
         contentPadding = PaddingValues(bottom = 190.dp),
@@ -196,12 +206,14 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
         // Moods live in Aalap Radio below (and in Search), not as a second row of pills.
         // Aalap Radio replaces the feed's featured playlist (whose art carried another brand).
         item { com.music.spotui.ui.components.AalapRadioSection() }
+        item { QuickPicksSection(quick) }
         item { ChartsRow(navController) }
+        item { MadeForYouSection(mixes) }
+        if (jump.isNotEmpty()) item { JumpBackInRow(navController, jump) }
+        if (recent.isNotEmpty()) item { SongTileRow("Recently played", recent) }
         item { DailySongRows() }
-        gridSection?.let { section ->
-            val rest = section.items.take(10)
-            if (rest.isNotEmpty()) item { JumpBackInRow(navController, rest) }
-        }
+        item { ArtistRadiosSection(stations) }
+        item { NewReleasesSection(navController, releases) }
         items(carousels.size) { i ->
             HomeFeedSection(navController, carousels[i])
         }
@@ -1001,10 +1013,14 @@ private fun MoodRow(navController: NavController) {
     }
 }
 
-/** Spotify's daily charts: clean dark cards with a colour accent. */
+/**
+ * Today's charts. "Top 50" is what's played the most; "Trending" (Spotify's Viral 50)
+ * is what's rising fastest and being shared most right now, often new songs before
+ * they reach the Top 50.
+ */
 @Composable
 private fun ChartsRow(navController: NavController) {
-    SectionHeader("Today's charts")
+    HomeHeader("Today's charts", "Top 50: played the most · Trending: rising the fastest")
     LazyRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(horizontal = 20.dp),
@@ -1022,7 +1038,8 @@ private fun ChartsRow(navController: NavController) {
             ) {
                 Box(Modifier.fillMaxWidth().height(4.dp).background(accent))
                 Column(Modifier.padding(14.dp)) {
-                    Text(chart.title.substringBefore(" 50 ").uppercase() + " 50", color = accent, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+                    val trending = chart.title.startsWith("Viral")
+                    Text(if (trending) "TRENDING" else "TOP 50", color = accent, fontSize = if (trending) 19.sp else 22.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
                     Text(chart.title.substringAfter(" 50 "), color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(6.dp))
                     Text(chart.subtitle, color = com.music.spotui.ui.theme.TextMuted, fontSize = 11.sp, maxLines = 2, lineHeight = 13.sp)

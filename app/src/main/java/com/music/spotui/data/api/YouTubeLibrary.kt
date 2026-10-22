@@ -64,6 +64,19 @@ object YouTubeLibrary {
         prefs(c).edit().putStringSet("hidden_artists", now).apply()
     }
 
+    /** Songs you played recently on YouTube Music, newest first. */
+    fun historySongs(c: Context): List<SongsModel> = readSongs(prefs(c).getString("history_songs", "[]"))
+
+    private fun readSongs(raw: String?): List<SongsModel> = runCatching {
+        val a = JSONArray(raw ?: "[]")
+        (0 until a.length()).map { i ->
+            a.getJSONObject(i).let { o ->
+                SongsModel(o.getInt("id"), o.optString("title"), o.optString("album"), o.optString("singer"),
+                    o.optString("cover"), o.optString("url"), o.optString("sid"), o.optBoolean("explicit"), o.optInt("dur"))
+            }
+        }
+    }.getOrDefault(emptyList())
+
     /** Artist → plays in your recent YouTube Music history (a taste signal). */
     fun historyArtistCounts(c: Context): Map<String, Int> = runCatching {
         val o = JSONObject(prefs(c).getString("history_artists", "{}"))
@@ -115,8 +128,10 @@ object YouTubeLibrary {
                 val counts = history.flatMap { h -> h.artists.split(",").map(String::trim).filter(String::isNotBlank).take(2) }
                     .groupingBy { it }.eachCount()
                 edit.putString("history_artists", JSONObject(counts as Map<*, *>).toString())
-                // Recent YouTube plays also count as songs you know, for Your Mix and the engine.
-                db.resolveAll(history.map { Candidate(title = it.title, artists = it.artists, durationSec = it.durationSec, album = it.album, cover = it.thumbnail, ytId = it.videoId) })
+                // Recent YouTube plays also count as songs you know, for Your Mix and the engine,
+                // and show in Recently played / favourites on Home.
+                val songs = db.resolveAll(history.map { Candidate(title = it.title, artists = it.artists, durationSec = it.durationSec, album = it.album, cover = it.thumbnail, ytId = it.videoId) })
+                edit.putString("history_songs", toJson(songs.map(SongBridge::toSongsModel).distinctBy { it.id }.take(100)))
             }
             edit.putLong("synced_at", System.currentTimeMillis()).commit()
             invalidateUnified()

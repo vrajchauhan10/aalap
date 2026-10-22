@@ -135,11 +135,11 @@ class Api @Inject constructor(
     }
 
     /** An artist's popular releases as Library entries (albums first, then singles/EPs). */
-    suspend fun artistReleases(artistId: String): List<com.music.spotui.data.entity.LibraryEntry> {
+    suspend fun artistReleases(artistId: String, newestFirst: Boolean = false): List<com.music.spotui.data.entity.LibraryEntry> {
         if (artistId.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
         val o = Spotify.artistOverview(artistId).getOrNull() ?: return emptyList()
         return o.popularReleases
-            .sortedBy { if (it.albumType.equals("album", true)) 0 else 1 }
+            .let { r -> if (newestFirst) r.sortedByDescending { it.releaseDate.orEmpty() } else r.sortedBy { if (it.albumType.equals("album", true)) 0 else 1 } }
             .map { a ->
                 val artists = a.artists.joinToString(", ") { it.name }.ifBlank { o.name }
                 com.music.spotui.data.entity.LibraryEntry(

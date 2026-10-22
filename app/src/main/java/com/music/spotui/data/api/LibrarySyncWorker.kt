@@ -30,6 +30,7 @@ class LibrarySyncWorker(context: Context, params: WorkerParameters) : CoroutineW
                 ok = true
             }.onFailure { Log.w(TAG, "Spotify sync failed: $it") }
         }
+        runCatching { SpotifyTaste.refreshIfDue(c) }
         if (com.music.spotui.data.preferences.isYoutubeLoggedIn(c)) {
             ok = YouTubeLibrary.syncIfDue(c, force = true) || ok
         }

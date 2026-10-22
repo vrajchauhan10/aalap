@@ -40,17 +40,45 @@ class HomeViewModel @Inject constructor(
     private val _home : MutableStateFlow<Response<HomeFeedModel>> = MutableStateFlow(Response.Loading())
     val home : StateFlow<Response<HomeFeedModel>> = _home
 
+    // ── Sections made from all your music (Spotify + YouTube Music + Aalap + imports) ──
+    private val M = com.music.spotui.data.recommendation.HomeMixes
+    val quickPicks = MutableStateFlow<List<com.music.spotui.data.entity.SongsModel>>(emptyList())
+    val recentlyPlayed = MutableStateFlow<List<com.music.spotui.data.entity.SongsModel>>(emptyList())
+    val jumpBackIn = MutableStateFlow<List<com.music.spotui.data.entity.HomeItem>>(emptyList())
+    val dailyMixes = MutableStateFlow<List<com.music.spotui.data.recommendation.HomeMixes.Mix>>(emptyList())
+    val stations = MutableStateFlow<List<ArtistsModel>>(emptyList())
+    val newReleases = MutableStateFlow<List<com.music.spotui.data.entity.LibraryEntry>>(emptyList())
+
+    private fun loadUnified(force: Boolean = false) = viewModelScope.launch(Dispatchers.IO) {
+        recentlyPlayed.value = M.recentlyPlayed(appContext)
+        _favourites.value = M.allTimeFavourites(appContext)
+        launch { runCatching { jumpBackIn.value = M.jumpBackIn(appContext) } }
+        launch { runCatching { quickPicks.value = M.quickPicks(appContext) } }
+        launch { runCatching { stations.value = M.artistStations(appContext) } }
+        launch { runCatching { newReleases.value = M.newReleases(appContext) } }
+        launch { runCatching { dailyMixes.value = M.dailyMixes(appContext, force) } }
+        launch { runCatching { com.music.spotui.data.api.SpotifyTaste.refreshIfDue(appContext) } }
+        // Your Mix is rebuilt in the background every 3 hours, ready before you tap it.
+        launch { runCatching { M.yourMix(appContext) } }
+    }
+
+    /** Home came back on screen: Recently played and favourites change with every play. */
+    fun onResumeRefresh() = viewModelScope.launch(Dispatchers.IO) {
+        recentlyPlayed.value = M.recentlyPlayed(appContext)
+        _favourites.value = M.allTimeFavourites(appContext)
+    }
+
 
     init {
         fetchHome()
         fetchArtists()
         fetchAlbums()
         loadDiscovery()
+        loadUnified()
     }
 
     private fun loadDiscovery() = viewModelScope.launch(Dispatchers.IO) {
         loadedWindow = com.music.spotui.data.api.Discover.currentWindow()
-        _favourites.value = com.music.spotui.data.api.Discover.allTimeFavourites(appContext)
         _dailyPicks.value = com.music.spotui.data.api.Discover.dailyPicks(appContext)
     }
 
@@ -68,6 +96,7 @@ class HomeViewModel @Inject constructor(
         }
         fetchHome().join()
         loadDiscovery().join()
+        loadUnified(force).join()
         _refreshing.value = false
     }
 

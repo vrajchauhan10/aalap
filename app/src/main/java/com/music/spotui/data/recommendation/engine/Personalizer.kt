@@ -78,6 +78,10 @@ object Personalizer {
         }
         val followed = followedArtistKeys(context)
         followed.forEach { artist[it] = (artist[it] ?: 0.0) + 2.0 }
+        // Spotify's own view of your listening: your top artists there.
+        com.music.spotui.data.api.SpotifyTaste.topArtists(context).forEachIndexed { i, name ->
+            SongMatcher.artistKeys(name).firstOrNull()?.let { artist[it] = (artist[it] ?: 0.0) + 2.5 * (1.0 - i / 80.0) }
+        }
         // YouTube Music recent plays count like imported favourites (its subscriptions are follows, below).
         com.music.spotui.data.api.YouTubeLibrary.historyArtistCounts(context).forEach { (name, n) ->
             SongMatcher.artistKeys(name).firstOrNull()?.let { artist[it] = (artist[it] ?: 0.0) + minOf(3.0, 0.4 * n) }
@@ -139,6 +143,12 @@ object Personalizer {
         }
     }
 
+    /** An artist's name as Spotify / YouTube Music / your follows spell it. */
+    private fun displayFromServices(context: Context, key: String): String? =
+        (com.music.spotui.data.api.SpotifyTaste.topArtists(context) +
+            com.music.spotui.data.api.YouTubeLibrary.allFollowed(context, null).map { it.name })
+            .firstOrNull { SongMatcher.artistKeys(it).firstOrNull() == key }
+
     /** Finished plays per artist (main credit), most played first, with the name as you see it. */
     fun artistPlayCounts(context: Context): List<Pair<String, Int>> {
         val userId = RecoDb.userId(context)
@@ -160,7 +170,7 @@ object Personalizer {
     /** Human-readable summary for Profile: top artists, languages, and when you listen. */
     data class Summary(val artists: List<String>, val languages: List<String>, val plays: Int, val skipRate: Double)
 
-    fun summary(context: Context): Summary {
+    fun summary(context: Context, topN: Int = 6): Summary {
         val userId = RecoDb.userId(context)
         val p = profile(context, userId)
         val db = RecoDb.get(context)
@@ -172,7 +182,7 @@ object Personalizer {
             s.artists.split(",").map { it.trim() }.forEach { n -> SongMatcher.artistKeys(n).firstOrNull()?.let { display.putIfAbsent(it, n) } }
         }
         return Summary(
-            artists = p.artistWeight.entries.sortedByDescending { it.value }.take(6).map { display[it.key] ?: it.key.replaceFirstChar(Char::titlecase) },
+            artists = p.artistWeight.entries.sortedByDescending { it.value }.take(topN).map { display[it.key] ?: displayFromServices(context, it.key) ?: it.key.replaceFirstChar(Char::titlecase) },
             languages = p.language.entries.sortedByDescending { it.value }.take(3).map { it.key.replaceFirstChar(Char::titlecase) },
             plays = plays.size,
             skipRate = if (plays.isEmpty()) 0.0 else plays.count { it.skipped }.toDouble() / plays.size,

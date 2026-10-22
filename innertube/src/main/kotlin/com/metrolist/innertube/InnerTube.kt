@@ -273,6 +273,20 @@ class InnerTube {
         }
     }
 
+    /** Signed-in browse (library pages such as liked songs and subscribed artists). */
+    suspend fun browse(client: YouTubeClient, browseId: String?, continuation: String? = null) = withRetry {
+        httpClient.post("browse") {
+            ytClient(client, setLogin = true)
+            setBody(
+                com.metrolist.innertube.models.body.BrowseBody(
+                    context = client.toContext(locale, visitorData, dataSyncId),
+                    browseId = browseId,
+                    continuation = continuation,
+                )
+            )
+        }
+    }
+
     suspend fun getSwJsData() = withRetry { httpClient.get("https://music.youtube.com/sw.js_data") }
 
     /** Authenticated endpoint used to reject incomplete/stale cookie captures. */
