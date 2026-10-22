@@ -56,7 +56,8 @@ object LikedLibrary {
             val keep = YouTubeLibrary.mergeLiked(services, extra).mapTo(HashSet()) { it.id }
             extra.filter { it.id in keep }
         }
-        return (extraKept + services).filter { it.id in likedIds }.distinctBy { it.id }
+        // A song with no name can't be shown or played, so it isn't listed or counted.
+        return (extraKept + services).filter { it.id in likedIds && it.title.isNotBlank() }.distinctBy { it.id }
     }
 
     fun count(c: Context) = all(c).size

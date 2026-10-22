@@ -729,7 +729,15 @@ class Api @Inject constructor(
                 context, models.mapTo(HashSet()) { it.id.toString() }, complete = items.size >= total,
             )
             com.music.spotui.data.recommendation.engine.QueueEngine.rememberLiked(context, models)
-            if (items.size >= total) YouTubeLibrary.saveSpotifyLiked(context, models)
+            if (items.size >= total) {
+                // Spotify sometimes sends a liked track as a bare id (no name, artist or
+                // cover). Look those up once; any still blank are left out of Liked Songs.
+                val repaired = models.map { m ->
+                    if (m.title.isNotBlank() || m.spotifyTrackId.isBlank()) m
+                    else Spotify.track(m.spotifyTrackId).getOrNull()?.toSongModel()?.takeIf { it.title.isNotBlank() } ?: m
+                }
+                YouTubeLibrary.saveSpotifyLiked(context, repaired.filter { it.title.isNotBlank() })
+            }
             emit(Response.Success(models))
         }) { offset -> Spotify.likedSongs(limit = 50, offset = offset) }
         if (!loaded) emit(Response.Error("Couldn't load Liked Songs"))

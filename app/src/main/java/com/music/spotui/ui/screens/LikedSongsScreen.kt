@@ -79,10 +79,9 @@ fun LikedSongsScreen(navController: NavController) {
 
     val allSongs = (songsResp as? Response.Success)?.data.orEmpty()
 
-    // Filter: search, where the like came from, an artist, and the order.
+    // Filter: search, where the like came from, or an artist.
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf<LikedFilter?>(null) }
-    var sort by remember { mutableStateOf(LikedSort.RECENT) }
     val sources by androidx.compose.runtime.produceState(LikedSources(), allSongs) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             LikedSources(
@@ -96,7 +95,7 @@ fun LikedSongsScreen(navController: NavController) {
             .filter { it.key.isNotBlank() && it.value >= 2 }
             .entries.sortedByDescending { it.value }.take(8).map { it.key }
     }
-    val songs = remember(allSongs, query, filter, sort, sources) {
+    val songs = remember(allSongs, query, filter, sources) {
         allSongs
             .filter { s ->
                 when (val f = filter) {
@@ -108,13 +107,6 @@ fun LikedSongsScreen(navController: NavController) {
                 }
             }
             .filter { s -> query.isBlank() || s.title.contains(query, true) || s.singer.contains(query, true) || s.album.contains(query, true) }
-            .let { list ->
-                when (sort) {
-                    LikedSort.RECENT -> list
-                    LikedSort.TITLE -> list.sortedBy { it.title.lowercase() }
-                    LikedSort.ARTIST -> list.sortedBy { it.singer.lowercase() }
-                }
-            }
     }
 
 
@@ -355,7 +347,6 @@ fun LikedSongsScreen(navController: NavController) {
                         LikedFilters(
                             query = query, onQuery = { query = it },
                             filter = filter, onFilter = { filter = it },
-                            sort = sort, onSort = { sort = it },
                             artists = topArtists,
                             hasAalapOnly = allSongs.any { it.id !in sources.spotify && it.id !in sources.youtube } && sources.spotify.isNotEmpty(),
                         )
@@ -438,16 +429,13 @@ private sealed interface LikedFilter {
     data class Artist(val name: String) : LikedFilter
 }
 
-private enum class LikedSort(val label: String) { RECENT("Recently added"), TITLE("Title"), ARTIST("Artist") }
-
 private data class LikedSources(val spotify: Set<Int> = emptySet(), val youtube: Set<Int> = emptySet())
 
-/** Search box, then a row of chips: the order, where the like came from, your top artists. */
+/** Search box, then a row of chips: where the like came from, and your top artists. */
 @Composable
 private fun LikedFilters(
     query: String, onQuery: (String) -> Unit,
     filter: LikedFilter?, onFilter: (LikedFilter?) -> Unit,
-    sort: LikedSort, onSort: (LikedSort) -> Unit,
     artists: List<String>,
     hasAalapOnly: Boolean,
 ) {
@@ -482,12 +470,6 @@ private fun LikedFilters(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp),
             modifier = Modifier.padding(top = 10.dp),
         ) {
-            // Tap to change the order.
-            item {
-                LikedChip("↕ " + sort.label, selected = sort != LikedSort.RECENT) {
-                    onSort(LikedSort.entries[(sort.ordinal + 1) % LikedSort.entries.size])
-                }
-            }
             val sourceChips = buildList {
                 add(LikedFilter.Spotify to "Spotify"); add(LikedFilter.YouTube to "YouTube Music")
                 if (hasAalapOnly) add(LikedFilter.Aalap to "Liked in Aalap")
