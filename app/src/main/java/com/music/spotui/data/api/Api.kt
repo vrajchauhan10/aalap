@@ -305,10 +305,15 @@ class Api @Inject constructor(
                     .onFailure { Log.e("Api", "searchPodcasts FAILED: ${it.message}", it) }
                     .getOrNull()
                 Log.d("Api", "podcasts: shows=${podcasts?.shows?.items?.size ?: -1} episodes=${podcasts?.episodes?.items?.size ?: -1}")
+                // Spotify lists one song several times (single, album, "From …" release) with
+                // different ids; show each song, album and artist once. Remixes and other
+                // versions keep their own row ("Kalyani - Remix" ≠ "Kalyani").
+                fun same(t: String) = t.lowercase().replace(Regex("""\(.*?\)|\[.*?\]"""), " ").replace(Regex("""\s+"""), " ").trim()
+                fun firstArtist(a: String) = com.music.spotui.data.recommendation.engine.SongMatcher.artistKeys(a).firstOrNull().orEmpty()
                 emit(Response.Success(SearchResults(
-                    songs = res.tracks?.items.orEmpty().map { it.toSongModel() },
-                    albums = res.albums?.items.orEmpty().map { it.toAlbumModel() },
-                    artists = res.artists?.items.orEmpty().map { it.toArtistModel() },
+                    songs = res.tracks?.items.orEmpty().map { it.toSongModel() }.distinctBy { "${same(it.title)}|${firstArtist(it.singer)}" },
+                    albums = res.albums?.items.orEmpty().map { it.toAlbumModel() }.distinctBy { "${same(it.name)}|${firstArtist(it.artists)}" },
+                    artists = res.artists?.items.orEmpty().map { it.toArtistModel() }.distinctBy { it.name.lowercase().trim() },
                     shows = podcasts?.shows?.items.orEmpty().map { it.toPodcastModel() },
                     episodes = podcasts?.episodes?.items.orEmpty().map { it.toEpisodeSongModel(null) },
                 )))
