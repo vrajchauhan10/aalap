@@ -106,20 +106,7 @@ fun AalapRadioSection() {
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(horizontal = 20.dp),
         ) {
-            item {
-                // Rebuilt every 3 hours from all your music; the time shows how fresh it is.
-                val updated = com.music.spotui.data.recommendation.HomeMixes.yourMixUpdatedAt(context)
-                    .takeIf { it > 0 }?.let { java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(it)) }
-                Station(
-                    title = "Your Mix",
-                    subtitle = (if (updated != null) "Updated $updated · " else "") +
-                        (if (artists.isEmpty()) "favourites and new finds" else artists.joinToString(", ") + " and more"),
-                    loading = loading == "mix",
-                    onClick = {
-                        start("mix") { com.music.spotui.data.recommendation.HomeMixes.yourMix(context).ifEmpty { AalapRadio.moodRadio(context, moods.first()) } }
-                    },
-                ) { CoverCollage(covers) }
-            }
+            // Your Mix lives in Made for you (Daily Mixes); this row is the mood stations.
             items(moods.size) { i ->
                 val mood = moods[i]
                 Station(

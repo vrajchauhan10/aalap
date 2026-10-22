@@ -53,7 +53,7 @@ class HomeViewModel @Inject constructor(
         recentlyPlayed.value = M.recentlyPlayed(appContext)
         _favourites.value = M.allTimeFavourites(appContext)
         launch { runCatching { jumpBackIn.value = M.jumpBackIn(appContext) } }
-        launch { runCatching { quickPicks.value = M.quickPicks(appContext) } }
+        launch { runCatching { quickPicks.value = M.quickPicks(appContext, force) } }
         launch { runCatching { stations.value = M.artistStations(appContext) } }
         launch { runCatching { newReleases.value = M.newReleases(appContext) } }
         launch { runCatching { dailyMixes.value = M.dailyMixes(appContext, force) } }

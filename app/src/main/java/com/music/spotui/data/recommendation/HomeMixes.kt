@@ -18,6 +18,7 @@ import com.music.spotui.data.recommendation.engine.SongMatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.toList
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
@@ -87,8 +88,17 @@ object HomeMixes {
 
     // ── Quick picks: YouTube Music's own suggestions + the engine, ranked for you ──
 
-    suspend fun quickPicks(c: Context): List<SongsModel> {
-        val stamp = window3h()
+    /**
+     * Quick picks: new every day and on every pull-to-refresh. A third each: what's
+     * trending (India's Top 50 and Trending charts), YouTube Music's suggestions for
+     * you, and new songs the engine found from your taste, all ordered for you.
+     */
+    suspend fun quickPicks(c: Context, force: Boolean = false): List<SongsModel> {
+        val stamp = today() + "#" + prefs(c).getInt("quick.gen", 0)
+        if (force) {
+            prefs(c).edit().putInt("quick.gen", prefs(c).getInt("quick.gen", 0) + 1).apply()
+            return quickPicks(c, force = false)
+        }
         readSongs("quick", stamp)?.let { return it }
         val db = RecoDb.get(c)
         val fromYouTube = if (com.music.spotui.data.preferences.isYoutubeLoggedIn(c))
@@ -96,12 +106,34 @@ object HomeMixes {
                 .map { Candidate(title = it.title, artists = it.artists, durationSec = it.durationSec, album = it.album, cover = it.thumbnail, ytId = it.videoId) }
                 .let { db.resolveAll(it) }.map(SongBridge::toSongsModel)
         else emptyList()
-        // Mixed with fresh engine picks (Spotify + YouTube + JioSaavn), then ordered for your taste.
+        val rnd = Random(stamp.hashCode().toLong())
+        // Fresh engine picks (Spotify + YouTube + JioSaavn) from your taste.
         val engine = runCatching { QueueEngine.freshPicks(c, salt = stamp.hashCode().toLong(), limit = 15) }.getOrDefault(emptyList())
+        // What's trending now, the songs closest to your taste first.
+        val trending = QueueEngine.rerank(c, trendingSongs(c), familiar = 0.3f).take(20).shuffled(rnd).take(10)
+        val yt = QueueEngine.rerank(c, fromYouTube, familiar = 0.5f).take(10)
         val mixed = ArrayList<SongsModel>()
-        for (i in 0 until maxOf(fromYouTube.size, engine.size)) { fromYouTube.getOrNull(i)?.let(mixed::add); engine.getOrNull(i)?.let(mixed::add) }
-        val result = QueueEngine.rerank(c, mixed.distinctBy { it.id }, familiar = 0.5f).take(24)
+        for (i in 0 until 10) { trending.getOrNull(i)?.let(mixed::add); yt.getOrNull(i)?.let(mixed::add); engine.getOrNull(i)?.let(mixed::add) }
+        val result = Diversifier.spreadArtists(mixed.distinctBy { it.id }.take(24)) { it.singer }
         writeSongs("quick", stamp, result)
+        return result
+    }
+
+    /** Today's Top 50 India + Trending India (cached for the day). */
+    suspend fun trendingSongs(c: Context): List<SongsModel> {
+        readSongs("trending", today())?.let { return it }
+        val api = Api(c)
+        val ids = listOf("37i9dQZEVXbLZ52XmnySJg", "37i9dQZEVXbMWDif5SCBJq")
+        val lists = ids.map { id ->
+            runCatching {
+                api.getPlaylistSongs(id).toList()
+                    .filterIsInstance<com.music.spotui.data.api.Response.Success<List<SongsModel>>>().lastOrNull()?.data.orEmpty()
+            }.getOrDefault(emptyList()).take(50)
+        }
+        val out = ArrayList<SongsModel>()
+        for (i in 0 until 50) lists.forEach { l -> l.getOrNull(i)?.let(out::add) }
+        val result = out.distinctBy { it.id }
+        writeSongs("trending", today(), result)
         return result
     }
 
