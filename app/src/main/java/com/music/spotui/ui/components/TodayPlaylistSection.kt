@@ -96,7 +96,13 @@ fun TodayPlaylistSection(songs: List<HomeMixes.TodaySong>, action: String = "Ope
             }
         }
     }
-    val design = posterFor(day)
+    // A design picked with the shuffle button stays for the rest of that day.
+    val posterPrefs = remember { context.getSharedPreferences("home_mixes", android.content.Context.MODE_PRIVATE) }
+    var shuffled by remember(day) {
+        mutableStateOf(posterPrefs.getString("poster.shuffle", null)?.split(":")
+            ?.takeIf { it.size == 2 && it[0] == day.toString() }?.get(1)?.toIntOrNull())
+    }
+    val design = shuffled?.takeIf { PosterDesignOverride.intValue < 0 }?.let { PosterDesigns.getOrNull(it) } ?: posterFor(day)
 
     Column(Modifier.padding(top = 14.dp)) {
         Box(
@@ -108,7 +114,26 @@ fun TodayPlaylistSection(songs: List<HomeMixes.TodaySong>, action: String = "Ope
                 .clickable(onClick = onOpen), // opens the full list of today's 30
         ) {
             // Today's handmade design (a new craft every day, from midnight).
-            Canvas(Modifier.matchParentSize()) { design.paint(this) }
+            androidx.compose.animation.Crossfade(design, Modifier.matchParentSize(), animationSpec = androidx.compose.animation.core.tween(450), label = "poster") { d ->
+                Canvas(Modifier.fillMaxSize()) { d.paint(this) }
+            }
+            // Shuffle: another design (never the same one twice in a row).
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.align(Alignment.TopEnd).padding(10.dp).size(32.dp)
+                    .clip(CircleShape).background(Color(0xCC100B1C))
+                    .clickable {
+                        val current = PosterDesigns.indexOf(design)
+                        val next = (PosterDesigns.indices - current).random()
+                        shuffled = next
+                        posterPrefs.edit().putString("poster.shuffle", "$day:$next").apply()
+                    },
+            ) {
+                androidx.compose.material3.Icon(
+                    androidx.compose.ui.res.painterResource(R.drawable.ic_player_shuffle), contentDescription = "Shuffle design",
+                    tint = Color.White, modifier = Modifier.size(16.dp),
+                )
+            }
             Text(
                 "${design.craft} · ${design.origin}".uppercase(),
                 color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, maxLines = 1,
