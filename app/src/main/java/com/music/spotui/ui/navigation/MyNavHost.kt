@@ -21,6 +21,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.dialog
 import androidx.navigation.navArgument
 import com.music.spotui.ui.screens.AlbumScreen
 import com.music.spotui.ui.screens.ArtistReleasesScreen
@@ -145,32 +146,14 @@ fun MyNavHost(
             }
             LibraryScreen(navHostController)
         }
-        composable(
-            Routes.Player.route,
-            enterTransition = { sheetEnter },
-            exitTransition = { fadeOut(animationSpec = tween(150)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(150)) },
-            popExitTransition = { sheetExit },
-        ){
-            LaunchedEffect(playerState) {
-                bottomBarState.value = false
-                bottomBarPlayerState.value = playerState != ""
-            }
-            PlayerScreen(navHostController)
+        // The player and queue are layers over the page you came from, which stays alive
+        // underneath, so closing them is just a slide (see SheetLayer).
+        dialog(Routes.Player.route, dialogProperties = SheetWindow) {
+            SheetLayer(onClosed = { navHostController.popBackStack() }) { PlayerScreen(navHostController) }
         }
 
-        composable(
-            Routes.Queue.route,
-            enterTransition = { sheetEnter },
-            exitTransition = { fadeOut(animationSpec = tween(150)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(150)) },
-            popExitTransition = { sheetExit },
-        ){
-            LaunchedEffect(playerState) {
-                bottomBarState.value = false
-                bottomBarPlayerState.value = false
-            }
-            QueueScreen(navHostController)
+        dialog(Routes.Queue.route, dialogProperties = SheetWindow) {
+            SheetLayer(onClosed = { navHostController.popBackStack() }) { QueueScreen(navHostController) }
         }
 
         composable(Routes.Liked.route){
@@ -411,6 +394,13 @@ private val sheetExit: ExitTransition =
     androidx.compose.animation.slideOutVertically(tween(320, easing = SheetEasing)) { it / 2 } +
         androidx.compose.animation.scaleOut(tween(320, easing = SheetEasing), targetScale = 0.86f, transformOrigin = SheetOrigin) +
         fadeOut(tween(260))
+
+private val SheetWindow = androidx.compose.ui.window.DialogProperties(
+    usePlatformDefaultWidth = false,
+    decorFitsSystemWindows = false,
+    dismissOnBackPress = false, // SheetLayer slides it away instead
+    dismissOnClickOutside = false,
+)
 
 /** Detail pages close with the same pull-down gesture as the player. */
 @Composable

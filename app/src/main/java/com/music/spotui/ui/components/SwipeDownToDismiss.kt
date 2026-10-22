@@ -30,8 +30,11 @@ fun Modifier.swipeDownToDismiss(onDismiss: () -> Unit): Modifier {
     val density = LocalDensity.current
     val threshold = with(density) { 140.dp.toPx() }
     val screenHeight = with(density) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
+    // In the player/queue layer the page beneath is already showing, so the sheet itself
+    // carries on down from where the finger let go and only then closes.
+    val inSheet = com.music.spotui.ui.navigation.LocalCloseSheet.current != null
 
-    val connection = remember(threshold, screenHeight) {
+    val connection = remember(threshold, screenHeight, inSheet) {
         object : NestedScrollConnection {
             // A fling can be reported more than once; closing twice would also pop the
             // screen underneath.
@@ -56,9 +59,16 @@ fun Modifier.swipeDownToDismiss(onDismiss: () -> Unit): Modifier {
                 if (offset.value <= 0f || dismissed) return Velocity.Zero
                 if (offset.value > threshold || available.y > 2_000f) {
                     dismissed = true
-                    // Hand over to the navigation exit (sink + shrink into the mini player)
-                    // from wherever the finger let go, so the motion is continuous.
-                    onDismiss()
+                    if (inSheet) {
+                        // Keep the finger's speed: a quick flick leaves quickly.
+                        val ms = (220 - (available.y / 40f)).toInt().coerceIn(140, 260)
+                        offset.animateTo(screenHeight, androidx.compose.animation.core.tween(ms, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+                        onDismiss()
+                    } else {
+                        // Hand over to the navigation exit (sink + shrink into the mini player)
+                        // from wherever the finger let go, so the motion is continuous.
+                        onDismiss()
+                    }
                 } else {
                     offset.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 500f))
                 }
@@ -79,5 +89,7 @@ fun Modifier.swipeDownToDismiss(onDismiss: () -> Unit): Modifier {
             transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
             shape = androidx.compose.foundation.shape.RoundedCornerShape((40f * pull * 4f).coerceAtMost(40f).dp)
             clip = pull > 0f
+            // Fades into the mini player over the last stretch.
+            if (inSheet) alpha = (1f - (pull - 0.55f) / 0.45f).coerceIn(0f, 1f)
         }
 }

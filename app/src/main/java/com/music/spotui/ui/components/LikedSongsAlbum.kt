@@ -82,8 +82,11 @@ fun LikedSongsScreen(
     var dominentColor by remember {
         mutableStateOf(Color(AppBackground.toArgb()))
     }
-    Palette().extractSecondColorFromCoverUrl(context = context, album[0].coverUri){ color ->
-        dominentColor = color
+    // Once per cover (not on every redraw): reading the cover's colour is slow.
+    androidx.compose.runtime.LaunchedEffect(album[0].coverUri) {
+        Palette().extractSecondColorFromCoverUrl(context = context, album[0].coverUri){ color ->
+            dominentColor = color
+        }
     }
     val likeState = albumViewModel.likeState.value
     LaunchedEffect(likeState) {

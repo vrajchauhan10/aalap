@@ -193,8 +193,11 @@ fun PlayerScreen(navController: NavController) {
     var dominentColor by remember {
         mutableStateOf(com.music.spotui.ui.theme.ImmersiveBackground)
     }
-    Palette().extractSecondColorFromCoverUrl(context = context, songCoverUri){ color ->
-        dominentColor = color
+    // Once per cover (not on every redraw): reading the cover's colour is slow.
+    androidx.compose.runtime.LaunchedEffect(songCoverUri) {
+        Palette().extractSecondColorFromCoverUrl(context = context, songCoverUri){ color ->
+            dominentColor = color
+        }
     }
 
     val songsResponse by playerViewModel.songs.collectAsState()
@@ -589,12 +592,14 @@ fun PlayerTopBar(
             .fillMaxWidth()
             .padding(16.dp)
     ) {
+        // Slides the player down into the mini player (the same motion as pulling it down).
+        val closeSheet = com.music.spotui.ui.navigation.LocalCloseSheet.current
         Icon(modifier = Modifier
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
-                       navController.navigateUp()
+                if (closeSheet != null) closeSheet() else navController.navigateUp()
             },
             painter = painterResource(id = R.drawable.ic_down),
             tint = Color.White,

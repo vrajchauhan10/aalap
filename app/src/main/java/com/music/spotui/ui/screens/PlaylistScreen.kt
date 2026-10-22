@@ -152,8 +152,11 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
             }
 
             var dominentColor by remember { mutableStateOf(Color(AppBackground.toArgb())) }
-            Palette().extractSecondColorFromCoverUrl(context = context, playlist.coverUri) { color ->
-                dominentColor = color
+            // Once per cover (not on every redraw): reading the cover's colour is slow.
+            androidx.compose.runtime.LaunchedEffect(playlist.coverUri) {
+                Palette().extractSecondColorFromCoverUrl(context = context, playlist.coverUri) { color ->
+                    dominentColor = color
+                }
             }
 
             Scaffold(

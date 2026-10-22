@@ -32,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.draw.clip
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.graphicsLayer
@@ -117,8 +119,11 @@ fun MiniPlayer(navController: NavHostController) {
     var darkVibrantColor by remember {
         mutableStateOf(com.music.spotui.ui.theme.Surface)
     }
-    Palette().extractFirstColorFromImageUrl(context = context, songCoverUri){ color ->
-        darkVibrantColor = color
+    // Once per cover (not on every redraw): reading the cover's colour is slow.
+    androidx.compose.runtime.LaunchedEffect(songCoverUri) {
+        Palette().extractFirstColorFromImageUrl(context = context, songCoverUri){ color ->
+            darkVibrantColor = color
+        }
     }
 
     var isLiked by remember {
@@ -234,18 +239,32 @@ fun MiniPlayer(navController: NavHostController) {
                         alpha = enter.value * (1f - (kotlin.math.abs(swipe.value) / (size.width * 1.2f))).coerceIn(0f, 1f)
                     }
             ) {
-                GlideImage(
+                Box(
+                    contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .padding(0.dp, 0.dp, 12.dp, 0.dp)
                         .size(46.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                    ,
-                    model = songCoverUri,
-                    contentScale = ContentScale.Crop,
-                    failure = placeholder(R.drawable.placeholder),
-                    loading = placeholder(R.drawable.placeholder),
-                    contentDescription = ""
-                )
+                        .clip(RoundedCornerShape(12.dp)),
+                ) {
+                    GlideImage(
+                        modifier = Modifier.fillMaxSize(),
+                        model = songCoverUri,
+                        contentScale = ContentScale.Crop,
+                        failure = placeholder(R.drawable.placeholder),
+                        loading = placeholder(R.drawable.placeholder),
+                        contentDescription = ""
+                    )
+                    // A small equalizer on the cover while the song plays.
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = songPlayingState,
+                        enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(250)),
+                        exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(250)),
+                    ) {
+                        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.38f)), contentAlignment = Alignment.Center) {
+                            CoverEqualizer()
+                        }
+                    }
+                }
                 Column(
                     modifier = Modifier
                         .widthIn(Dp.Unspecified, 200.dp)
@@ -434,4 +453,34 @@ fun ConfirmDownloadAllDialog(count: Int, onDismiss: () -> Unit, onConfirm: () ->
             androidx.compose.material3.TextButton(onClick = onDismiss) { androidx.compose.material3.Text("Cancel") }
         },
     )
+}
+
+
+/** Four little saffron bars rising and falling at different speeds, like a beat. */
+@Composable
+private fun CoverEqualizer() {
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "eq")
+    val speeds = listOf(520, 380, 610, 450)
+    val bars = speeds.mapIndexed { i, ms ->
+        t.animateFloat(
+            initialValue = 0.25f, targetValue = 1f,
+            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                androidx.compose.animation.core.tween(ms, delayMillis = i * 60, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                androidx.compose.animation.core.RepeatMode.Reverse,
+            ),
+            label = "bar$i",
+        )
+    }
+    androidx.compose.foundation.Canvas(Modifier.size(width = 22.dp, height = 16.dp)) {
+        val w = 3.dp.toPx(); val gap = (size.width - w * 4) / 3
+        bars.forEachIndexed { i, v ->
+            val h = size.height * v.value
+            drawRoundRect(
+                com.music.spotui.ui.theme.Saffron,
+                topLeft = androidx.compose.ui.geometry.Offset(i * (w + gap), size.height - h),
+                size = androidx.compose.ui.geometry.Size(w, h),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(w / 2),
+            )
+        }
+    }
 }

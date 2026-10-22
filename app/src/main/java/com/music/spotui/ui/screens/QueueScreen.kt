@@ -68,6 +68,7 @@ import com.music.spotui.ui.viewmodel.PlayerViewModel
 @OptIn(ExperimentalGlideComposeApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun QueueScreen(navController: NavController) {
+    val closeSheet = com.music.spotui.ui.navigation.LocalCloseSheet.current
     val playerViewModel: PlayerViewModel = hiltViewModel()
     val context = LocalContext.current
     val queue by playerViewModel.queue
@@ -104,7 +105,7 @@ fun QueueScreen(navController: NavController) {
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                    ) { navController.navigateUp() }
+                    ) { closeSheet?.invoke() ?: navController.navigateUp() }
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text("Queue", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
