@@ -85,19 +85,27 @@ object ArtistPicker {
         val today = java.time.LocalDate.now().toString()
         if (!force && prefs.getString("day", null) == today) readAlbums(prefs.getString("list", "[]"))?.let { return@coroutineScope it }
         val api = Api(c)
-        val played = Personalizer.artistPlayCounts(c).take(6).map { it.first }
-        val followed = following(c).take(10)
-        // Artists you play most come first, then the ones you follow.
-        val artists = (played.map { ArtistsModel(it, "", "") } + followed).distinctBy { key(it.name) }.take(10)
+        // A new mix every day: your 4 most-played artists always, plus 8 picked from the
+        // rest of your top artists and follows; for each, 2 of their top 6 releases,
+        // preferring albums that weren't shown yesterday.
+        val rnd = java.util.Random(today.hashCode().toLong())
+        val played = Personalizer.artistPlayCounts(c).take(20).map { ArtistsModel(it.first, "", "") }
+        val pool = (played.drop(4) + following(c)).distinctBy { key(it.name) }.shuffled(rnd)
+        val artists = (played.take(4) + pool).distinctBy { key(it.name) }.take(12)
+        val yesterday = prefs.getStringSet("shown", emptySet()).orEmpty()
         val lists = artists.map { a ->
             async {
                 val id = a.id.ifBlank { resolve(api, a.name)?.id.orEmpty() }
-                runCatching { api.artistReleases(id) }.getOrDefault(emptyList()).take(2)
+                // Skip dialogue albums and dubbed versions ("… (Telugu)"); keep real music releases.
+                val notMusic = Regex("""dialogue|\b(telugu|tamil|malayalam|kannada)\b.*(version|\]|\))|\((telugu|tamil|malayalam|kannada)\)|\[(telugu|tamil|malayalam|kannada)\]""", RegexOption.IGNORE_CASE)
+                val releases = runCatching { api.artistReleases(id) }.getOrDefault(emptyList()).filterNot { notMusic.containsMatchIn(it.name) }.take(6)
+                (releases.filter { it.spotifyId !in yesterday }.shuffled(rnd) + releases.filter { it.spotifyId in yesterday }).take(2)
             }
         }.awaitAll()
         val mixed = ArrayList<com.music.spotui.data.entity.LibraryEntry>()
         for (i in 0 until 2) lists.forEach { l -> l.getOrNull(i)?.let { if (mixed.none { m -> m.spotifyId == it.spotifyId }) mixed += it } }
-        if (mixed.isNotEmpty()) prefs.edit().putString("day", today).putString("list", writeAlbums(mixed)).apply()
+        if (mixed.isNotEmpty()) prefs.edit().putString("day", today).putString("list", writeAlbums(mixed))
+            .putStringSet("shown", mixed.mapTo(HashSet()) { it.spotifyId }).apply()
         mixed
     }
 
