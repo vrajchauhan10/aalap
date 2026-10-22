@@ -487,6 +487,7 @@ fun SearchSongRow(
                 Text(text = "Song • ${song.singer}", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
             }
         }
+        com.music.spotui.ui.components.SongTasteTag(song, modifier = Modifier.padding(end = 10.dp))
 
         Icon(
             modifier = Modifier

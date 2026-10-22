@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.toList
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.InetAddress
@@ -50,6 +51,42 @@ object QueueEndpoint {
     private fun handle(context: Context, socket: Socket) {
         val line = socket.getInputStream().bufferedReader().readLine().orEmpty() // "GET /queue?… HTTP/1.1"
         val target = line.split(" ").getOrNull(1).orEmpty()
+        if (target.startsWith("/pl?id=")) {
+            val id = target.substringAfter("id=")
+            val n = runBlocking {
+                runCatching { com.music.spotui.data.api.Api(context).getPlaylistSongs(id).toList()
+                    .filterIsInstance<com.music.spotui.data.api.Response.Success<List<com.music.spotui.data.entity.SongsModel>>>().lastOrNull()?.data?.size ?: -1 }.getOrDefault(-2)
+            }
+            val bytes = "{\"songs\": $n}".toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
+        if (target.startsWith("/search?q=")) {
+            val q = URLDecoder.decode(target.substringAfter("q="), "UTF-8")
+            val out = runBlocking {
+                com.metrolist.spotify.Spotify.search(q, listOf("playlist"), limit = 10).getOrNull()?.playlists?.items.orEmpty()
+                    .map { "${it.id} | ${it.name} | ${it.owner?.displayName}" }
+            }
+            val bytes = JSONArray(out).toString(2).toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
+        if (target.startsWith("/check")) {
+            // Debug: load every chart, mood and Explore category and count what comes back.
+            val out = runBlocking { checkCategories(context) }
+            val bytes = out.toString(2).toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
         if (target.startsWith("/ytlibrary")) {
             // Debug: force a YouTube Music library sync and report what came in.
             val ok = runBlocking { com.music.spotui.data.api.YouTubeLibrary.sync(context) }
@@ -79,6 +116,28 @@ object QueueEndpoint {
             write(bytes)
             flush()
         }
+    }
+
+    private suspend fun checkCategories(context: Context): JSONObject {
+        val api = com.music.spotui.data.api.Api(context)
+        suspend fun playlistCount(id: String): Int = runCatching {
+            api.getPlaylistSongs(id).toList().filterIsInstance<com.music.spotui.data.api.Response.Success<List<com.music.spotui.data.entity.SongsModel>>>().lastOrNull()?.data?.size ?: -1
+        }.getOrDefault(-2)
+        val charts = JSONObject()
+        com.music.spotui.data.api.CHARTS.forEach { c -> charts.put(c.title, playlistCount(c.id)) }
+        val moods = JSONObject()
+        com.music.spotui.data.api.Mood.entries.forEach { m ->
+            moods.put(m.label, runCatching { com.music.spotui.data.api.Discover.moodMix(context, m).size }.getOrDefault(-2))
+        }
+        val explore = JSONObject()
+        com.music.spotui.ui.screens.EXPLORE.forEach { t ->
+            val lists = runCatching {
+                api.getCategoryPlaylists(t.query).toList().filterIsInstance<com.music.spotui.data.api.Response.Success<List<com.music.spotui.data.entity.LibraryEntry>>>().lastOrNull()?.data.orEmpty()
+            }.getOrDefault(emptyList())
+            val firstSongs = lists.firstOrNull()?.let { playlistCount(it.spotifyId) } ?: -1
+            explore.put(t.title, "${lists.size} playlists, first has $firstSongs songs" + (lists.firstOrNull()?.let { " (${it.name})" } ?: ""))
+        }
+        return JSONObject().put("charts", charts).put("moods", moods).put("explore", explore)
     }
 
     private suspend fun queue(context: Context, params: Map<String, String>): JSONObject {

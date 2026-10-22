@@ -153,9 +153,9 @@ fun SearchFilterChips(selected: SearchFilter, available: Set<SearchFilter>, onSe
 }
 
 /** Explore categories: India first, each opening a page of playlists for it. */
-private data class ExploreTile(val title: String, val query: String, val colors: Pair<Long, Long>, val craft: com.music.spotui.ui.components.Craft)
+internal data class ExploreTile(val title: String, val query: String, val colors: Pair<Long, Long>, val craft: com.music.spotui.ui.components.Craft)
 
-private val EXPLORE = listOf(
+internal val EXPLORE = listOf(
     ExploreTile("Bollywood", "Bollywood hits", 0xFFFF8A3D to 0xFFB8235A, com.music.spotui.ui.components.Craft.MIRROR),
     ExploreTile("Punjabi", "Punjabi hits", 0xFFFFC56B to 0xFFE0661B, com.music.spotui.ui.components.Craft.PHULKARI),
     ExploreTile("Gujarati", "Gujarati songs", 0xFFE5397A to 0xFF6C1238, com.music.spotui.ui.components.Craft.AJRAK),
@@ -171,7 +171,7 @@ private val EXPLORE = listOf(
     ExploreTile("International", "Top hits global", 0xFF2BB3C0 to 0xFF3A1F6B, com.music.spotui.ui.components.Craft.DHOKRA),
     ExploreTile("K-Pop", "K-pop", 0xFFE5397A to 0xFF3D6BE0, com.music.spotui.ui.components.Craft.JAALI),
     ExploreTile("New releases", "New releases India", 0xFFFF8A3D to 0xFF3A1F6B, com.music.spotui.ui.components.Craft.MANDALA),
-    ExploreTile("Podcasts", "Podcast", 0xFF1E3264 to 0xFF100B1C, com.music.spotui.ui.components.Craft.LOTUS),
+    ExploreTile("Podcasts", "Hindi podcast", 0xFF1E3264 to 0xFF100B1C, com.music.spotui.ui.components.Craft.LOTUS),
 )
 
 /**

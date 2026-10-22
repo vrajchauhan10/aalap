@@ -131,17 +131,8 @@ fun MoodScreen(navController: NavController, moodName: String) {
                         Text(song.title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(song.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    if (yours) {
-                        Text(
-                            "Your taste",
-                            color = top, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(top.copy(alpha = 0.15f))
-                                .padding(horizontal = 8.dp, vertical = 3.dp),
-                        )
-                        Spacer(Modifier.width(4.dp))
-                    }
+                    // Same tags as everywhere: Trending, Top hit, Liked, Your taste.
+                    com.music.spotui.ui.components.SongTasteTag(song, modifier = Modifier.padding(start = 8.dp))
                 }
             }
         }

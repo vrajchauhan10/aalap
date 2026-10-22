@@ -452,6 +452,12 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                                 maxLines = 1
                             )
                         }
+                        // On a chart every song is a top hit, so only your own tags show there.
+                        com.music.spotui.ui.components.SongTasteTag(
+                            song,
+                            personalOnly = com.music.spotui.data.api.CHARTS.any { it.id == playlistId },
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
                     }
                     }
                 }

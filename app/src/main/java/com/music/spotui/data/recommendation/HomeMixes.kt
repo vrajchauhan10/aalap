@@ -159,11 +159,33 @@ object HomeMixes {
      * "Your taste" (fits your taste closely). Null when none apply. Works offline from
      * today's cached charts.
      */
-    fun reasonFor(c: Context, song: SongsModel): TodaySong? {
+    // In-memory lookups for tags (rebuilt once a day), so tagging long lists stays smooth.
+    @Volatile private var memoDay = ""
+    private var chartMemo: Map<String, Set<String>> = emptyMap()
+    private var todayMemo: Map<String, TodaySong> = emptyMap()
+    private fun songKeys(s: SongsModel) = listOf("id:${s.id}", "t:${s.title.lowercase()}|${key(s.singer)}")
+
+    @Synchronized
+    private fun ensureMemo() {
+        val day = today() + "#" + prefs(appCtx).getLong("today.at", 0)
+        if (memoDay == day) return
+        chartMemo = listOf(VIRAL50_INDIA, TOP50_INDIA, TOP50_GLOBAL).associateWith { id ->
+            readSongs("chart.$id", today()).orEmpty().flatMap(::songKeys).toSet()
+        }
+        todayMemo = todayCached().flatMap { t -> songKeys(t.song).map { it to t } }.toMap()
+        memoDay = day
+    }
+
+    /**
+     * [personalOnly]: only "Liked" / "Your taste" (for a chart page, where every song is
+     * already a top hit).
+     */
+    fun reasonFor(c: Context, song: SongsModel, personalOnly: Boolean = false): TodaySong? {
+        ensureMemo()
+        val keys = songKeys(song)
         // A song in today's 30 keeps the tag it has there, so it reads the same everywhere.
-        todayCached().firstOrNull { it.song.id == song.id || (it.song.title.equals(song.title, true) && key(it.song.singer) == key(song.singer)) }
-            ?.let { return it.copy(song = song) }
-        fun inChart(id: String) = readSongs("chart.$id", today()).orEmpty().any { it.id == song.id || it.title.equals(song.title, true) && key(it.singer) == key(song.singer) }
+        if (!personalOnly) keys.firstNotNullOfOrNull { todayMemo[it] }?.let { return it.copy(song = song) }
+        fun inChart(id: String) = !personalOnly && keys.any { it in chartMemo[id].orEmpty() }
         val taste = runCatching {
             Personalizer.profile(c).taste(SongBridge.toCandidate(song), RecoDb.get(c).songBySpotifyId(song.spotifyTrackId)?.id)
         }.getOrDefault(0.0)

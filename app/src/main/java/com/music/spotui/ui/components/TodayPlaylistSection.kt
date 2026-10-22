@@ -149,3 +149,24 @@ fun ReasonTag(text: String, color: Color, filled: Boolean = false, onDark: Boole
             .padding(horizontal = 7.dp, vertical = 2.dp),
     )
 }
+
+/**
+ * The tag for any song row (charts, moods, categories, search): Trending, Top hit,
+ * Liked or Your taste, plus a filled "Your taste" when a trending/top song also fits
+ * you. [personalOnly] shows just Liked / Your taste (on chart pages). Nothing when
+ * none apply.
+ */
+@Composable
+fun SongTasteTag(song: com.music.spotui.data.entity.SongsModel, personalOnly: Boolean = false, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val t by androidx.compose.runtime.produceState<HomeMixes.TodaySong?>(null, song.id, personalOnly) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { HomeMixes.reasonFor(context, song, personalOnly) }.getOrNull()
+        }
+    }
+    val tag = t ?: return
+    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp), modifier = modifier) {
+        ReasonTag(tag.reason, reasonColor(tag.reason))
+        if (tag.matches && tag.reason != "Your taste" && tag.reason != "Liked") ReasonTag("Your taste", reasonColor("Your taste"), filled = true)
+    }
+}

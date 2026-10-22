@@ -128,6 +128,20 @@ class Api @Inject constructor(
         )
     }
 
+    /**
+     * Retries a Spotify call a couple of times when the connection blips (a dropped
+     * lookup right after launch used to leave moods and categories empty for the day).
+     */
+    private suspend fun <T> retrying(attempts: Int = 3, block: suspend () -> Result<T>): Result<T> {
+        var last: Result<T> = block()
+        var n = 1
+        while (last.isFailure && n < attempts) {
+            kotlinx.coroutines.delay(800L * n)
+            last = block(); n++
+        }
+        return last
+    }
+
     /** Artists matching [query] (artist picker search and name → id lookups). */
     suspend fun searchArtists(query: String, limit: Int = 12): List<ArtistsModel> {
         if (query.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
@@ -474,9 +488,11 @@ class Api @Inject constructor(
         if (!SpotifyTokenProvider.ensureToken(context)) {
             emit(Response.Error("Spotify not authenticated — set sp_dc cookie")); return@flow
         }
-        Spotify.search(genre, types = listOf("playlist"), limit = 24).fold(
+        retrying { Spotify.search(genre, types = listOf("playlist"), limit = 24) }.fold(
             onSuccess = { res ->
-                emit(Response.Success(res.playlists?.items.orEmpty().map { p ->
+                // Keep category pages family-friendly: drop adult playlists a plain search can return.
+                val adult = Regex("""\b(sex|sexy|xxx|18\+|adult|erotic|nsfw|porn|nude|hot stories)\b""", RegexOption.IGNORE_CASE)
+                emit(Response.Success(res.playlists?.items.orEmpty().filterNot { adult.containsMatchIn(it.name) || adult.containsMatchIn(it.description.orEmpty()) }.map { p ->
                     com.music.spotui.data.entity.LibraryEntry(
                         spotifyId = p.id,
                         name = p.name,
@@ -486,7 +502,7 @@ class Api @Inject constructor(
                     )
                 }))
             },
-            onFailure = { Log.e("Api", "getCategoryPlaylists failed", it); emit(Response.Error(it.message ?: "error")) },
+            onFailure = { Log.e("Api", "getCategoryPlaylists failed: ${it.javaClass.simpleName}: ${it.message}"); emit(Response.Error(it.message ?: "error")) },
         )
     }
 
@@ -627,7 +643,7 @@ class Api @Inject constructor(
         fetchAllPages(onPage = { items, _ ->
             loaded = true
             emit(Response.Success(items.mapNotNull { it.track?.toSongModel() }))
-        }) { offset -> Spotify.playlistTracks(playlistId, limit = 100, offset = offset) }
+        }) { offset -> retrying { Spotify.playlistTracks(playlistId, limit = 100, offset = offset) } }
         if (!loaded) emit(Response.Error("Couldn't load this playlist"))
     }
 
