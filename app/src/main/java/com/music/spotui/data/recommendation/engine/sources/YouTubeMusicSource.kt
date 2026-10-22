@@ -19,6 +19,7 @@ object YouTubeMusicSource : NextSongSource {
     override suspend fun getNextSongs(seed: Song): SourceResult {
         val videoId = seed.info.ytId.ifBlank { SongPlayer.youTubeIdFor(SongBridge.playQuery(seed)) }
             ?: return SourceResult(emptyList())
+        com.music.spotui.data.recommendation.engine.RecoTrace.log("    YouTube Music: video $videoId" + (if (seed.info.ytId.isBlank()) (" (found by searching '${SongBridge.playQuery(seed)}')") else "") + " → its Up next radio")
         val upNext = YouTube.upNext(videoId).getOrThrow()
         val ranked = upNext.filter { it.videoId != videoId }.map {
             Candidate(title = it.title, artists = it.artists, durationSec = it.durationSec, cover = it.thumbnail, ytId = it.videoId)

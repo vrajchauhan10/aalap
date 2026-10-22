@@ -17,6 +17,7 @@ object JioSaavnRadioSource : NextSongSource {
         val hit = if (seed.info.saavnId.isBlank()) JioSaavnSource.findSong(seed.title, seed.artists, seed.info.durationSec) else null
         val id = seed.info.saavnId.ifBlank { hit?.saavnId.orEmpty() }
         if (id.isBlank()) return SourceResult(emptyList())
+        com.music.spotui.data.recommendation.engine.RecoTrace.log("    JioSaavn: song $id" + (if (hit != null) " (found by searching '${seed.title}')" else "") + " → its station")
         return SourceResult(
             JioSaavnSource.radio(id),
             seedUpdate = hit?.let { seed.info.copy(saavnId = it.saavnId, language = seed.info.language.ifBlank { it.language }) },

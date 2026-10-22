@@ -20,6 +20,7 @@ class SpotifyRadioSource(private val context: Context) : NextSongSource {
         val found = if (seed.info.spotifyId.isBlank()) api.findTrack(seed.info) else null
         val spotifyId = seed.info.spotifyId.ifBlank { found?.spotifyId.orEmpty() }
         if (spotifyId.isBlank()) return SourceResult(emptyList())
+        com.music.spotui.data.recommendation.engine.RecoTrace.log("    Spotify: track $spotifyId" + (if (found != null) " (found by searching '${seed.title} ${seed.artists.substringBefore(",")}')" else "") + " → its song radio")
         val ranked = api.radioCandidates(spotifyId).filter { it.spotifyId != spotifyId }
         return SourceResult(ranked, seedUpdate = found?.let { seed.info.copy(spotifyId = it.spotifyId, isrc = seed.info.isrc.ifBlank { it.isrc }) })
     }

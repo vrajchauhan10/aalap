@@ -79,6 +79,7 @@ object QueueEngine {
         inflight[key]?.let { return it }
         val job = scope.async(start = CoroutineStart.LAZY) {
             try {
+                RecoTrace.log("  ↳ asking ${src.source} for songs after '${seed.title}'…")
                 val res = src.getNextSongs(seed)
                 val db = RecoDb.get(context)
                 res.seedUpdate?.let { db.enrich(seed.id, it) }
@@ -134,14 +135,31 @@ object QueueEngine {
         val fused = Fusion.fuse(ranked).take(CANDIDATE_POOL)
         val top = fused.firstOrNull()?.score?.takeIf { it > 0 } ?: 1.0
         val db = RecoDb.get(context)
+        if (RecoTrace.on) {
+            val all = db.songs(ranked.values.flatMap { it.take(6) } + fused.take(8).map { it.id })
+            RecoTrace.log("  SOURCES (what each service plays after '${seed.title}'):")
+            for ((src, ids) in ranked) RecoTrace.log("    $src → ${ids.size} songs\n" + RecoTrace.songs(ids.mapNotNull { all[it] }))
+            if (ranked.isEmpty()) RecoTrace.log("    (no source answered in time)")
+            RecoTrace.log("  FUSION (rank fusion: a song high on several lists rises; top 8 of ${fused.size}):")
+            fused.take(8).forEachIndexed { i, f ->
+                RecoTrace.log("    ${i + 1}. ${all[f.id]?.title ?: f.id}  rrf=%.4f  from %s".format(f.score, f.sources.joinToString("+")))
+            }
+        }
         // The listener's own habits after this seed join the pool even if no source suggested them.
         val habitIds = db.transitionsFrom(userId, seed.id).map { it.toId }
         val songs = db.songs(fused.map { it.id } + habitIds)
         val fusedIds = fused.mapTo(HashSet()) { it.id }
         val pairs = fused.mapNotNull { f -> songs[f.id]?.let { it to f.score / top } } +
             habitIds.filter { it !in fusedIds }.mapNotNull { id -> songs[id]?.let { it to 0.0 } }
-        return Personalizer.score(context, userId, seed, pairs, fused.associate { it.id to it.sources })
+        val scored = Personalizer.score(context, userId, seed, pairs, fused.associate { it.id to it.sources })
             .sortedByDescending { it.final }
+        if (RecoTrace.on) {
+            RecoTrace.log("  PERSONAL (final = 0.6·global + 0.2·your taste + 0.2·your habit; top 8):")
+            scored.take(8).forEachIndexed { i, s ->
+                RecoTrace.log("    ${i + 1}. ${s.song.title} — ${s.song.artists.substringBefore(",")}  global %.2f  taste %.2f  habit %.2f  → %.3f".format(s.global, s.taste, s.habit, s.final))
+            }
+        }
+        return scored
     }
 
     // ── 6 + 7: diversify and chain ──────────────────────────────────────────
@@ -177,9 +195,12 @@ object QueueEngine {
         val profile = Personalizer.profile(context, userId)
         val excluded = HashSet<String>(profile.recentIds + profile.recentSkips)
         excluded += seed.id
+        RecoTrace.log("━━━━ UP NEXT after '${seed.title}' — ${seed.artists} ━━━━")
+        RecoTrace.log("  skipping ${profile.recentIds.size} songs you played lately and ${profile.recentSkips.size} you skipped; $length songs to choose")
         val rnd = Random()
         var cur = seed
         for (step in 0 until length) {
+            RecoTrace.log("\n── Pick #${step + 1}: what comes after '${cur.title}'? ──")
             val scored = if (step == 0) scoredAfter(context, userId, cur, SOURCE_TIMEOUT_MS, FIRST_PICK_GRACE_MS)
                 else scoredAfter(context, userId, cur, BACKGROUND_TIMEOUT_MS)
                 .filter { SongBridge.appId(it.song) !in excludeAppIds }
@@ -190,6 +211,9 @@ object QueueEngine {
                 Log.w(TAG, "no next song after '${cur.title}'")
                 return
             }
+            RecoTrace.log("  ✔ PICKED #${step + 1}: '${pick.scored.song.title}' — ${pick.scored.song.artists.substringBefore(",")}  (via ${pick.via}, score %.3f)".format(pick.scored.final) +
+                "\n    why: chosen at random among the top ${Diversifier.TOP_N} by score (higher score = likelier), " +
+                "skipping songs by the same artist as '${cur.title}' and anything played recently")
             Log.d(TAG, "#${step + 1} '${pick.scored.song.title}' via ${pick.via} " +
                 "(global %.2f taste %.2f habit %.2f → %.3f, %s)".format(pick.scored.global, pick.scored.taste, pick.scored.habit, pick.scored.final, pick.scored.sources))
             onPick(pick)
