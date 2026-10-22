@@ -53,11 +53,11 @@ class HomeViewModel @Inject constructor(
     val newReleases = MutableStateFlow<List<com.music.spotui.data.entity.LibraryEntry>>(emptyList())
     val today = MutableStateFlow<List<com.music.spotui.data.recommendation.HomeMixes.TodaySong>>(emptyList())
 
-    private fun loadUnified(force: Boolean = false) = viewModelScope.launch(Dispatchers.IO) {
+    private fun loadUnified(force: Boolean = false, skipQuickPicks: Boolean = false) = viewModelScope.launch(Dispatchers.IO) {
         recentlyPlayed.value = M.recentlyPlayed(appContext)
         _favourites.value = M.allTimeFavourites(appContext)
         launch { runCatching { jumpBackIn.value = M.jumpBackIn(appContext) } }
-        launch { loadQuickPicks(force) }
+        if (!skipQuickPicks) launch { loadQuickPicks(force) }
         launch { runCatching { today.value = M.todayPlaylist(appContext) } }
         launch { runCatching { stations.value = M.artistStations(appContext) } }
         launch { runCatching { newReleases.value = M.newReleases(appContext) } }
@@ -108,14 +108,18 @@ class HomeViewModel @Inject constructor(
         }
         // The spinner waits only for what you see first (new Quick picks and the feed),
         // and never more than 6 s; the slower mixes keep rebuilding in the background.
+        // New Quick picks are held back and shown together with the bounce, not before it.
         val feed = fetchHome()
-        val quick = launch { loadQuickPicks(force) }
+        var fresh: List<com.music.spotui.data.recommendation.HomeMixes.TodaySong>? = null
+        val quick = launch { fresh = runCatching { M.tagged(appContext, M.quickPicks(appContext, force)) }.getOrNull() }
         loadDiscovery()
-        loadUnified(force = false)
         if (force) launch { runCatching { dailyMixes.value = M.dailyMixes(appContext, true) } }
         kotlinx.coroutines.withTimeoutOrNull(6_000) { quick.join(); feed.join() }
         _refreshing.value = false
+        // One moment: new picks in, bounce starts.
+        fresh?.takeIf { it.isNotEmpty() }?.let { quickPicks.value = it }
         refreshGen.value++
+        loadUnified(force = false, skipQuickPicks = true)
     }
 
     private fun fetchHome() = viewModelScope.launch(Dispatchers.IO) {

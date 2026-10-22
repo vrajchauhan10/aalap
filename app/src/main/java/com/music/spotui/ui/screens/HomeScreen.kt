@@ -234,9 +234,13 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
 @Composable
 private fun BounceIn(index: Int, gen: Int, content: @Composable () -> Unit) {
     val t = remember { androidx.compose.animation.core.Animatable(1f) }
+    // The section hides in the very frame the new content arrives (not a frame later),
+    // so the swap and the bounce read as one motion.
+    var shownGen by remember { androidx.compose.runtime.mutableIntStateOf(gen) }
     androidx.compose.runtime.LaunchedEffect(gen) {
-        if (gen == 0) return@LaunchedEffect
+        if (gen == 0 || gen == shownGen && t.value >= 1f) { shownGen = gen; return@LaunchedEffect }
         t.snapTo(0f)
+        shownGen = gen
         kotlinx.coroutines.delay(minOf(index, 10) * 40L)
         t.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
     }
@@ -244,8 +248,9 @@ private fun BounceIn(index: Int, gen: Int, content: @Composable () -> Unit) {
     // so sections never show on top of each other mid-animation.
     // A Column (not a Box): some sections are several pieces that must stack, not overlap.
     Column(Modifier.graphicsLayer {
-        translationY = (1f - t.value) * -16.dp.toPx()
-        alpha = (0.55f + 0.45f * t.value).coerceIn(0f, 1f) // never blank: the page stays visible
+        val p = if (shownGen != gen) 0f else t.value
+        translationY = (1f - p) * -20.dp.toPx()
+        alpha = (p * 1.6f).coerceIn(0f, 1f) // fades in quickly as it drops
     }) { content() }
 }
 
