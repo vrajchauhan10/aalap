@@ -359,8 +359,19 @@ private val Madhubani = PosterDesign("Madhubani", "India", Color(0xFF7A1F16)) {
     hem(yellow.copy(alpha = 0.5f))
 }
 
-/** All 30, one for each day of the month: the first ten here, twenty more in PosterDesigns2. */
-val PosterDesigns: List<PosterDesign> = listOf(Mandala, Sashiko, Zellige, Kente, Warli, Iznik, Ikat, Batik, Otomi, Madhubani) + MoreDesigns
+/**
+ * All 50: the first ten here, twenty more in PosterDesigns2 and twenty fine micro
+ * patterns in PosterDesigns3, mixed so two micro patterns rarely come on back-to-back days.
+ */
+val PosterDesigns: List<PosterDesign> = buildList {
+    val bold = listOf(Mandala, Sashiko, Zellige, Kente, Warli, Iznik, Ikat, Batik, Otomi, Madhubani) + MoreDesigns
+    var m = 0
+    bold.forEachIndexed { i, d ->
+        add(d)
+        if (i % 3 != 2 && m < MicroDesigns.size) add(MicroDesigns[m++])
+    }
+    addAll(MicroDesigns.drop(m))
+}
 
 /** Debug builds can show a chosen design (for checking each one); -1 = today's. */
 val PosterDesignOverride = mutableIntStateOf(-1)
