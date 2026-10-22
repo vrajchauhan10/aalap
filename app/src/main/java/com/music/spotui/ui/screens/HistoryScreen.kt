@@ -180,211 +180,214 @@ fun HistoryScreen(navController: NavController) {
         )
     }
 
-    Box(Modifier.fillMaxSize().background(AppBackground)) {
-        // Soft saffron glow in the top-right corner.
-        Canvas(Modifier.fillMaxWidth().height(420.dp)) {
-            drawRect(
-                Brush.radialGradient(
-                    colors = listOf(Saffron.copy(alpha = 0.55f), SaffronGold.copy(alpha = 0.18f), Color.Transparent),
-                    center = Offset(size.width * 0.95f, size.height * 0.08f),
-                    radius = size.width * 0.75f,
-                )
-            )
-        }
-        LazyColumn(
-            contentPadding = PaddingValues(bottom = 200.dp),
-            modifier = Modifier.fillMaxSize().statusBarsPadding(),
-        ) {
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(16.dp, 14.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = TextPrimary,
-                        modifier = Modifier.size(26.dp).clickable { navController.navigateUp() })
-                    Spacer(Modifier.weight(1f))
-                    Icon(Icons.Default.Share, "Share your month", tint = TextPrimary,
-                        modifier = Modifier.size(22.dp).clickable { navController.navigate(Routes.Wrapped.route) })
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                    Text("Replay", color = TextPrimary, fontSize = 36.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    Box {
-                        Text(
-                            "$year ▾", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f))
-                                .clickable { yearMenu = true }.padding(horizontal = 16.dp, vertical = 8.dp),
-                        )
-                        DropdownMenu(expanded = yearMenu, onDismissRequest = { yearMenu = false }) {
-                            years.forEach { y ->
-                                DropdownMenuItem(text = { Text("$y") }, onClick = { year = y; month = null; yearMenu = false })
-                            }
-                        }
-                    }
-                }
-                // Month tabs: the months you listened in, plus the whole year.
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(22.dp),
-                    contentPadding = PaddingValues(horizontal = 20.dp),
-                    modifier = Modifier.padding(top = 18.dp),
-                ) {
-                    item { MonthTab("All", month == null) { month = null } }
-                    items(monthsWithPlays.size) { i ->
-                        val m = monthsWithPlays[i]
-                        MonthTab(m.getDisplayName(TextStyle.SHORT, Locale.getDefault()), month == m) { month = m }
-                    }
-                }
-                // Headline.
-                Text(
-                    buildAnnotatedString {
-                        withStyle(SpanStyle(color = TextMuted)) { append("You listened for ") }
-                        withStyle(SpanStyle(color = TextPrimary)) { append("%,d minutes".format(minutes)) }
-                        withStyle(SpanStyle(color = TextMuted)) { append(" in ") }
-                        withStyle(SpanStyle(color = TextPrimary)) { append(periodName) }
-                        withStyle(SpanStyle(color = TextMuted)) { append(".") }
-                    },
-                    fontSize = 32.sp, fontWeight = FontWeight.Bold, lineHeight = 38.sp,
-                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 36.dp, bottom = 8.dp),
+    // Aalap's pull-to-refresh (the same on every screen).
+    com.music.spotui.ui.components.AalapRefresh(Modifier.fillMaxSize(), onRefresh = { history = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { getListeningHistory(context) } }) {
+        Box(Modifier.fillMaxSize().background(AppBackground)) {
+            // Soft saffron glow in the top-right corner.
+            Canvas(Modifier.fillMaxWidth().height(420.dp)) {
+                drawRect(
+                    Brush.radialGradient(
+                        colors = listOf(Saffron.copy(alpha = 0.55f), SaffronGold.copy(alpha = 0.18f), Color.Transparent),
+                        center = Offset(size.width * 0.95f, size.height * 0.08f),
+                        radius = size.width * 0.75f,
+                    )
                 )
             }
-
-            if (period.isEmpty()) {
+            LazyColumn(
+                contentPadding = PaddingValues(bottom = 200.dp),
+                modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            ) {
                 item {
-                    Text("No listening here yet. Play something and it shows up in your Replay.",
-                        color = TextMuted, fontSize = 14.sp, modifier = Modifier.padding(20.dp))
-                }
-            } else {
-                item {
-                    ReplayHeader("Your Top Artists")
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(horizontal = 20.dp)) {
-                        items(topArtists.size) { i ->
-                            val r = topArtists[i]
-                            val name = r.entry.artist()
-                            val image = r.entry.image
-                            Box(
-                                modifier = Modifier.size(width = 220.dp, height = 290.dp).clip(RoundedCornerShape(16.dp)).background(SurfaceHigh),
-                            ) {
-                                GlideImage(
-                                    model = image, contentDescription = name, contentScale = ContentScale.Crop,
-                                    loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.8f))))
-                                Text("${i + 1}", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(16.dp))
-                                MoveBadge(r.move, Modifier.align(Alignment.TopEnd).padding(14.dp))
-                                Column(Modifier.align(Alignment.BottomCenter).padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(name, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text("${r.minutes} min · ${r.plays} ${if (r.plays == 1) "play" else "plays"}", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(16.dp, 14.dp)) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = TextPrimary,
+                            modifier = Modifier.size(26.dp).clickable { navController.navigateUp() })
+                        Spacer(Modifier.weight(1f))
+                        Icon(Icons.Default.Share, "Share your month", tint = TextPrimary,
+                            modifier = Modifier.size(22.dp).clickable { navController.navigate(Routes.Wrapped.route) })
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                        Text("Replay", color = TextPrimary, fontSize = 36.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Box {
+                            Text(
+                                "$year ▾", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f))
+                                    .clickable { yearMenu = true }.padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                            DropdownMenu(expanded = yearMenu, onDismissRequest = { yearMenu = false }) {
+                                years.forEach { y ->
+                                    DropdownMenuItem(text = { Text("$y") }, onClick = { year = y; month = null; yearMenu = false })
                                 }
                             }
                         }
                     }
-                }
-                item {
-                    ReplayHeader("Your Top Songs")
-                    Text(
-                        "Ranked by plays you finished. Arrows compare with $previousName.",
-                        color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
-                    )
-                    topSongs.firstOrNull()?.let { top ->
-                        TopSongHero(top, periodName) { if (top.entry.url.isNotBlank()) playerViewModel.playWithRadio(top.entry.toSong(), context) }
-                    }
-                }
-                val maxPlays = topSongs.firstOrNull()?.plays?.coerceAtLeast(1) ?: 1
-                items((topSongs.size - 1).coerceAtLeast(0)) { j ->
-                    val i = j + 1
-                    val r = topSongs[i]
-                    val entry = r.entry
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                            .clickable { if (entry.url.isNotBlank()) playerViewModel.playWithRadio(entry.toSong(), context) }
-                            .padding(horizontal = 20.dp, vertical = 7.dp),
+                    // Month tabs: the months you listened in, plus the whole year.
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(22.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp),
+                        modifier = Modifier.padding(top = 18.dp),
                     ) {
-                        Text("${i + 1}", color = if (i < 3) Saffron else TextMuted, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(30.dp))
-                        GlideImage(
-                            model = entry.image, contentDescription = null, contentScale = ContentScale.Crop,
-                            loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
-                            modifier = Modifier.size(54.dp).clip(RoundedCornerShape(8.dp)),
-                        )
-                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text(entry.title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(entry.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            // Share of plays compared with your #1.
-                            Box(Modifier.padding(top = 5.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(SurfaceHigh)) {
-                                Box(Modifier.fillMaxWidth(r.plays.toFloat() / maxPlays).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Saffron.copy(alpha = 0.8f)))
+                        item { MonthTab("All", month == null) { month = null } }
+                        items(monthsWithPlays.size) { i ->
+                            val m = monthsWithPlays[i]
+                            MonthTab(m.getDisplayName(TextStyle.SHORT, Locale.getDefault()), month == m) { month = m }
+                        }
+                    }
+                    // Headline.
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(color = TextMuted)) { append("You listened for ") }
+                            withStyle(SpanStyle(color = TextPrimary)) { append("%,d minutes".format(minutes)) }
+                            withStyle(SpanStyle(color = TextMuted)) { append(" in ") }
+                            withStyle(SpanStyle(color = TextPrimary)) { append(periodName) }
+                            withStyle(SpanStyle(color = TextMuted)) { append(".") }
+                        },
+                        fontSize = 32.sp, fontWeight = FontWeight.Bold, lineHeight = 38.sp,
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 36.dp, bottom = 8.dp),
+                    )
+                }
+
+                if (period.isEmpty()) {
+                    item {
+                        Text("No listening here yet. Play something and it shows up in your Replay.",
+                            color = TextMuted, fontSize = 14.sp, modifier = Modifier.padding(20.dp))
+                    }
+                } else {
+                    item {
+                        ReplayHeader("Your Top Artists")
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(horizontal = 20.dp)) {
+                            items(topArtists.size) { i ->
+                                val r = topArtists[i]
+                                val name = r.entry.artist()
+                                val image = r.entry.image
+                                Box(
+                                    modifier = Modifier.size(width = 220.dp, height = 290.dp).clip(RoundedCornerShape(16.dp)).background(SurfaceHigh),
+                                ) {
+                                    GlideImage(
+                                        model = image, contentDescription = name, contentScale = ContentScale.Crop,
+                                        loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.8f))))
+                                    Text("${i + 1}", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(16.dp))
+                                    MoveBadge(r.move, Modifier.align(Alignment.TopEnd).padding(14.dp))
+                                    Column(Modifier.align(Alignment.BottomCenter).padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(name, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text("${r.minutes} min · ${r.plays} ${if (r.plays == 1) "play" else "plays"}", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+                                    }
+                                }
                             }
                         }
-                        Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 10.dp)) {
-                            Text("${r.plays} ${if (r.plays == 1) "play" else "plays"}", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            Text("${r.minutes} min", color = TextMuted, fontSize = 11.sp)
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        MoveBadge(r.move)
                     }
-                }
-                if (topSongsAll.size > 10) item {
-                    Text(
-                        if (showAllSongs) "Show top 10" else "Show top ${topSongsAll.size}",
-                        color = Saffron, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).clip(RoundedCornerShape(50))
-                            .clickable { showAllSongs = !showAllSongs }.padding(8.dp),
-                    )
-                }
-            }
-
-            // Recent plays (clearable without touching the stats above).
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 30.dp, bottom = 6.dp)) {
-                    Text("Recent plays", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    if (recent.isNotEmpty()) {
-                        Text("Clear all", color = Saffron, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.clip(RoundedCornerShape(50)).clickable { confirmClear = true }.padding(8.dp))
-                    }
-                }
-            }
-            if (recent.isEmpty()) {
-                item {
-                    Text("Nothing new since you cleared the list.", color = TextMuted, fontSize = 14.sp,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-                }
-            }
-            recent.groupBy { it.date() }.forEach { (day, entries) ->
-                item {
-                    Text(
-                        when (day) {
-                            today -> "Today"
-                            today.minusDays(1) -> "Yesterday"
-                            else -> day.format(DateTimeFormatter.ofPattern("EEE, d MMM", Locale.getDefault()))
-                        },
-                        color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp),
-                    )
-                }
-                items(entries.size) { i ->
-                    val e = entries[i]
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                            .clickable { if (e.url.isNotBlank()) playerViewModel.playWithRadio(e.toSong(), context) }
-                            .padding(horizontal = 20.dp, vertical = 6.dp),
-                    ) {
-                        GlideImage(
-                            model = e.image, contentDescription = null, contentScale = ContentScale.Crop,
-                            loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
-                            modifier = Modifier.size(46.dp).clip(RoundedCornerShape(8.dp)),
-                        )
-                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text(e.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(e.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
+                    item {
+                        ReplayHeader("Your Top Songs")
                         Text(
-                            Instant.ofEpochMilli(e.ts).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())),
-                            color = TextMuted, fontSize = 11.sp,
+                            "Ranked by plays you finished. Arrows compare with $previousName.",
+                            color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
                         )
-                        Spacer(Modifier.width(10.dp))
-                        Icon(Icons.Default.Close, "Remove from history", tint = TextMuted,
-                            modifier = Modifier.size(18.dp).clickable {
-                                removeListeningHistory(context, e)
-                                history = getListeningHistory(context)
-                            })
+                        topSongs.firstOrNull()?.let { top ->
+                            TopSongHero(top, periodName) { if (top.entry.url.isNotBlank()) playerViewModel.playWithRadio(top.entry.toSong(), context) }
+                        }
+                    }
+                    val maxPlays = topSongs.firstOrNull()?.plays?.coerceAtLeast(1) ?: 1
+                    items((topSongs.size - 1).coerceAtLeast(0)) { j ->
+                        val i = j + 1
+                        val r = topSongs[i]
+                        val entry = r.entry
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable { if (entry.url.isNotBlank()) playerViewModel.playWithRadio(entry.toSong(), context) }
+                                .padding(horizontal = 20.dp, vertical = 7.dp),
+                        ) {
+                            Text("${i + 1}", color = if (i < 3) Saffron else TextMuted, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(30.dp))
+                            GlideImage(
+                                model = entry.image, contentDescription = null, contentScale = ContentScale.Crop,
+                                loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+                                modifier = Modifier.size(54.dp).clip(RoundedCornerShape(8.dp)),
+                            )
+                            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                                Text(entry.title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(entry.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                // Share of plays compared with your #1.
+                                Box(Modifier.padding(top = 5.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(SurfaceHigh)) {
+                                    Box(Modifier.fillMaxWidth(r.plays.toFloat() / maxPlays).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Saffron.copy(alpha = 0.8f)))
+                                }
+                            }
+                            Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 10.dp)) {
+                                Text("${r.plays} ${if (r.plays == 1) "play" else "plays"}", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text("${r.minutes} min", color = TextMuted, fontSize = 11.sp)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            MoveBadge(r.move)
+                        }
+                    }
+                    if (topSongsAll.size > 10) item {
+                        Text(
+                            if (showAllSongs) "Show top 10" else "Show top ${topSongsAll.size}",
+                            color = Saffron, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).clip(RoundedCornerShape(50))
+                                .clickable { showAllSongs = !showAllSongs }.padding(8.dp),
+                        )
+                    }
+                }
+
+                // Recent plays (clearable without touching the stats above).
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 30.dp, bottom = 6.dp)) {
+                        Text("Recent plays", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        if (recent.isNotEmpty()) {
+                            Text("Clear all", color = Saffron, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clip(RoundedCornerShape(50)).clickable { confirmClear = true }.padding(8.dp))
+                        }
+                    }
+                }
+                if (recent.isEmpty()) {
+                    item {
+                        Text("Nothing new since you cleared the list.", color = TextMuted, fontSize = 14.sp,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                    }
+                }
+                recent.groupBy { it.date() }.forEach { (day, entries) ->
+                    item {
+                        Text(
+                            when (day) {
+                                today -> "Today"
+                                today.minusDays(1) -> "Yesterday"
+                                else -> day.format(DateTimeFormatter.ofPattern("EEE, d MMM", Locale.getDefault()))
+                            },
+                            color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp),
+                        )
+                    }
+                    items(entries.size) { i ->
+                        val e = entries[i]
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable { if (e.url.isNotBlank()) playerViewModel.playWithRadio(e.toSong(), context) }
+                                .padding(horizontal = 20.dp, vertical = 6.dp),
+                        ) {
+                            GlideImage(
+                                model = e.image, contentDescription = null, contentScale = ContentScale.Crop,
+                                loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+                                modifier = Modifier.size(46.dp).clip(RoundedCornerShape(8.dp)),
+                            )
+                            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                                Text(e.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(e.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Text(
+                                Instant.ofEpochMilli(e.ts).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())),
+                                color = TextMuted, fontSize = 11.sp,
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Icon(Icons.Default.Close, "Remove from history", tint = TextMuted,
+                                modifier = Modifier.size(18.dp).clickable {
+                                    removeListeningHistory(context, e)
+                                    history = getListeningHistory(context)
+                                })
+                        }
                     }
                 }
             }

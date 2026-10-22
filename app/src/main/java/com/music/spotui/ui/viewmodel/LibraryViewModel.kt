@@ -68,6 +68,16 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    /** Pull-to-refresh: reload playlists/albums, followed artists and favourite-artist albums. */
+    suspend fun refreshAll() {
+        com.music.spotui.data.api.Api.HomeCache.library = null
+        val a = load(); val b = loadFollowedArtists()
+        val c = viewModelScope.launch(Dispatchers.IO) {
+            _favouriteAlbums.value = runCatching { com.music.spotui.data.api.ArtistPicker.albumsFromFavourites(context) }.getOrDefault(_favouriteAlbums.value)
+        }
+        a.join(); b.join(); c.join()
+    }
+
     private fun loadFollowedArtists() = viewModelScope.launch(Dispatchers.IO) {
         val artists = repository.provideFollowedArtists()
         _followedArtists.value = artists

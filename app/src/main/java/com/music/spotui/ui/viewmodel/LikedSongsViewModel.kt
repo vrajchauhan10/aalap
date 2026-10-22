@@ -68,6 +68,16 @@ class LikedSongsViewModel @Inject constructor(
         }
     }
 
+    /** Pull-to-refresh: sync YouTube Music likes and re-read Spotify's, then show the merged list. */
+    suspend fun refresh() = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        kotlinx.coroutines.coroutineScope {
+            launch { runCatching { com.music.spotui.data.api.YouTubeLibrary.syncIfDue(ctx, force = true) } }
+            launch { runCatching { repository.provideLikedSongs().collect { } } }
+        }
+        com.music.spotui.data.api.YouTubeLibrary.invalidateUnified()
+        publish()
+    }
+
     /** Drops an unliked song from the displayed list without a refetch. */
     fun removeLocally(songId: Int) {
         val current = _songs.value

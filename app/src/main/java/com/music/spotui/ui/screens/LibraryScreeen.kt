@@ -134,176 +134,179 @@ fun LibraryScreen(navController: NavController) {
     val playlists = listEntries.count { it.isPlaylist }
     val albums = listEntries.size - playlists
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(com.music.spotui.ui.theme.AppBackground)
-            .statusBarsPadding()
-    ) {
-        // ── Header ──
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+    // Aalap's pull-to-refresh (the same on every screen).
+    com.music.spotui.ui.components.AalapRefresh(Modifier.fillMaxSize(), onRefresh = { libraryViewModel.refreshAll() }) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp, 16.dp, 16.dp, 4.dp)
+                .fillMaxSize()
+                .background(com.music.spotui.ui.theme.AppBackground)
+                .statusBarsPadding()
         ) {
-            Column(Modifier.weight(1f)) {
-                Text("Library", fontWeight = FontWeight.Bold, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 28.sp)
-                Text(
-                    // Only what you have, on one line (e.g. "1 playlist · 86 artists").
-                    listOfNotNull(
-                        "$playlists ${if (playlists == 1) "playlist" else "playlists"}".takeIf { playlists > 0 },
-                        "$albums ${if (albums == 1) "album" else "albums"}".takeIf { albums > 0 },
-                        "${followedArtists.size} ${if (followedArtists.size == 1) "artist" else "artists"}".takeIf { followedArtists.isNotEmpty() },
-                    ).joinToString(" · "),
-                    color = com.music.spotui.ui.theme.TextMuted, fontSize = 13.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            }
-            RoundIconButton(onClick = { creatingPlaylist = true }) {
-                Icon(Icons.Default.Add, contentDescription = "New playlist", tint = com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(8.dp))
-            RoundIconButton(
-                active = searchActive,
-                onClick = { searchActive = !searchActive; if (!searchActive) searchQuery = "" },
-            ) {
-                Icon(Icons.Default.Search, contentDescription = "Search library", tint = if (searchActive) com.music.spotui.ui.theme.OnSaffron else com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(20.dp))
-            }
-            Spacer(Modifier.width(8.dp))
-            RoundIconButton(onClick = {
-                gridView = !gridView
-                setLibraryGridView(context, gridView)
-            }) {
-                Icon(
-                    painter = painterResource(if (gridView) R.drawable.ic_view_list else R.drawable.ic_view_grid),
-                    contentDescription = if (gridView) "Show as list" else "Show as grid",
-                    tint = com.music.spotui.ui.theme.TextPrimary,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(com.music.spotui.ui.theme.SurfaceHigh)
-                    .clickable { showAccount = true },
-                contentAlignment = Alignment.Center
-            ) {
-                val avatar = (account as? Response.Success)?.data?.imageUrl.orEmpty()
-                if (avatar.isNotBlank()) AccountAvatar(avatar, 40.dp)
-                else Icon(Icons.Default.Person, contentDescription = "Account", tint = com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(20.dp))
-            }
-        }
-
-        AnimatedVisibility(visible = searchActive) {
+            // ── Header ──
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp, 8.dp, 16.dp, 0.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(com.music.spotui.ui.theme.SurfaceHigh)
-                    .padding(horizontal = 12.dp),
+                    .padding(20.dp, 16.dp, 16.dp, 4.dp)
             ) {
-                Icon(Icons.Default.Search, contentDescription = null, tint = com.music.spotui.ui.theme.TextMuted, modifier = Modifier.size(18.dp))
-                BasicTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    singleLine = true,
-                    textStyle = TextStyle(color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp),
-                    cursorBrush = androidx.compose.ui.graphics.SolidColor(com.music.spotui.ui.theme.Saffron),
-                    modifier = Modifier.weight(1f).padding(8.dp, 12.dp),
-                    decorationBox = { inner ->
-                        Box {
-                            if (searchQuery.isEmpty()) Text("Find in your library", color = com.music.spotui.ui.theme.TextMuted, fontSize = 15.sp)
-                            inner()
-                        }
-                    },
-                )
-                if (searchQuery.isNotEmpty()) {
+                Column(Modifier.weight(1f)) {
+                    Text("Library", fontWeight = FontWeight.Bold, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 28.sp)
+                    Text(
+                        // Only what you have, on one line (e.g. "1 playlist · 86 artists").
+                        listOfNotNull(
+                            "$playlists ${if (playlists == 1) "playlist" else "playlists"}".takeIf { playlists > 0 },
+                            "$albums ${if (albums == 1) "album" else "albums"}".takeIf { albums > 0 },
+                            "${followedArtists.size} ${if (followedArtists.size == 1) "artist" else "artists"}".takeIf { followedArtists.isNotEmpty() },
+                        ).joinToString(" · "),
+                        color = com.music.spotui.ui.theme.TextMuted, fontSize = 13.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                RoundIconButton(onClick = { creatingPlaylist = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "New playlist", tint = com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(8.dp))
+                RoundIconButton(
+                    active = searchActive,
+                    onClick = { searchActive = !searchActive; if (!searchActive) searchQuery = "" },
+                ) {
+                    Icon(Icons.Default.Search, contentDescription = "Search library", tint = if (searchActive) com.music.spotui.ui.theme.OnSaffron else com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(20.dp))
+                }
+                Spacer(Modifier.width(8.dp))
+                RoundIconButton(onClick = {
+                    gridView = !gridView
+                    setLibraryGridView(context, gridView)
+                }) {
                     Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Clear",
-                        tint = com.music.spotui.ui.theme.TextMuted,
-                        modifier = Modifier.size(18.dp).clickable { searchQuery = "" },
+                        painter = painterResource(if (gridView) R.drawable.ic_view_list else R.drawable.ic_view_grid),
+                        contentDescription = if (gridView) "Show as list" else "Show as grid",
+                        tint = com.music.spotui.ui.theme.TextPrimary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(com.music.spotui.ui.theme.SurfaceHigh)
+                        .clickable { showAccount = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    val avatar = (account as? Response.Success)?.data?.imageUrl.orEmpty()
+                    if (avatar.isNotBlank()) AccountAvatar(avatar, 40.dp)
+                    else Icon(Icons.Default.Person, contentDescription = "Account", tint = com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(20.dp))
+                }
+            }
+
+            AnimatedVisibility(visible = searchActive) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp, 8.dp, 16.dp, 0.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(com.music.spotui.ui.theme.SurfaceHigh)
+                        .padding(horizontal = 12.dp),
+                ) {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = com.music.spotui.ui.theme.TextMuted, modifier = Modifier.size(18.dp))
+                    BasicTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        singleLine = true,
+                        textStyle = TextStyle(color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(com.music.spotui.ui.theme.Saffron),
+                        modifier = Modifier.weight(1f).padding(8.dp, 12.dp),
+                        decorationBox = { inner ->
+                            Box {
+                                if (searchQuery.isEmpty()) Text("Find in your library", color = com.music.spotui.ui.theme.TextMuted, fontSize = 15.sp)
+                                inner()
+                            }
+                        },
+                    )
+                    if (searchQuery.isNotEmpty()) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear",
+                            tint = com.music.spotui.ui.theme.TextMuted,
+                            modifier = Modifier.size(18.dp).clickable { searchQuery = "" },
+                        )
+                    }
+                }
+            }
+
+            // ── Filter chips ──
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+                    .padding(16.dp, 12.dp, 16.dp, 4.dp),
+            ) {
+                LibraryFilter.entries.forEach { f ->
+                    val sel = f == filter
+                    Text(
+                        f.label,
+                        color = if (sel) com.music.spotui.ui.theme.OnSaffron else com.music.spotui.ui.theme.TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(if (sel) com.music.spotui.ui.theme.Saffron else com.music.spotui.ui.theme.SurfaceHigh)
+                            .clickable { filter = f }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
             }
-        }
 
-        // ── Filter chips ──
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(androidx.compose.foundation.rememberScrollState())
-                .padding(16.dp, 12.dp, 16.dp, 4.dp),
-        ) {
-            LibraryFilter.entries.forEach { f ->
-                val sel = f == filter
-                Text(
-                    f.label,
-                    color = if (sel) com.music.spotui.ui.theme.OnSaffron else com.music.spotui.ui.theme.TextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(if (sel) com.music.spotui.ui.theme.Saffron else com.music.spotui.ui.theme.SurfaceHigh)
-                        .clickable { filter = f }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                )
-            }
-        }
-
-        when (entries) {
-            is Response.Loading -> LibrarySkeleton(PaddingValues(0.dp))
-            is Response.Success -> {
-                val q = searchQuery.trim()
-                // Switching filter slides the content in from the side you tapped (All →
-                // Artists moves left, back moves right); grid/list cross-fades.
-                androidx.compose.animation.AnimatedContent(
-                    targetState = filter to gridView,
-                    transitionSpec = {
-                        val (from, fromGrid) = initialState
-                        val (to, toGrid) = targetState
-                        val spec = androidx.compose.animation.core.tween<androidx.compose.ui.unit.IntOffset>(320, easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f))
-                        if (from == to && fromGrid != toGrid) {
-                            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(240)) togetherWith
-                                androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160))
-                        } else {
-                            val dir = if (to.ordinal >= from.ordinal) 1 else -1
-                            (androidx.compose.animation.slideInHorizontally(spec) { dir * it / 4 } + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(240))) togetherWith
-                                (androidx.compose.animation.slideOutHorizontally(spec) { -dir * it / 6 } + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)))
-                        }
-                    },
-                    label = "libraryFilter",
-                ) { (shownFilter, shownGrid) ->
-                val shownEntries = listEntries
-                    .filter { when (shownFilter) {
-                        LibraryFilter.ALL -> true
-                        LibraryFilter.PLAYLISTS -> it.isPlaylist
-                        LibraryFilter.ALBUMS -> !it.isPlaylist
-                        LibraryFilter.ARTISTS -> false
-                    } }
-                    .filter { q.isBlank() || it.name.contains(q, true) || it.subtitle.contains(q, true) }
-                val shownArtists = if (shownFilter == LibraryFilter.ALL || shownFilter == LibraryFilter.ARTISTS)
-                    followedArtists.filter { q.isBlank() || it.name.contains(q, true) } else emptyList()
-                LibraryContent(
-                    navController = navController,
-                    showTiles = shownFilter == LibraryFilter.ALL && q.isBlank(),
-                    entries = shownEntries,
-                    artists = shownArtists,
-                    artistsAsGrid = shownFilter == LibraryFilter.ARTISTS,
-                    grid = shownGrid,
-                    favouriteAlbums = if (q.isBlank() && (shownFilter == LibraryFilter.ALL || shownFilter == LibraryFilter.ALBUMS)) favouriteAlbums else emptyList(),
-                    favouriteAlbumsAsGrid = shownFilter == LibraryFilter.ALBUMS,
-                    onSeeAll = { filter = it },
-                )
+            when (entries) {
+                is Response.Loading -> LibrarySkeleton(PaddingValues(0.dp))
+                is Response.Success -> {
+                    val q = searchQuery.trim()
+                    // Switching filter slides the content in from the side you tapped (All →
+                    // Artists moves left, back moves right); grid/list cross-fades.
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = filter to gridView,
+                        transitionSpec = {
+                            val (from, fromGrid) = initialState
+                            val (to, toGrid) = targetState
+                            val spec = androidx.compose.animation.core.tween<androidx.compose.ui.unit.IntOffset>(320, easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f))
+                            if (from == to && fromGrid != toGrid) {
+                                androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(240)) togetherWith
+                                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160))
+                            } else {
+                                val dir = if (to.ordinal >= from.ordinal) 1 else -1
+                                (androidx.compose.animation.slideInHorizontally(spec) { dir * it / 4 } + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(240))) togetherWith
+                                    (androidx.compose.animation.slideOutHorizontally(spec) { -dir * it / 6 } + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(160)))
+                            }
+                        },
+                        label = "libraryFilter",
+                    ) { (shownFilter, shownGrid) ->
+                    val shownEntries = listEntries
+                        .filter { when (shownFilter) {
+                            LibraryFilter.ALL -> true
+                            LibraryFilter.PLAYLISTS -> it.isPlaylist
+                            LibraryFilter.ALBUMS -> !it.isPlaylist
+                            LibraryFilter.ARTISTS -> false
+                        } }
+                        .filter { q.isBlank() || it.name.contains(q, true) || it.subtitle.contains(q, true) }
+                    val shownArtists = if (shownFilter == LibraryFilter.ALL || shownFilter == LibraryFilter.ARTISTS)
+                        followedArtists.filter { q.isBlank() || it.name.contains(q, true) } else emptyList()
+                    LibraryContent(
+                        navController = navController,
+                        showTiles = shownFilter == LibraryFilter.ALL && q.isBlank(),
+                        entries = shownEntries,
+                        artists = shownArtists,
+                        artistsAsGrid = shownFilter == LibraryFilter.ARTISTS,
+                        grid = shownGrid,
+                        favouriteAlbums = if (q.isBlank() && (shownFilter == LibraryFilter.ALL || shownFilter == LibraryFilter.ALBUMS)) favouriteAlbums else emptyList(),
+                        favouriteAlbumsAsGrid = shownFilter == LibraryFilter.ALBUMS,
+                        onSeeAll = { filter = it },
+                    )
+                    }
                 }
+                else -> Box(modifier = Modifier.padding(20.dp, 100.dp)) { Snackbar(showMessage = "Couldn't load your library") }
             }
-            else -> Box(modifier = Modifier.padding(20.dp, 100.dp)) { Snackbar(showMessage = "Couldn't load your library") }
         }
     }
 }

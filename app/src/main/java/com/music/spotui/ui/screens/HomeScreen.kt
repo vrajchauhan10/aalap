@@ -101,35 +101,21 @@ fun HomeScreen(navController: NavController){
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
-    val refreshing by homeViewModel.refreshing.collectAsState()
-    val pullState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
-    if (pullState.isRefreshing) {
-        androidx.compose.runtime.LaunchedEffect(Unit) { homeViewModel.refresh() }
-    }
-    androidx.compose.runtime.LaunchedEffect(refreshing) { if (!refreshing) pullState.endRefresh() }
-    // Double-tap Home: show the refresh spinner and refresh (the list also scrolls to the top).
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        com.music.spotui.ui.navigation.HomeTabEvents.refresh.collect { pullState.startRefresh() }
-    }
-
     Surface(
+        // Same colour as the page, so pulling down never reveals a differently tinted band.
+        color = AppBackground,
         modifier = Modifier
             .fillMaxSize()
             .background(Color(AppBackground.toArgb()))
             .statusBarsPadding()
-            .nestedScroll(pullState.nestedScrollConnection)
     ) {
-        // The page stretches down with the pull, stays down while refreshing, then springs
-        // back up with a little bounce when the refresh is done.
-        val stretch = remember { androidx.compose.animation.core.Animatable(0f) }
-        androidx.compose.runtime.LaunchedEffect(pullState) {
-            androidx.compose.runtime.snapshotFlow { pullState.verticalOffset to pullState.isRefreshing }.collect { (off, busy) ->
-                if (busy) stretch.animateTo(maxOf(off, pullState.positionalThreshold) * 0.55f, androidx.compose.animation.core.spring(stiffness = androidx.compose.animation.core.Spring.StiffnessMedium))
-                else if (off > 0f) stretch.snapTo(off * 0.55f)
-                else stretch.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.42f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
-            }
-        }
-        Box(Modifier.fillMaxSize().graphicsLayer { translationY = stretch.value }) {
+        // Aalap's pull-to-refresh (same on every screen); double-tapping Home triggers it too.
+        com.music.spotui.ui.components.AalapRefresh(
+            modifier = Modifier.fillMaxSize(),
+            trigger = com.music.spotui.ui.navigation.HomeTabEvents.refresh,
+            onRefresh = { homeViewModel.refresh().join() },
+        ) {
+        Box(Modifier.fillMaxSize()) {
         val feed = (home as? Response.Success)?.data
         // Each feed resolves independently — albums (new releases) often succeeds
         // while artists (personalized) gets rate-limited. Render whatever arrived
@@ -172,12 +158,7 @@ fun HomeScreen(navController: NavController){
                 }
             }
         }
-        androidx.compose.material3.pulltorefresh.PullToRefreshContainer(
-            state = pullState,
-            modifier = Modifier.align(Alignment.TopCenter),
-            containerColor = com.music.spotui.ui.theme.Surface,
-            contentColor = com.music.spotui.ui.theme.Saffron,
-        )
+        }
         }
     }
 }
@@ -256,15 +237,15 @@ private fun BounceIn(index: Int, gen: Int, content: @Composable () -> Unit) {
     androidx.compose.runtime.LaunchedEffect(gen) {
         if (gen == 0) return@LaunchedEffect
         t.snapTo(0f)
-        kotlinx.coroutines.delay(minOf(index, 10) * 55L)
-        t.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.5f, stiffness = androidx.compose.animation.core.Spring.StiffnessLow))
+        kotlinx.coroutines.delay(minOf(index, 10) * 40L)
+        t.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.6f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
     }
     // Starts invisible a little above its place and drops in with a slight overshoot,
     // so sections never show on top of each other mid-animation.
     // A Column (not a Box): some sections are several pieces that must stack, not overlap.
     Column(Modifier.graphicsLayer {
-        translationY = (1f - t.value) * -24.dp.toPx()
-        alpha = (t.value * 1.4f - 0.4f).coerceIn(0f, 1f)
+        translationY = (1f - t.value) * -16.dp.toPx()
+        alpha = (0.55f + 0.45f * t.value).coerceIn(0f, 1f) // never blank: the page stays visible
     }) { content() }
 }
 

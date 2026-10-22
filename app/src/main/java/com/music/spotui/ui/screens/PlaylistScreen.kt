@@ -133,336 +133,339 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
         else -> songs
     }
 
-    Surface(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(AppBackground.toArgb()))
-    ) {
-        if (songsResp is Response.Loading && playlistResp is Response.Loading) {
-            Loader()
-            return@Surface
-        }
-
-        var dominentColor by remember { mutableStateOf(Color(AppBackground.toArgb())) }
-        Palette().extractSecondColorFromCoverUrl(context = context, playlist.coverUri) { color ->
-            dominentColor = color
-        }
-
-        Scaffold(
-            containerColor = Color.Transparent,
-            topBar = {
-                CenterAlignedTopAppBar(
-                    modifier = Modifier.padding(16.dp, 0.dp),
-                    navigationIcon = {
-                        Icon(
-                            modifier = Modifier.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { navController.navigateUp() },
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "",
-                            tint = com.music.spotui.ui.theme.TextPrimary
-                        )
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        titleContentColor = com.music.spotui.ui.theme.TextPrimary,
-                    ),
-                    title = { Text(text = "") }
-                )
+    // Aalap's pull-to-refresh (the same on every screen).
+    com.music.spotui.ui.components.AalapRefresh(Modifier.fillMaxSize(), onRefresh = { playlistViewModel.refresh(playlistId) }) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(AppBackground.toArgb()))
+        ) {
+            if (songsResp is Response.Loading && playlistResp is Response.Loading) {
+                Loader()
+                return@Surface
             }
-        ) { innerPadding ->
-            LazyColumn(
-                // Only bottom padding: the coloured header runs up behind the transparent top
-                // bar and the status bar (top padding left a dark band above it).
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = innerPadding.calculateBottomPadding()),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(AppBackground.toArgb()))
-                    .consumeWindowInsets(innerPadding)
-            ) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            // Minimum, not fixed: a long playlist description used to
-                            // overflow the fixed height and squash the play button.
-                            .heightIn(min = 440.dp)
-                            .padding(bottom = 8.dp)
-                            .background(
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(dominentColor, Color(AppBackground.toArgb())),
-                                    startY = -100f,
-                                ),
-                            ),
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Spacer(modifier = Modifier.statusBarsPadding().height(56.dp))
 
-                        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            GlideImage(
-                                modifier = Modifier.size(230.dp),
-                                model = playlist.coverUri,
-                                failure = placeholder(R.drawable.placeholder),
+            var dominentColor by remember { mutableStateOf(Color(AppBackground.toArgb())) }
+            Palette().extractSecondColorFromCoverUrl(context = context, playlist.coverUri) { color ->
+                dominentColor = color
+            }
+
+            Scaffold(
+                containerColor = Color.Transparent,
+                topBar = {
+                    CenterAlignedTopAppBar(
+                        modifier = Modifier.padding(16.dp, 0.dp),
+                        navigationIcon = {
+                            Icon(
+                                modifier = Modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { navController.navigateUp() },
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "",
+                                tint = com.music.spotui.ui.theme.TextPrimary
                             )
-                        }
-                        Spacer(modifier = Modifier.padding(5.dp))
-                        Text(
-                            modifier = Modifier.padding(20.dp, 5.dp, 0.dp, 0.dp),
-                            text = playlist.name.ifBlank { playlistName },
-                            color = com.music.spotui.ui.theme.TextPrimary,
-                            fontSize = 23.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (playlist.time.isNotBlank()) {
-                            Text(
-                                modifier = Modifier.padding(20.dp, 4.dp, 20.dp, 0.dp),
-                                text = playlist.time,
-                                color = Color.Gray,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                        if (playlist.artists.isNotBlank()) {
-                            Text(
-                                modifier = Modifier.padding(20.dp, 4.dp, 0.dp, 0.dp),
-                                text = "Playlist • ${playlist.artists}",
-                                color = com.music.spotui.ui.theme.TextPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                            titleContentColor = com.music.spotui.ui.theme.TextPrimary,
+                        ),
+                        title = { Text(text = "") }
+                    )
+                }
+            ) { innerPadding ->
+                LazyColumn(
+                    // Only bottom padding: the coloured header runs up behind the transparent top
+                    // bar and the status bar (top padding left a dark band above it).
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = innerPadding.calculateBottomPadding()),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(AppBackground.toArgb()))
+                        .consumeWindowInsets(innerPadding)
+                ) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                // Minimum, not fixed: a long playlist description used to
+                                // overflow the fixed height and squash the play button.
+                                .heightIn(min = 440.dp)
+                                .padding(bottom = 8.dp)
+                                .background(
+                                    brush = Brush.verticalGradient(
+                                        colors = listOf(dominentColor, Color(AppBackground.toArgb())),
+                                        startY = -100f,
+                                    ),
+                                ),
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Spacer(modifier = Modifier.statusBarsPadding().height(56.dp))
 
-                        if (songs.isNotEmpty()) {
-                            val sortLabels = listOf("Custom order", "Title A-Z", "Title Z-A", "Artist")
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.End,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(20.dp, 0.dp, 20.dp, 2.dp),
-                            ) {
-                                Text(
-                                    text = sortLabels[sortOrder],
-                                    color = if (sortOrder == 0) Color.Gray else Color(AppPalette.toArgb()),
-                                    fontSize = 12.sp,
-                                    modifier = Modifier.clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                    ) { sortOrder = (sortOrder + 1) % 4 },
+                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                GlideImage(
+                                    modifier = Modifier.size(230.dp),
+                                    model = playlist.coverUri,
+                                    failure = placeholder(R.drawable.placeholder),
+                                    contentDescription = "",
                                 )
-                                Spacer(Modifier.width(2.dp))
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowDown,
-                                    contentDescription = null,
-                                    tint = if (sortOrder == 0) Color.Gray else Color(AppPalette.toArgb()),
+                            }
+                            Spacer(modifier = Modifier.padding(5.dp))
+                            Text(
+                                modifier = Modifier.padding(20.dp, 5.dp, 0.dp, 0.dp),
+                                text = playlist.name.ifBlank { playlistName },
+                                color = com.music.spotui.ui.theme.TextPrimary,
+                                fontSize = 23.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (playlist.time.isNotBlank()) {
+                                Text(
+                                    modifier = Modifier.padding(20.dp, 4.dp, 20.dp, 0.dp),
+                                    text = playlist.time,
+                                    color = Color.Gray,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            if (playlist.artists.isNotBlank()) {
+                                Text(
+                                    modifier = Modifier.padding(20.dp, 4.dp, 0.dp, 0.dp),
+                                    text = "Playlist • ${playlist.artists}",
+                                    color = com.music.spotui.ui.theme.TextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            if (songs.isNotEmpty()) {
+                                val sortLabels = listOf("Custom order", "Title A-Z", "Title Z-A", "Artist")
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.End,
                                     modifier = Modifier
-                                        .size(16.dp)
-                                        .clickable(
+                                        .fillMaxWidth()
+                                        .padding(20.dp, 0.dp, 20.dp, 2.dp),
+                                ) {
+                                    Text(
+                                        text = sortLabels[sortOrder],
+                                        color = if (sortOrder == 0) Color.Gray else Color(AppPalette.toArgb()),
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.clickable(
                                             interactionSource = remember { MutableInteractionSource() },
                                             indication = null,
                                         ) { sortOrder = (sortOrder + 1) % 4 },
-                                )
+                                    )
+                                    Spacer(Modifier.width(2.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        tint = if (sortOrder == 0) Color.Gray else Color(AppPalette.toArgb()),
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                            ) { sortOrder = (sortOrder + 1) % 4 },
+                                    )
+                                }
+                            }
+
+                            Row(
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp)
+                                    .padding(20.dp, 0.dp)
+                            ) {
+                                // Download the whole playlist (all tracks) for offline playback.
+                                var askDownloadAll by remember { mutableStateOf(false) }
+                                var playlistDownloaded by remember(songs) {
+                                    mutableStateOf(songs.isNotEmpty() && com.music.spotui.di.Downloads.allDownloaded(songs, context))
+                                }
+                                if (songs.isNotEmpty()) {
+                                    Icon(
+                                        imageVector = if (playlistDownloaded)
+                                            Icons.Default.CheckCircle else ImageVector.vectorResource(R.drawable.ic_download),
+                                        tint = if (playlistDownloaded) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary,
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                            ) {
+                                                if (!playlistDownloaded) askDownloadAll = true
+                                            },
+                                        contentDescription = "Download playlist",
+                                    )
+                                    if (askDownloadAll) {
+                                        com.music.spotui.ui.components.ConfirmDownloadAllDialog(
+                                            songs.size, onDismiss = { askDownloadAll = false },
+                                        ) {
+                                            com.music.spotui.di.Downloads.downloadAll(songs, context)
+                                            android.widget.Toast.makeText(
+                                                context, "Downloading ${songs.size} tracks…", android.widget.Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    // Shuffle-play: start the playlist in random order.
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_player_shuffle),
+                                        tint = com.music.spotui.ui.theme.TextPrimary,
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                            ) {
+                                                playlistViewModel.startShuffled(displaySongs)?.let { first ->
+                                                    SongPlayer.playSong(first.url, context)
+                                                    playlistViewModel.updateSongState(
+                                                        first.coverUri,
+                                                        first.title,
+                                                        first.singer,
+                                                        true,
+                                                        first.id,
+                                                        0,
+                                                        playlist.name,
+                                                    )
+                                                }
+                                            },
+                                        contentDescription = "Shuffle play",
+                                    )
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                }
+                                // Always visible: pause when playing, resume when this
+                                // list's track is paused, otherwise start from the top.
+                                if (songs.isNotEmpty()) {
+                                    val playing = playlistViewModel.currentSongPlayingState.value
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .clip(RoundedCornerShape(100.dp))
+                                            .background(com.music.spotui.ui.theme.Saffron)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null
+                                            ) {
+                                                when {
+                                                    playing -> playlistViewModel.setPlaying(false)
+                                                    songs.any { it.id == playlistViewModel.currentSongId.value } ->
+                                                        playlistViewModel.setPlaying(true)
+                                                    else -> {
+                                                        playlistViewModel.updateQueue(displaySongs)
+                                                        SongPlayer.playSong(displaySongs[0].url, context)
+                                                        playlistViewModel.updateSongState(
+                                                            displaySongs[0].coverUri,
+                                                            displaySongs[0].title,
+                                                            displaySongs[0].singer,
+                                                            true,
+                                                            displaySongs[0].id,
+                                                            0,
+                                                            playlist.name
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                    ) {
+                                        Icon(
+                                            modifier = Modifier.size(25.dp),
+                                            tint = com.music.spotui.ui.theme.OnSaffron,
+                                            painter = painterResource(
+                                                id = if (playing) R.drawable.ic_playing else R.drawable.play_svgrepo_com,
+                                            ),
+                                            contentDescription = if (playing) "Pause" else "Play"
+                                        )
+                                    }
+                                }
                             }
                         }
+                    }
+
+                    if (isLocal) item {
+                        com.music.spotui.ui.components.AalapPlaylistActions(
+                            onAdd = { addingSongs = true }, onRename = { renaming = true }, onDelete = { confirmDelete = true },
+                        )
+                        if (songs.isEmpty()) Text(
+                            "Your playlist is empty. Tap Add songs to search or pick from your liked songs.",
+                            color = com.music.spotui.ui.theme.TextMuted, fontSize = 14.sp,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                        )
+                    }
+                    // A playlist can hold the same track twice; duplicate keys crash LazyColumn.
+                    // Repeats get "#n" so every other key stays stable while pages load.
+                    val rowKeys = run {
+                        val seen = HashMap<Int, Int>()
+                        displaySongs.map { s -> seen.merge(s.id, 1, Int::plus).let { n -> if (n == 1) "${s.id}" else "${s.id}#$n" } }
+                    }
+                    itemsIndexed(displaySongs, key = { index, _ -> rowKeys[index] }) { index, song ->
+                        com.music.spotui.ui.components.SwipeToQueue(song) {
+                        val currentColor = if (song.id == playlistViewModel.currentSongId.value)
+                            Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary
 
                         Row(
-                            horizontalArrangement = Arrangement.End,
+                            horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp)
-                                .padding(20.dp, 0.dp)
+                                .padding(20.dp, 8.dp)
+                                .combinedClickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onLongClick = { menuSong = song },
+                                    onClick = {
+                                        playlistViewModel.updateQueue(displaySongs)
+                                        SongPlayer.playSong(song.url, context)
+                                        playlistViewModel.updateSongState(
+                                            song.coverUri,
+                                            song.title,
+                                            song.singer,
+                                            true,
+                                            song.id,
+                                            index,
+                                            playlist.name
+                                        )
+                                    },
+                                )
                         ) {
-                            // Download the whole playlist (all tracks) for offline playback.
-                            var askDownloadAll by remember { mutableStateOf(false) }
-                            var playlistDownloaded by remember(songs) {
-                                mutableStateOf(songs.isNotEmpty() && com.music.spotui.di.Downloads.allDownloaded(songs, context))
-                            }
-                            if (songs.isNotEmpty()) {
-                                Icon(
-                                    imageVector = if (playlistDownloaded)
-                                        Icons.Default.CheckCircle else ImageVector.vectorResource(R.drawable.ic_download),
-                                    tint = if (playlistDownloaded) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary,
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null,
-                                        ) {
-                                            if (!playlistDownloaded) askDownloadAll = true
-                                        },
-                                    contentDescription = "Download playlist",
-                                )
-                                if (askDownloadAll) {
-                                    com.music.spotui.ui.components.ConfirmDownloadAllDialog(
-                                        songs.size, onDismiss = { askDownloadAll = false },
-                                    ) {
-                                        com.music.spotui.di.Downloads.downloadAll(songs, context)
-                                        android.widget.Toast.makeText(
-                                            context, "Downloading ${songs.size} tracks…", android.widget.Toast.LENGTH_SHORT,
-                                        ).show()
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                // Shuffle-play: start the playlist in random order.
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_player_shuffle),
-                                    tint = com.music.spotui.ui.theme.TextPrimary,
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null,
-                                        ) {
-                                            playlistViewModel.startShuffled(displaySongs)?.let { first ->
-                                                SongPlayer.playSong(first.url, context)
-                                                playlistViewModel.updateSongState(
-                                                    first.coverUri,
-                                                    first.title,
-                                                    first.singer,
-                                                    true,
-                                                    first.id,
-                                                    0,
-                                                    playlist.name,
-                                                )
-                                            }
-                                        },
-                                    contentDescription = "Shuffle play",
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                            }
-                            // Always visible: pause when playing, resume when this
-                            // list's track is paused, otherwise start from the top.
-                            if (songs.isNotEmpty()) {
-                                val playing = playlistViewModel.currentSongPlayingState.value
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .size(52.dp)
-                                        .clip(RoundedCornerShape(100.dp))
-                                        .background(com.music.spotui.ui.theme.Saffron)
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null
-                                        ) {
-                                            when {
-                                                playing -> playlistViewModel.setPlaying(false)
-                                                songs.any { it.id == playlistViewModel.currentSongId.value } ->
-                                                    playlistViewModel.setPlaying(true)
-                                                else -> {
-                                                    playlistViewModel.updateQueue(displaySongs)
-                                                    SongPlayer.playSong(displaySongs[0].url, context)
-                                                    playlistViewModel.updateSongState(
-                                                        displaySongs[0].coverUri,
-                                                        displaySongs[0].title,
-                                                        displaySongs[0].singer,
-                                                        true,
-                                                        displaySongs[0].id,
-                                                        0,
-                                                        playlist.name
-                                                    )
-                                                }
-                                            }
-                                        }
-                                ) {
-                                    Icon(
-                                        modifier = Modifier.size(25.dp),
-                                        tint = com.music.spotui.ui.theme.OnSaffron,
-                                        painter = painterResource(
-                                            id = if (playing) R.drawable.ic_playing else R.drawable.play_svgrepo_com,
-                                        ),
-                                        contentDescription = if (playing) "Pause" else "Play"
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (isLocal) item {
-                    com.music.spotui.ui.components.AalapPlaylistActions(
-                        onAdd = { addingSongs = true }, onRename = { renaming = true }, onDelete = { confirmDelete = true },
-                    )
-                    if (songs.isEmpty()) Text(
-                        "Your playlist is empty. Tap Add songs to search or pick from your liked songs.",
-                        color = com.music.spotui.ui.theme.TextMuted, fontSize = 14.sp,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                    )
-                }
-                // A playlist can hold the same track twice; duplicate keys crash LazyColumn.
-                // Repeats get "#n" so every other key stays stable while pages load.
-                val rowKeys = run {
-                    val seen = HashMap<Int, Int>()
-                    displaySongs.map { s -> seen.merge(s.id, 1, Int::plus).let { n -> if (n == 1) "${s.id}" else "${s.id}#$n" } }
-                }
-                itemsIndexed(displaySongs, key = { index, _ -> rowKeys[index] }) { index, song ->
-                    com.music.spotui.ui.components.SwipeToQueue(song) {
-                    val currentColor = if (song.id == playlistViewModel.currentSongId.value)
-                        Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary
-
-                    Row(
-                        horizontalArrangement = Arrangement.Start,
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp, 8.dp)
-                            .combinedClickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onLongClick = { menuSong = song },
-                                onClick = {
-                                    playlistViewModel.updateQueue(displaySongs)
-                                    SongPlayer.playSong(song.url, context)
-                                    playlistViewModel.updateSongState(
-                                        song.coverUri,
-                                        song.title,
-                                        song.singer,
-                                        true,
-                                        song.id,
-                                        index,
-                                        playlist.name
-                                    )
-                                },
+                            GlideImage(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
+                                model = song.coverUri,
+                                failure = placeholder(R.drawable.placeholder),
+                                contentScale = ContentScale.Crop,
+                                contentDescription = ""
                             )
-                    ) {
-                        GlideImage(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(RoundedCornerShape(4.dp)),
-                            model = song.coverUri,
-                            failure = placeholder(R.drawable.placeholder),
-                            contentScale = ContentScale.Crop,
-                            contentDescription = ""
-                        )
-                        Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-                            Text(
-                                text = song.title,
-                                color = currentColor,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1
-                            )
-                            Text(
-                                text = song.singer,
-                                color = Color.Gray,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1
+                            Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+                                Text(
+                                    text = song.title,
+                                    color = currentColor,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = song.singer,
+                                    color = Color.Gray,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1
+                                )
+                            }
+                            // On a chart every song is a top hit, so only your own tags show there.
+                            com.music.spotui.ui.components.SongTasteTag(
+                                song,
+                                personalOnly = com.music.spotui.data.api.CHARTS.any { it.id == playlistId },
+                                modifier = Modifier.padding(start = 8.dp),
                             )
                         }
-                        // On a chart every song is a top hit, so only your own tags show there.
-                        com.music.spotui.ui.components.SongTasteTag(
-                            song,
-                            personalOnly = com.music.spotui.data.api.CHARTS.any { it.id == playlistId },
-                            modifier = Modifier.padding(start = 8.dp),
-                        )
+                        }
                     }
-                    }
-                }
 
-                item { Spacer(modifier = Modifier.padding(80.dp)) }
+                    item { Spacer(modifier = Modifier.padding(80.dp)) }
+                }
             }
         }
     }

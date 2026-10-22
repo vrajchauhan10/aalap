@@ -156,170 +156,178 @@ fun SumUpSearchScreen(
     }
     val showPodcasts = filter == SearchFilter.ALL || filter == SearchFilter.PODCASTS
 
-    LazyColumn(
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 130.dp),
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(AppBackground.toArgb()))
-            .statusBarsPadding()
+    var refreshKey by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    // Aalap's pull-to-refresh: runs the search again, or reloads trending searches.
+    com.music.spotui.ui.components.AalapRefresh(Modifier.fillMaxSize(), onRefresh = {
+        if (text.isNotBlank()) searchViewModel.search(text)
+        refreshKey++
+        kotlinx.coroutines.delay(700)
+    }) {
+        LazyColumn(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 130.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(AppBackground.toArgb()))
+                .statusBarsPadding()
 
-    ){
-        item {
-            AalapSearchHeader()
-        }
-        stickyHeader {
-            Column {
-                AalapSearchBar(text, onFocusChange = { searchFocused = it }) {
-                    text = it
-                    searchViewModel.search(it)
-                }
-                if (text.isNotBlank()) SearchFilterChips(filter, available) { filter = it }
+        ){
+            item {
+                AalapSearchHeader()
             }
-        }
+            stickyHeader {
+                Column {
+                    AalapSearchBar(text, onFocusChange = { searchFocused = it }) {
+                        text = it
+                        searchViewModel.search(it)
+                    }
+                    if (text.isNotBlank()) SearchFilterChips(filter, available) { filter = it }
+                }
+            }
 
-        if (text.isBlank()) {
-            if (searchFocused && recents.isNotEmpty()) {
-                // ── Recent searches: the items the user opened (Spotify-style),
-                // shown only once the search bar is focused ──
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp, 16.dp, 16.dp, 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            "Recent searches",
-                            color = com.music.spotui.ui.theme.TextPrimary,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            "Clear",
-                            color = com.music.spotui.ui.theme.TextMuted,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) {
-                                com.music.spotui.data.preferences.clearRecentItems(context)
-                                recents = emptyList()
+            if (text.isBlank()) {
+                if (searchFocused && recents.isNotEmpty()) {
+                    // ── Recent searches: the items the user opened (Spotify-style),
+                    // shown only once the search bar is focused ──
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp, 16.dp, 16.dp, 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                "Recent searches",
+                                color = com.music.spotui.ui.theme.TextPrimary,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                "Clear",
+                                color = com.music.spotui.ui.theme.TextMuted,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                ) {
+                                    com.music.spotui.data.preferences.clearRecentItems(context)
+                                    recents = emptyList()
+                                },
+                            )
+                        }
+                    }
+                    items(recents.size) { i ->
+                        val item = recents[i]
+                        RecentItemRow(
+                            item = item,
+                            onClick = {
+                                when (item.type) {
+                                    "song" -> {
+                                        val songUrl = item.songUrl.ifBlank {
+                                            SongPlayer.buildSpotifyPlayQuery(item.spotifyTrackId, item.name, item.singer)
+                                        }.let { savedUrl ->
+                                            if (
+                                                item.spotifyTrackId.isNotBlank() &&
+                                                !savedUrl.startsWith("spotify:track:")
+                                            ) {
+                                                SongPlayer.buildSpotifyPlayQuery(item.spotifyTrackId, item.name, item.singer)
+                                            } else {
+                                                savedUrl
+                                            }
+                                        }
+                                        val song = SongsModel(
+                                            item.songId, item.name, item.songAlbum, item.singer,
+                                            item.image, songUrl, item.spotifyTrackId,
+                                            explicit = item.explicit,
+                                            durationMs = item.durationMs,
+                                        )
+                                        searchViewModel.startRadioFromSong(song)
+                                        SongPlayer.playSong(song.url, context)
+                                        searchViewModel.updateSongState(
+                                            song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
+                                    }
+                                    "artist" -> navController.navigate(artistRoute(item.name, item.key.takeIf { it != item.name }.orEmpty()))
+                                    "album" -> navController.navigate(albumRoute(item.name, item.singer))
+                                    "show" -> navController.navigate(showRoute(item.key, item.name))
+                                }
+                            },
+                            onRemove = {
+                                com.music.spotui.data.preferences.removeRecentItem(context, item)
+                                recents = com.music.spotui.data.preferences.getRecentItems(context)
                             },
                         )
                     }
-                }
-                items(recents.size) { i ->
-                    val item = recents[i]
-                    RecentItemRow(
-                        item = item,
-                        onClick = {
-                            when (item.type) {
-                                "song" -> {
-                                    val songUrl = item.songUrl.ifBlank {
-                                        SongPlayer.buildSpotifyPlayQuery(item.spotifyTrackId, item.name, item.singer)
-                                    }.let { savedUrl ->
-                                        if (
-                                            item.spotifyTrackId.isNotBlank() &&
-                                            !savedUrl.startsWith("spotify:track:")
-                                        ) {
-                                            SongPlayer.buildSpotifyPlayQuery(item.spotifyTrackId, item.name, item.singer)
-                                        } else {
-                                            savedUrl
-                                        }
-                                    }
-                                    val song = SongsModel(
-                                        item.songId, item.name, item.songAlbum, item.singer,
-                                        item.image, songUrl, item.spotifyTrackId,
-                                        explicit = item.explicit,
-                                        durationMs = item.durationMs,
-                                    )
-                                    searchViewModel.startRadioFromSong(song)
-                                    SongPlayer.playSong(song.url, context)
-                                    searchViewModel.updateSongState(
-                                        song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
-                                }
-                                "artist" -> navController.navigate(artistRoute(item.name, item.key.takeIf { it != item.name }.orEmpty()))
-                                "album" -> navController.navigate(albumRoute(item.name, item.singer))
-                                "show" -> navController.navigate(showRoute(item.key, item.name))
-                            }
-                        },
-                        onRemove = {
-                            com.music.spotui.data.preferences.removeRecentItem(context, item)
-                            recents = com.music.spotui.data.preferences.getRecentItems(context)
-                        },
-                    )
+                } else {
+                    // ── Quick searches, moods and the Explore grid ──
+                    item {
+                        SearchExplore(navController, refreshKey) { q ->
+                            text = q
+                            searchViewModel.search(q)
+                        }
+                    }
                 }
             } else {
-                // ── Quick searches, moods and the Explore grid ──
-                item {
-                    SearchExplore(navController) { q ->
-                        text = q
-                        searchViewModel.search(q)
+                // Keyed rows glide into place when a filter (Songs, Artists…) changes the list.
+                items(mixed.size, key = { i -> mixed[i].key }) { i ->
+                    Box(Modifier.animateItemPlacement(androidx.compose.animation.core.tween(300))) {
+                    when (val row = mixed[i]) {
+                        is SearchRow.Song -> com.music.spotui.ui.components.SwipeToQueue(row.song) {
+                            SearchSongRow(row.song, searchedList, searchViewModel, onPlayed = {
+                                recordRecent(row.song.toRecentItem())
+                            }, onLongClick = { menuSong = row.song })
+                        }
+                        is SearchRow.Artist -> SearchArtistRow(row.artist) {
+                            recordRecent(com.music.spotui.data.preferences.RecentItem(
+                                type = "artist",
+                                key = row.artist.id.ifBlank { row.artist.name },
+                                name = row.artist.name,
+                                image = row.artist.coverUri,
+                            ))
+                            navController.navigate(artistRoute(row.artist.name, row.artist.id))
+                        }
+                        is SearchRow.Album -> SearchAlbumRow(row.album) {
+                            recordRecent(com.music.spotui.data.preferences.RecentItem(
+                                type = "album",
+                                key = row.album.name,
+                                name = row.album.name,
+                                singer = row.album.artists,
+                                image = row.album.coverUri,
+                            ))
+                            navController.navigate(albumRoute(row.album.name, row.album.artists))
+                        }
+                    }
+                    }
+                }
+                // ── Podcasts: shows (→ detail) then individual episodes (→ play) ──
+                if (showPodcasts && results.shows.isNotEmpty()) {
+                    item { SearchSectionHeader("Podcasts") }
+                    items(results.shows.size) { i ->
+                        val show = results.shows[i]
+                        SearchShowRow(show) {
+                            recordRecent(com.music.spotui.data.preferences.RecentItem(
+                                type = "show",
+                                key = show.id,
+                                name = show.name,
+                                singer = show.publisher,
+                                image = show.coverUri,
+                            ))
+                            navController.navigate(showRoute(show.id, show.name))
+                        }
+                    }
+                }
+                if (showPodcasts && results.episodes.isNotEmpty()) {
+                    item { SearchSectionHeader("Episodes") }
+                    items(results.episodes.size) { i ->
+                        val ep = results.episodes[i]
+                        SearchSongRow(ep, results.episodes, searchViewModel, onPlayed = {
+                            recordRecent(ep.toRecentItem())
+                        }, onLongClick = { menuSong = ep })
                     }
                 }
             }
-        } else {
-            // Keyed rows glide into place when a filter (Songs, Artists…) changes the list.
-            items(mixed.size, key = { i -> mixed[i].key }) { i ->
-                Box(Modifier.animateItemPlacement(androidx.compose.animation.core.tween(300))) {
-                when (val row = mixed[i]) {
-                    is SearchRow.Song -> com.music.spotui.ui.components.SwipeToQueue(row.song) {
-                        SearchSongRow(row.song, searchedList, searchViewModel, onPlayed = {
-                            recordRecent(row.song.toRecentItem())
-                        }, onLongClick = { menuSong = row.song })
-                    }
-                    is SearchRow.Artist -> SearchArtistRow(row.artist) {
-                        recordRecent(com.music.spotui.data.preferences.RecentItem(
-                            type = "artist",
-                            key = row.artist.id.ifBlank { row.artist.name },
-                            name = row.artist.name,
-                            image = row.artist.coverUri,
-                        ))
-                        navController.navigate(artistRoute(row.artist.name, row.artist.id))
-                    }
-                    is SearchRow.Album -> SearchAlbumRow(row.album) {
-                        recordRecent(com.music.spotui.data.preferences.RecentItem(
-                            type = "album",
-                            key = row.album.name,
-                            name = row.album.name,
-                            singer = row.album.artists,
-                            image = row.album.coverUri,
-                        ))
-                        navController.navigate(albumRoute(row.album.name, row.album.artists))
-                    }
-                }
-                }
-            }
-            // ── Podcasts: shows (→ detail) then individual episodes (→ play) ──
-            if (showPodcasts && results.shows.isNotEmpty()) {
-                item { SearchSectionHeader("Podcasts") }
-                items(results.shows.size) { i ->
-                    val show = results.shows[i]
-                    SearchShowRow(show) {
-                        recordRecent(com.music.spotui.data.preferences.RecentItem(
-                            type = "show",
-                            key = show.id,
-                            name = show.name,
-                            singer = show.publisher,
-                            image = show.coverUri,
-                        ))
-                        navController.navigate(showRoute(show.id, show.name))
-                    }
-                }
-            }
-            if (showPodcasts && results.episodes.isNotEmpty()) {
-                item { SearchSectionHeader("Episodes") }
-                items(results.episodes.size) { i ->
-                    val ep = results.episodes[i]
-                    SearchSongRow(ep, results.episodes, searchViewModel, onPlayed = {
-                        recordRecent(ep.toRecentItem())
-                    }, onLongClick = { menuSong = ep })
-                }
-            }
-        }
 
+        }
     }
 }
 

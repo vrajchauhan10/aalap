@@ -180,10 +180,10 @@ internal val EXPLORE = listOf(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SearchExplore(navController: NavController, onQuickSearch: (String) -> Unit) {
+fun SearchExplore(navController: NavController, refreshKey: Int = 0, onQuickSearch: (String) -> Unit) {
     val context = LocalContext.current
     // Today's 10 trending searches: 5 from YouTube Music, 5 from Spotify (new every day).
-    val quick by produceState(emptyList<com.music.spotui.data.recommendation.HomeMixes.TrendingSearch>()) {
+    val quick by produceState(emptyList<com.music.spotui.data.recommendation.HomeMixes.TrendingSearch>(), refreshKey) {
         value = withContext(Dispatchers.IO) {
             runCatching { com.music.spotui.data.recommendation.HomeMixes.trendingSearches(context) }.getOrDefault(emptyList())
         }

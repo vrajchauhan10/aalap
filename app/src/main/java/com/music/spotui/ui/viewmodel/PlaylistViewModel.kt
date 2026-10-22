@@ -54,6 +54,19 @@ class PlaylistViewModel @Inject constructor(
 
     private var playlistKey: String? = null
 
+    /** Pull-to-refresh: load the playlist again. */
+    suspend fun refresh(playlistId: String) = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        playlistKey = playlistId
+        kotlinx.coroutines.coroutineScope {
+            launch { repository.providePlaylist(playlistId).collect { if (it !is com.music.spotui.data.api.Response.Loading) _playlist.value = it } }
+            launch {
+                // Aalap playlists are a live flow that never ends; one value is enough here.
+                if (com.music.spotui.data.local.AalapPlaylists.isLocal(playlistId)) return@launch
+                repository.providePlaylistSongs(playlistId).collect { if (it !is com.music.spotui.data.api.Response.Loading) _songs.value = it }
+            }
+        }
+    }
+
     fun loadPlaylist(playlistId: String) {
         if (playlistKey == playlistId) return
         playlistKey = playlistId
