@@ -130,8 +130,8 @@ fun LikedSongsScreen(navController: NavController) {
     // Spotify's Liked Songs uses a purple → dark gradient.
     val likedColor = Color(0xFF5038A0)
 
-    // Pulling down only stretches and springs back: this page never refreshes on a pull.
-    com.music.spotui.ui.components.AalapBounce(Modifier.fillMaxSize()) {
+    // Pulling down from the top closes this page (no refresh, no bounce in between).
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         Surface(
             modifier = Modifier
                 .fillMaxSize()

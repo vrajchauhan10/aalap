@@ -139,8 +139,8 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
         else -> songs
     }
 
-    // Aalap's pull-to-refresh (the same on every screen).
-    com.music.spotui.ui.components.AalapRefresh(Modifier.fillMaxSize(), onRefresh = { playlistViewModel.refresh(playlistId) }) {
+    // Pulling down from the top closes this page (no refresh, no bounce in between).
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         Surface(
             modifier = Modifier
                 .fillMaxSize()
@@ -180,9 +180,11 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                             titleContentColor = com.music.spotui.ui.theme.TextPrimary,
                         ),
                         title = { Text(text = "") },
-                        // Spotify playlists can be removed from here (Aalap ones from the edit bar below).
+                        // Spotify playlists in your library can be removed from here (Aalap ones from the edit bar below).
                         actions = {
-                            if (!isLocal && playlistId != com.music.spotui.data.api.Api.HomeCache.LIKED_SONGS_ID) Icon(
+                            // Only for playlists in your library (not charts or ones you're just browsing).
+                            val inLibrary = com.music.spotui.data.api.Api.HomeCache.library.orEmpty().any { it.isPlaylist && it.spotifyId == playlistId }
+                            if (!isLocal && inLibrary && playlistId != com.music.spotui.data.api.Api.HomeCache.LIKED_SONGS_ID) Icon(
                                 imageVector = Icons.Default.Delete,
                                 contentDescription = "Remove playlist",
                                 tint = com.music.spotui.ui.theme.TextPrimary,

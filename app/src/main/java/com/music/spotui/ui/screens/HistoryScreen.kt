@@ -180,8 +180,8 @@ fun HistoryScreen(navController: NavController) {
         )
     }
 
-    // Pulling down only stretches and springs back: this page never refreshes on a pull.
-    com.music.spotui.ui.components.AalapBounce(Modifier.fillMaxSize()) {
+    // Pulling down from the top closes this page (no refresh, no bounce in between).
+    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().background(AppBackground)) {
             // Soft saffron glow in the top-right corner.
             Canvas(Modifier.fillMaxWidth().height(420.dp)) {
