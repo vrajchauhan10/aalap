@@ -31,6 +31,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -140,6 +144,60 @@ private fun Chip(text: String) {
     )
 }
 
+/**
+ * The Liked tag: bold gold text in a thick gold frame with a shine that glides across
+ * it every couple of seconds. Liking a song pops it in (grows past full size and
+ * settles); songs that were already liked just shine.
+ */
+@Composable
+fun LikedTag(songId: String, onDark: Boolean = !com.music.spotui.ui.theme.AalapPalette.isLight) {
+    val gold = if (onDark) Color(0xFFFFC94D) else Color(0xFFB07D05)
+    val shine = if (onDark) Color(0xFFFFF7D9) else Color(0xFFFFE08A)
+    val justLiked = remember(songId) {
+        com.music.spotui.data.preferences.lastLikedId == songId &&
+            System.currentTimeMillis() - com.music.spotui.data.preferences.lastLikedAtMs < 2_000
+    }
+    val pop = remember(songId) { androidx.compose.animation.core.Animatable(if (justLiked) 0f else 1f) }
+    androidx.compose.runtime.LaunchedEffect(songId) {
+        if (pop.value < 1f) {
+            pop.animateTo(1.3f, androidx.compose.animation.core.tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+            pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.35f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
+        }
+    }
+    // The shine: a bright band crossing the frame, then a pause before the next pass.
+    val sweep by androidx.compose.animation.core.rememberInfiniteTransition(label = "likedShine").animateFloat(
+        initialValue = -0.6f, targetValue = 2.2f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.LinearEasing),
+        ),
+        label = "sweep",
+    )
+    Text(
+        "Liked", color = gold, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold,
+        modifier = Modifier
+            .graphicsLayer { scaleX = pop.value; scaleY = pop.value }
+            .drawWithContent {
+                drawContent()
+                val x = size.width * sweep
+                val band = size.width * 0.45f
+                val stroke = 2.dp.toPx()
+                drawRoundRect(
+                    Brush.linearGradient(
+                        listOf(gold, shine, gold),
+                        start = Offset(x - band, 0f), end = Offset(x + band, size.height),
+                    ),
+                    topLeft = Offset(stroke / 2, stroke / 2),
+                    size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2),
+                    style = Stroke(stroke),
+                )
+            }
+            .clip(RoundedCornerShape(50))
+            .background(gold.copy(alpha = if (onDark) 0.14f else 0.1f))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    )
+}
+
 @Composable
 fun ReasonTag(text: String, color: Color, filled: Boolean = false, onDark: Boolean = !com.music.spotui.ui.theme.AalapPalette.isLight) {
     Text(
@@ -167,7 +225,10 @@ fun SongTags(t: HomeMixes.TodaySong, horizontal: Boolean = false, onDark: Boolea
         if (liked && t.reason != "Liked") add("Liked" to false)
     }
     if (tags.isEmpty()) return
-    val tag: @Composable (Pair<String, Boolean>) -> Unit = { (text, filled) -> ReasonTag(text, reasonColor(text, onDark), filled = filled, onDark = onDark) }
+    val tag: @Composable (Pair<String, Boolean>) -> Unit = { (text, filled) ->
+        if (text == "Liked") LikedTag(t.song.id.toString(), onDark)
+        else ReasonTag(text, reasonColor(text, onDark), filled = filled, onDark = onDark)
+    }
     if (horizontal) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = modifier) { tags.forEach { tag(it) } }
     else Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp), modifier = modifier) { tags.forEach { tag(it) } }
 }

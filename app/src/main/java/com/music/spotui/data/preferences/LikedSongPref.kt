@@ -6,11 +6,17 @@ import com.music.spotui.data.entity.SongsModel
 /** Bumped on every like or unlike, so song tags on screen can refresh. */
 val likedVersion = kotlinx.coroutines.flow.MutableStateFlow(0)
 
+/** The song liked most recently and when, so its Liked tag can pop in just once. */
+@Volatile var lastLikedId: String? = null
+@Volatile var lastLikedAtMs: Long = 0L
+
 fun addLikedSongId(context: Context, songId: String) {
     val sharedPreferences = context.getSharedPreferences("LikedSongs", Context.MODE_PRIVATE)
     val editor = sharedPreferences.edit()
     editor.putString(songId, songId)
     editor.apply()
+    lastLikedId = songId
+    lastLikedAtMs = System.currentTimeMillis()
     likedVersion.value++
 }
 
