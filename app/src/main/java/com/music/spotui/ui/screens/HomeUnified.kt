@@ -100,10 +100,10 @@ fun QuickPicksSection(picks: List<HomeMixes.TodaySong>) {
                     )
                     Column(Modifier.weight(1f).padding(start = 12.dp)) {
                         Text(s.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(s.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        // Why it's here, as coloured words under the title: Trending, Top hit, Your taste.
+                        com.music.spotui.ui.components.ReasonLine(t)
                     }
-                    // Why it's here: Trending, Top hit, Liked, Your taste.
-                    if (t.reason != "For you") com.music.spotui.ui.components.SongTags(t)
+                    com.music.spotui.ui.components.LikedHeartIfLiked(s.id)
                 }
             }
         }

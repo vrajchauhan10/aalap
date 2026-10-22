@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +41,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -141,6 +143,57 @@ private fun Chip(text: String) {
     Text(
         text, color = Cream, fontSize = 10.sp, fontWeight = FontWeight.Medium,
         modifier = Modifier.clip(RoundedCornerShape(50)).background(Color(0x59100B1C)).padding(horizontal = 9.dp, vertical = 3.dp),
+    )
+}
+
+/**
+ * Quick picks' light tags: the main artist, then each reason (Trending, Top hit, Your
+ * taste) as small coloured text with a dot, all on one line under the title.
+ */
+@Composable
+fun ReasonLine(t: HomeMixes.TodaySong, onDark: Boolean = !com.music.spotui.ui.theme.AalapPalette.isLight) {
+    val reasons = buildList {
+        if (t.reason != "Liked" && t.reason != "For you") add(t.reason)
+        if (t.matches && t.reason != "Your taste") add("Your taste")
+    }
+    val muted = com.music.spotui.ui.theme.TextMuted
+    val text = androidx.compose.ui.text.buildAnnotatedString {
+        withStyle(androidx.compose.ui.text.SpanStyle(color = muted)) { append(t.song.singer.split(",").first().trim()) }
+        reasons.forEach { r ->
+            withStyle(androidx.compose.ui.text.SpanStyle(color = muted.copy(alpha = 0.6f))) { append("  ·  ") }
+            withStyle(androidx.compose.ui.text.SpanStyle(color = reasonColor(r, onDark), fontWeight = FontWeight.Medium)) { append("● ") }
+            withStyle(androidx.compose.ui.text.SpanStyle(color = reasonColor(r, onDark), fontWeight = FontWeight.Medium)) { append(r) }
+        }
+    }
+    Text(text, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+}
+
+/** A small gold heart when the song is liked; it pops in the moment you like it. */
+@Composable
+fun LikedHeartIfLiked(songId: Int, onDark: Boolean = !com.music.spotui.ui.theme.AalapPalette.isLight) {
+    val context = LocalContext.current
+    val version by com.music.spotui.data.preferences.likedVersion.collectAsState()
+    val liked = remember(version, songId) { com.music.spotui.data.preferences.isSongLiked(context, songId.toString()) }
+    if (liked) LikedHeart(songId.toString(), onDark)
+}
+
+@Composable
+private fun LikedHeart(songId: String, onDark: Boolean) {
+    val gold = if (onDark) Color(0xFFFFC94D) else Color(0xFFB07D05)
+    val justLiked = remember(songId) {
+        com.music.spotui.data.preferences.lastLikedId == songId &&
+            System.currentTimeMillis() - com.music.spotui.data.preferences.lastLikedAtMs < 2_000
+    }
+    val pop = remember(songId) { androidx.compose.animation.core.Animatable(if (justLiked) 0f else 1f) }
+    androidx.compose.runtime.LaunchedEffect(songId) {
+        if (pop.value < 1f) {
+            pop.animateTo(1.35f, androidx.compose.animation.core.tween(220))
+            pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.35f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
+        }
+    }
+    androidx.compose.material3.Icon(
+        androidx.compose.material.icons.Icons.Filled.Favorite, contentDescription = "Liked", tint = gold,
+        modifier = Modifier.size(16.dp).graphicsLayer { scaleX = pop.value; scaleY = pop.value },
     )
 }
 
