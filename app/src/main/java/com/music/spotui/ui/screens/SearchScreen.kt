@@ -438,7 +438,7 @@ fun SearchSongRow(
     val context = LocalContext.current
     var isLiked by remember { mutableStateOf(isSongLiked(context, song.id.toString())) }
     val likeState = searchViewModel.likeState.value
-    LaunchedEffect(likeState) { isLiked = isSongLiked(context, song.id.toString()) }
+    LaunchedEffect(likeState, com.music.spotui.data.preferences.likedVersion.collectAsState().value) { isLiked = isSongLiked(context, song.id.toString()) }
     val currentPlayingIndicatorColor =
         if (song.id == searchViewModel.currentSongId.value) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary
 

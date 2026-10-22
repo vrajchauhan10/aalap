@@ -436,7 +436,7 @@ private fun PopularTrackRow(
     val song = item.song
     var isLiked by remember { mutableStateOf(isSongLiked(context, song.id.toString())) }
     val likeState = artistViewModel.likeState.value
-    LaunchedEffect(likeState) { isLiked = isSongLiked(context, song.id.toString()) }
+    LaunchedEffect(likeState, com.music.spotui.data.preferences.likedVersion.collectAsState().value) { isLiked = isSongLiked(context, song.id.toString()) }
     val titleColor =
         if (song.id == artistViewModel.currentSongId.value) Color(AppPalette.toArgb()) else com.music.spotui.ui.theme.TextPrimary
 

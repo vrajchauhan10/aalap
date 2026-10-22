@@ -86,5 +86,8 @@ fun SheetLayer(onClosed: () -> Unit, content: @Composable () -> Unit) {
                     alpha = (1f - d * 1.4f).coerceIn(0f, 1f)
                 },
         ) { content() }
+        // Liking in the player: the petals fall over this layer (the app's own shower
+        // is underneath it).
+        com.music.spotui.ui.components.PetalShower()
     }
 }

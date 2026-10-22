@@ -25,6 +25,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -130,22 +131,12 @@ fun MiniPlayer(navController: NavHostController) {
         mutableStateOf(false)
     }
     val likeState = miniPlayerViewModel.likeState.value
-    LaunchedEffect(likeState, songId) {
+    // Any like or unlike, wherever it happened (player, menus, notification), shows here too.
+    val likedVersion by com.music.spotui.data.preferences.likedVersion.collectAsState()
+    LaunchedEffect(likeState, songId, likedVersion) {
         isLiked = isSongLiked(context, songId.toString())
     }
     val currentTrack = miniPlayerViewModel.queue.value.firstOrNull { it.id == songId }
-    var showSavedIn by remember { mutableStateOf(false) }
-    if (showSavedIn && currentTrack != null) {
-        SavedInSheet(
-            song = currentTrack,
-            context = context,
-            onDismiss = { showSavedIn = false },
-            onLikedChanged = {
-                isLiked = it
-                miniPlayerViewModel.updateLikeState(!likeState)
-            },
-        )
-    }
 
 
     // Swipe the track info sideways to skip: left = next, right = previous.
@@ -280,8 +271,7 @@ fun MiniPlayer(navController: NavHostController) {
                 modifier = Modifier.width(84.dp)
             ) {
 
-                // Plus = save: it fills with saffron from left to right. Once saved, a tap opens the
-                // "Saved in" sheet (Liked Songs + playlists) instead of unliking.
+                // Plus = save: it fills with saffron from left to right; tap again to unlike.
                 LikeFillIcon(
                     liked = isLiked,
                     outline = painterResource(id = R.drawable.ic_add),
@@ -293,7 +283,15 @@ fun MiniPlayer(navController: NavHostController) {
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) {
-                        if (isLiked) { showSavedIn = true; return@clickable }
+                        if (isLiked) {
+                            // Tap again to unlike: the button empties right to left.
+                            com.music.spotui.data.preferences.removeLikedSongId(context, songId.toString())
+                            isLiked = false
+                            miniPlayerViewModel.updateLikeState(!likeState)
+                            com.music.spotui.data.api.SpotifySync.setTrackSaved(
+                                context, currentTrack?.spotifyTrackId.orEmpty(), false)
+                            return@clickable
+                        }
                         addLikedSongId(context, songId.toString())
                         isLiked = true
                         swipeScope.launch { likeBurst.play() }

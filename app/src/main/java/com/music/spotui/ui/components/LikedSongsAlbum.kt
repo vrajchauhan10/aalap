@@ -29,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -89,7 +90,7 @@ fun LikedSongsScreen(
         }
     }
     val likeState = albumViewModel.likeState.value
-    LaunchedEffect(likeState) {
+    LaunchedEffect(likeState, com.music.spotui.data.preferences.likedVersion.collectAsState().value) {
         likedSongs = getSongsByIds(likesSongIds, songs).sortedBy { it.title }
     }
 

@@ -463,7 +463,7 @@ fun SumUpAlbumScreen(
                         mutableStateOf(isSongLiked(context, albumSongs[song].id.toString()))
                     }
                     val likeState = albumViewModel.likeState.value
-                    LaunchedEffect(likeState){
+                    LaunchedEffect(likeState, com.music.spotui.data.preferences.likedVersion.collectAsState().value){
                         isLiked = isSongLiked(context, albumSongs[song].id.toString())
                     }
                     val songId = albumSongs[song].id

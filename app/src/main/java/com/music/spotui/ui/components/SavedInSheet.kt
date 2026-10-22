@@ -88,8 +88,14 @@ fun SavedInSheet(
     var newName by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
+        // Only playlists you can add to (yours, or shared with you to edit) and that you
+        // haven't removed from Aalap: others' playlists can't take songs.
         playlists = withContext(Dispatchers.IO) {
-            Spotify.myPlaylists().getOrNull()?.items?.filter { it.id.isNotBlank() } ?: emptyList()
+            val me = Spotify.me().getOrNull()?.id
+            val hidden = com.music.spotui.data.local.HiddenPlaylists.ids(context)
+            Spotify.myPlaylists().getOrNull()?.items
+                ?.filter { it.id.isNotBlank() && it.id !in hidden && (me == null || it.owner?.id == me || it.collaborative) }
+                ?: emptyList()
         }
     }
 

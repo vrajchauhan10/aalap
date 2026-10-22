@@ -137,9 +137,11 @@ fun PlayerScreen(navController: NavController) {
     val isLiked = remember {
         mutableStateOf(isSongLiked(context, songId.toString()))
     }
+    // Liked or unliked anywhere else (mini player, notification, menus): show it here too.
+    val likedVersion by com.music.spotui.data.preferences.likedVersion.collectAsState()
+    LaunchedEffect(likedVersion, songId) { isLiked.value = isSongLiked(context, songId.toString()) }
     var showMenu by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(false) }
-    var showSavedIn by remember { mutableStateOf(false) }
 
     BackHandler(enabled = showLyrics) {
         showLyrics = false
@@ -155,16 +157,6 @@ fun PlayerScreen(navController: NavController) {
         )
     }
 
-    if (showSavedIn) {
-        playerViewModel.queue.value.firstOrNull { it.id == songId }?.let { track ->
-            com.music.spotui.ui.components.SavedInSheet(
-                song = track,
-                context = context,
-                onDismiss = { showSavedIn = false },
-                onLikedChanged = { isLiked.value = it },
-            )
-        } ?: run { showSavedIn = false }
-    }
 
 
     var songProgress by remember { mutableStateOf(maxOf(0f, SongPlayer.getCurrentPosition().toFloat())) }
@@ -453,7 +445,6 @@ fun PlayerScreen(navController: NavController) {
                         }
                     },
                     spotifyTrackId = queueSongs.firstOrNull { it.id == songId }?.spotifyTrackId.orEmpty(),
-                    onShowSavedIn = { showSavedIn = true },
                 )
 
                 // Smooth scrubbing: while dragging, the thumb follows the finger
@@ -650,22 +641,7 @@ fun PlayerInfo(
     quality: String = "",
     onArtistClick: (() -> Unit)? = null,
     spotifyTrackId: String = "",
-    onShowSavedIn: (() -> Unit)? = null,
 ) {
-
-    var snackbarMessage by remember {
-        mutableStateOf("")
-    }
-    var snackbarVisible by remember {
-        mutableStateOf(false)
-    }
-
-    LaunchedEffect(snackbarVisible) {
-        delay(1500)
-        snackbarVisible = false
-    }
-
-
     Row(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
@@ -673,11 +649,6 @@ fun PlayerInfo(
             .fillMaxWidth()
             .padding(25.dp, 10.dp)
     ) {
-
-        if (snackbarVisible){
-            Snackbar(showMessage = snackbarMessage)
-        }
-        else{
         Row(
             horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.CenterVertically,
@@ -755,21 +726,10 @@ fun PlayerInfo(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 ) {
-                    if (isLiked.value && onShowSavedIn != null) {
-                        // Already saved — second tap opens the Spotify-style
-                        // "Saved in" sheet (Liked Songs + playlists) instead of
-                        // silently unliking.
-                        onShowSavedIn()
-                        return@clickable
-                    }
-                    if (isLiked.value) {
-                        removeLikedSongId(context, songId.toString())
-                        snackbarMessage = "Removed from Liked Songs"
-                        snackbarVisible = true
-                    } else {
-                        // No message when liking: the petals say it.
-                        addLikedSongId(context, songId.toString())
-                    }
+                    // Tap likes, tap again unlikes ("Add to playlist" is in the menu).
+                    // No message either way: the button itself shows it (and petals fall on a like).
+                    if (isLiked.value) removeLikedSongId(context, songId.toString())
+                    else addLikedSongId(context, songId.toString())
                     isLiked.value = isSongLiked(context, songId.toString())
                     // Liked: marigold petals fall over the screen.
                     if (isLiked.value) com.music.spotui.ui.components.LikeCelebration.burst()
@@ -778,10 +738,6 @@ fun PlayerInfo(
                 },
         )
     }
-    }
-
-
-
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
