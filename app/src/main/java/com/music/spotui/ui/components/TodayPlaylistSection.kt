@@ -42,6 +42,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,6 +83,21 @@ fun TodayPlaylistSection(songs: List<HomeMixes.TodaySong>, action: String = "Ope
     val updated = HomeMixes.todayUpdatedAt(context).takeIf { it > 0 }
         ?.let { java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(it)) }
 
+    // The day, kept current: it ticks over at midnight while the app is open, and is
+    // re-read whenever the app comes back, so the poster changes with the date.
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    val day by androidx.compose.runtime.produceState(java.time.LocalDate.now().toEpochDay(), lifecycle) {
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+            while (true) {
+                value = java.time.LocalDate.now().toEpochDay()
+                val now = java.time.LocalDateTime.now()
+                val midnight = now.toLocalDate().plusDays(1).atStartOfDay()
+                kotlinx.coroutines.delay(java.time.Duration.between(now, midnight).toMillis() + 1_000)
+            }
+        }
+    }
+    val design = posterFor(day)
+
     Column(Modifier.padding(top = 14.dp)) {
         Box(
             Modifier
@@ -91,26 +107,15 @@ fun TodayPlaylistSection(songs: List<HomeMixes.TodaySong>, action: String = "Ope
                 .clip(RoundedCornerShape(24.dp))
                 .clickable(onClick = onOpen), // opens the full list of today's 30
         ) {
-            Canvas(Modifier.matchParentSize()) {
-                val w = size.width; val h = size.height
-                drawRect(Indigo)
-                // Saffron panel with a hand-cut slanted edge.
-                drawPath(Path().apply { moveTo(0f, 0f); lineTo(w * 0.64f, 0f); lineTo(w * 0.52f, h); lineTo(0f, h); close() }, SaffronInk)
-                // Marigold mandala.
-                drawMandala(Marigold, Offset(w * 0.79f, h * 0.46f), h * 0.37f, h * 0.008f, accent = Color(0xFFFF8A3D))
-                // Paisley curls.
-                val curl = Stroke(h * 0.008f)
-                drawPath(Path().apply {
-                    moveTo(w * 0.06f, h * 0.86f)
-                    cubicTo(w * 0.01f, h * 0.8f, w * 0.03f, h * 0.7f, w * 0.08f, h * 0.7f)
-                    cubicTo(w * 0.12f, h * 0.7f, w * 0.13f, h * 0.78f, w * 0.1f, h * 0.81f)
-                }, Marigold.copy(alpha = 0.8f), style = curl)
-                // Block-print border.
-                val band = h * 0.92f
-                drawLine(Marigold.copy(alpha = 0.7f), Offset(0f, band), Offset(w, band), strokeWidth = h * 0.007f)
-                var x = h * 0.03f
-                while (x < w) { drawCircle(Marigold.copy(alpha = 0.55f), h * 0.007f, Offset(x, band + h * 0.04f)); x += h * 0.05f }
-            }
+            // Today's handmade design (a new craft every day, from midnight).
+            Canvas(Modifier.matchParentSize()) { design.paint(this) }
+            Text(
+                "${design.craft} · ${design.origin}".uppercase(),
+                color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, maxLines = 1,
+                // Bottom right, over the art: well away from the words.
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp)
+                    .clip(RoundedCornerShape(50)).background(Color(0xCC100B1C)).padding(horizontal = 8.dp, vertical = 3.dp),
+            )
             Column(Modifier.padding(start = 18.dp, top = 16.dp, end = 120.dp, bottom = 30.dp)) {
                 Text("AALAP PLAYLIST FOR TODAY", color = Cream, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.6.sp, maxLines = 1)
                 Text("Aaj ka Aalap", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold, maxLines = 1)
