@@ -4,6 +4,16 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 3.3.0 — 23 Oct 2026 (build 33)
+- **Tapping the notification no longer crashes the app.** Opening Aalap from the
+  notification (or a widget) crashed in the opening animation, because Android shows
+  that splash without an icon; now it opens straight back where you were.
+- **New widgets, plain black.** Large widget: the cover on the left; song, progress
+  (tap to seek) and like · previous · play · next on the right; gold heart when liked.
+  Small 2×2 widget: cover and song on top, then previous · play · next (previous is new).
+  The craft-pattern backgrounds are gone. Widgets placed before keep their old size
+  until resized.
+
 ## 3.2.0 — 23 Oct 2026 (build 32)
 - **History shows real listening time.** A listening clock counts only while music is
   actually playing (paused, loading and stopped time don't count) and saves it with

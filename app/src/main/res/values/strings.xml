@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">Aalap</string>
     <string name="widget_large_desc">Now playing with artwork and controls</string>
-    <string name="widget_compact_desc">Compact now-playing bar</string>
+    <string name="widget_compact_desc">Small player: cover, song, previous, play and next</string>
     <string name="widget_idle_title">Aalap</string>
     <string name="widget_idle_subtitle">Tap to play</string>
     <string name="widget_open">Open Aalap</string>

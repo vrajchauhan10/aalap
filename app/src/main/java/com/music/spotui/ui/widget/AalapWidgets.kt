@@ -13,7 +13,6 @@ import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CenterCrop
-import com.bumptech.glide.load.resource.bitmap.CircleCrop
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners
 import com.google.common.util.concurrent.MoreExecutors
 import com.music.spotui.MainActivity
@@ -37,21 +36,16 @@ data class WidgetState(
     val durationMs: Long = 0L,
 )
 
-/** 4×2 widget: artwork, title, progress, like + previous / play / next. */
+/** Large widget: cover on the left; song, progress and like / previous / play / next on the right. */
 class AalapWidgetLarge : AalapWidgetBase(R.layout.widget_large, large = true)
 
-/** 4×1 widget: round artwork, title, play / next. */
+/** Small 2×2 widget: cover and song, then previous / play / next. */
 class AalapWidgetCompact : AalapWidgetBase(R.layout.widget_compact, large = false)
 
 abstract class AalapWidgetBase(private val layout: Int, private val large: Boolean) : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         // Newly placed or system refresh: draw the last known state.
-        AalapWidgets.render(context, AalapWidgets.lastState(context))
-    }
-
-    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: android.os.Bundle) {
-        // Resized: redraw the backdrop to the new size.
         AalapWidgets.render(context, AalapWidgets.lastState(context))
     }
 
@@ -82,7 +76,7 @@ object AalapWidgets {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     @Volatile private var current = WidgetState()
     @Volatile private var artKey: String? = null
-    @Volatile private var art: Pair<Bitmap?, Bitmap?> = null to null // rounded, round
+    @Volatile private var art: Bitmap? = null
 
     /** Current state, falling back to the last session's track (paused) after a restart. */
     fun lastState(context: Context): WidgetState {
@@ -112,36 +106,24 @@ object AalapWidgets {
             // finish out of order and leave the widget showing an older state.
             renderLock.withLock {
                 val s = latest
-                val (rounded, round) = artwork(app, s.coverUri)
-                // One update per widget, so each gets its backdrop drawn to its own size.
-                largeIds.forEach { id ->
-                    manager.updateAppWidget(id, views(app, R.layout.widget_large, true, s, rounded).withArt(app, manager, id, true))
-                }
-                compactIds.forEach { id ->
-                    manager.updateAppWidget(id, views(app, R.layout.widget_compact, false, s, round).withArt(app, manager, id, false))
-                }
+                val rounded = artwork(app, s.coverUri)
+                if (largeIds.isNotEmpty()) manager.updateAppWidget(largeIds, views(app, R.layout.widget_large, true, s, rounded))
+                if (compactIds.isNotEmpty()) manager.updateAppWidget(compactIds, views(app, R.layout.widget_compact, false, s, rounded))
             }
         }
     }
 
     private val renderLock = kotlinx.coroutines.sync.Mutex()
 
-    /** Adds the hand-made backdrop, sized to this widget (portrait: min width × max height). */
-    private fun RemoteViews.withArt(context: Context, manager: AppWidgetManager, id: Int, large: Boolean): RemoteViews = apply {
-        val o = manager.getAppWidgetOptions(id)
-        val w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH).takeIf { it > 0 } ?: 300
-        val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT).takeIf { it > 0 } ?: if (large) 170 else 64
-        WidgetArt.render(context, w, h, large)?.let { setImageViewBitmap(R.id.widget_bg_art, it) }
-    }
     @Volatile private var latest = WidgetState()
 
-    private fun artwork(context: Context, uri: String): Pair<Bitmap?, Bitmap?> {
-        if (uri.isBlank()) return null to null
+    private fun artwork(context: Context, uri: String): Bitmap? {
+        if (uri.isBlank()) return null
         if (uri == artKey) return art
-        fun load(vararg t: com.bumptech.glide.load.Transformation<Bitmap>) = runCatching {
-            Glide.with(context).asBitmap().load(uri).transform(*t).submit(256, 256).get()
+        // Large enough to stay sharp as the large widget's cover.
+        val result = runCatching {
+            Glide.with(context).asBitmap().load(uri).transform(CenterCrop(), RoundedCorners(44)).submit(384, 384).get()
         }.getOrNull()
-        val result = load(CenterCrop(), RoundedCorners(36)) to load(CircleCrop())
         artKey = uri
         art = result
         return result
@@ -164,8 +146,9 @@ object AalapWidgets {
             // Nothing loaded yet (fresh start): play opens the app instead.
             setOnClickPendingIntent(R.id.widget_play, if (idle) open else action(context, ACTION_PLAY_PAUSE, large))
             setOnClickPendingIntent(R.id.widget_next, action(context, ACTION_NEXT, large))
+            setOnClickPendingIntent(R.id.widget_prev, action(context, ACTION_PREV, large))
+            setTextViewText(R.id.widget_artist, if (idle) context.getString(R.string.widget_idle_subtitle) else s.artist)
             if (large) {
-                setTextViewText(R.id.widget_artist, if (idle) context.getString(R.string.widget_idle_subtitle) else s.artist)
                 setProgressBar(R.id.widget_progress, 1000, (s.progress * 1000).toInt(), false)
                 // Tap zones along the bar: each seeks to the middle of its slice.
                 if (!idle) SEEK_ZONES.forEachIndexed { i, id ->
@@ -178,7 +161,8 @@ object AalapWidgets {
                 )
                 setTextViewText(R.id.widget_duration, if (s.durationMs > 0) formatTime(s.durationMs) else "")
                 setImageViewResource(R.id.widget_like, if (s.liked) R.drawable.ic_notif_heart_filled else R.drawable.ic_notif_heart)
-                setOnClickPendingIntent(R.id.widget_prev, action(context, ACTION_PREV, large))
+                // Gold when liked, white otherwise.
+                setInt(R.id.widget_like, "setColorFilter", if (s.liked) 0xFFFFC94D.toInt() else 0xFFE9E9EE.toInt())
                 setOnClickPendingIntent(R.id.widget_like, action(context, ACTION_LIKE, large))
             }
         }

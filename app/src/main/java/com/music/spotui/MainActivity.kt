@@ -46,10 +46,12 @@ class MainActivity : ComponentActivity() {
         val openedAt = android.os.SystemClock.uptimeMillis()
         splash.setKeepOnScreenCondition { android.os.SystemClock.uptimeMillis() - openedAt < 850 }
         splash.setOnExitAnimationListener { view ->
-            val icon = view.iconView
+            // Opening from the notification or a widget, Android shows the splash without an
+            // icon (iconView is null then and reading it crashed the app); only animate it if present.
+            val icon = runCatching { view.iconView }.getOrNull()
             // A quiet hand-off: the mark eases back a touch as the splash fades into Home.
-            icon.animate().scaleX(0.92f).scaleY(0.92f).alpha(0f).setDuration(260)
-                .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()).start()
+            icon?.animate()?.scaleX(0.92f)?.scaleY(0.92f)?.alpha(0f)?.setDuration(260)
+                ?.setInterpolator(android.view.animation.AccelerateDecelerateInterpolator())?.start()
             view.view.animate().alpha(0f).setStartDelay(60).setDuration(280)
                 .setInterpolator(android.view.animation.DecelerateInterpolator())
                 .withEndAction { view.remove() }.start()
