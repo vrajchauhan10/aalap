@@ -420,6 +420,7 @@ fun LikedSongsScreen(navController: NavController) {
                         }
                     }
 
+                    item { androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(top = 20.dp, end = 24.dp), contentAlignment = Alignment.CenterEnd) { com.music.spotui.ui.components.Signature() } }
                     item { Spacer(modifier = Modifier.padding(80.dp)) }
                 }
             }

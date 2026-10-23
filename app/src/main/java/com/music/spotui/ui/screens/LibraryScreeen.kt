@@ -584,6 +584,12 @@ private fun LibraryContent(
                 Text(emptyText, color = com.music.spotui.ui.theme.TextMuted, fontSize = 14.sp, modifier = Modifier.padding(20.dp, 30.dp))
             }
         }
+        // The maker's mark at the end of Library.
+        item(span = full) {
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(top = 24.dp, end = 24.dp), contentAlignment = Alignment.CenterEnd) {
+                com.music.spotui.ui.components.Signature()
+            }
+        }
     }
 }
 

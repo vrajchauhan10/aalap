@@ -260,6 +260,7 @@ fun ConnectServicesScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
             )
         }
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(top = 6.dp, end = 0.dp), contentAlignment = Alignment.CenterEnd) { com.music.spotui.ui.components.Signature() }
     }
     }
 }

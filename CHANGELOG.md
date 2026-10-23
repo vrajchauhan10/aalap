@@ -4,7 +4,13 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
-## 3.14.0 — 24 Oct 2026 (build 44)
+## 3.15.0 — 24 Oct 2026 (build 45)
+- **"crafted by V" at the end of more pages:** the music player (bottom-right, under
+  the share and queue buttons), the "Connect your music" sign-in page (under Start
+  listening), Library and Liked Songs. Already on Home, the welcome screen, Profile and
+  the opening screen.
+
+ — 24 Oct 2026 (build 44)
 - **Signature restyled.** "crafted by" in Great Vibes and the "V" in Parisienne (both
   free Google fonts, bundled in the app), lighter, and in the bottom-right corner on the
   welcome screen, Profile and Home. On the opening screen Android only allows it centred
