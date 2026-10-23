@@ -528,7 +528,7 @@ fun PlayerScreen(navController: NavController) {
                 currentTrack = queueSongs.firstOrNull { it.id == playerViewModel.currentSongId.value },
             )
             // The maker's mark, bottom-right.
-            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(top = 0.dp, end = 26.dp), contentAlignment = Alignment.CenterEnd) { com.music.spotui.ui.components.Signature() }
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(top = 0.dp, end = 26.dp), contentAlignment = Alignment.CenterEnd) { com.music.spotui.ui.components.Signature(size = 12f) }
 
             //PlayerEndInfo()
         }

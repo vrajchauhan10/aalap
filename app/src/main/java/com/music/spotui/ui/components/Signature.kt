@@ -19,12 +19,12 @@ private val Parisienne = FontFamily(Font(R.font.parisienne))
  * Parisienne. Placed in a bottom corner, never centred.
  */
 @Composable
-fun Signature(modifier: Modifier = Modifier) {
+fun Signature(modifier: Modifier = Modifier, size: Float = 17f) {
     val ink = com.music.spotui.ui.theme.TextMuted.copy(alpha = 0.6f)
     Text(
         buildAnnotatedString {
-            withStyle(SpanStyle(fontFamily = GreatVibes, fontSize = 17.sp)) { append("crafted by ") }
-            withStyle(SpanStyle(fontFamily = Parisienne, fontSize = 18.sp)) { append("V") }
+            withStyle(SpanStyle(fontFamily = GreatVibes, fontSize = size.sp)) { append("crafted by ") }
+            withStyle(SpanStyle(fontFamily = Parisienne, fontSize = (size + 1f).sp)) { append("V") }
         },
         color = ink,
         modifier = modifier,

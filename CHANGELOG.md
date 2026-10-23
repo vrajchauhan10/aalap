@@ -4,7 +4,11 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
-## 3.15.0 — 24 Oct 2026 (build 45)
+## 3.16.0 — 24 Oct 2026 (build 46)
+- **Smaller signature on the music player** (about 30% smaller), so it stays out of
+  the way of the controls. Other pages keep the regular size.
+
+ — 24 Oct 2026 (build 45)
 - **"crafted by V" at the end of more pages:** the music player (bottom-right, under
   the share and queue buttons), the "Connect your music" sign-in page (under Start
   listening), Library and Liked Songs. Already on Home, the welcome screen, Profile and
