@@ -4,7 +4,13 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
-## 3.12.0 — 24 Oct 2026 (build 42)
+## 3.13.0 — 24 Oct 2026 (build 43)
+- **Wrapped and History now match.** Wrapped counted every song you started as if you
+  listened to all of it (skips too, ~3.5 min for unknown lengths), while History counts
+  the real listening time. Both now use one shared calculation: real listening time, and
+  skipped songs (under 30 s) don't count as plays or in the top songs and artists.
+
+ — 24 Oct 2026 (build 42)
 - **Your signature.** A light, handwritten "crafted by V" on the opening screen (under
   the logo), the welcome screen, the end of Home, and in Profile under the version.
 

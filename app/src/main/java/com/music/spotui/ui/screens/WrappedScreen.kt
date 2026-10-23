@@ -63,7 +63,6 @@ private val GoldC = Color(0xFFFFC56B)
 private val MutedC = Color(0xFFB8AFC9)
 
 /** Plays logged before 2.0 have no length; count them at a typical song length. */
-private const val ESTIMATED_SONG_MS = 210_000
 
 private data class WrappedData(
     val periodLabel: String,
@@ -81,11 +80,14 @@ private fun HistoryEntry.hour(): Int = Instant.ofEpochMilli(ts).atZone(ZoneId.sy
 private fun HistoryEntry.artist() = singer.substringBefore(",").trim()
 
 private fun buildWrapped(all: List<HistoryEntry>, month: YearMonth): WrappedData {
-    val plays = all.filter { YearMonth.from(it.date()) == month }
-    val known = plays.sumOf { if (it.durationMs > 0) it.durationMs.toLong() else 0L }
-    val unknown = plays.count { it.durationMs <= 0 }
-    val artists = plays.filter { it.artist().isNotBlank() }.groupBy { it.artist() }
-        .map { (a, p) -> a to p }.sortedByDescending { it.second.size }
+    // Counted exactly like History (ListeningStats): real listening time, skips left out.
+    val timed = com.music.spotui.data.preferences.ListeningStats.plays(all).filter { YearMonth.from(it.entry.date()) == month }
+    val plays = timed.map { it.entry }
+    val finished = timed.filter { !it.skipped }.map { it.entry }
+    val listenedMs = timed.sumOf { it.listenedMs }
+    val artists = finished.filter { it.artist().isNotBlank() }.groupBy { it.artist().lowercase() }
+        .map { (_, p) -> (p.firstOrNull { it.artist() != it.artist().uppercase() }?.artist() ?: p.first().artist()) to p }
+        .sortedByDescending { it.second.size }
     val hours = plays.groupingBy {
         when (it.hour()) { in 5..11 -> 0; in 12..16 -> 1; in 17..21 -> 2; else -> 3 }
     }.eachCount()
@@ -105,10 +107,11 @@ private fun buildWrapped(all: List<HistoryEntry>, month: YearMonth): WrappedData
     }
     return WrappedData(
         periodLabel = "${month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${month.year}",
-        plays = plays.size,
-        minutes = (known + unknown.toLong() * ESTIMATED_SONG_MS) / 60_000,
+        plays = finished.size,
+        minutes = listenedMs / 60_000,
         topArtist = artists.firstOrNull()?.let { (a, p) -> a to p.first().image },
-        topSongs = plays.groupBy { it.songId }.map { (_, p) -> p.first() to p.size }.sortedByDescending { it.second }.take(5),
+        topSongs = finished.groupBy { "${it.title.lowercase().substringBefore(" (")}|${it.artist().lowercase()}" }
+            .map { (_, p) -> p.first() to p.size }.sortedByDescending { it.second }.take(5),
         topArtists = artists.take(5).map { (a, p) -> a to p.size },
         personality = personality,
         streakDays = best,

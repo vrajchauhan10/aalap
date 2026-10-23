@@ -87,20 +87,11 @@ private fun HistoryEntry.artist() = singer.substringBefore(",").trim()
 private fun HistoryEntry.toSong() = SongsModel(songId, title, album, singer, image, url, spotifyTrackId, durationMs = durationMs)
 private fun HistoryEntry.songKey() = "${title.lowercase().substringBefore(" (")}|${artist().lowercase()}"
 
-/**
- * A play and how long the music actually played: measured (paused and buffering time
- * not counted) for plays since 3.0; older plays fall back to an estimate (until the
- * next song started, at most the song's length).
- */
-private class Play(val e: HistoryEntry, val listenedMs: Long) {
-    /** Under 30 s (or under half a short song) counts as a skip, not a listen. */
-    val skipped: Boolean get() = listenedMs < minOf(30_000L, e.ms() / 2)
-}
+/** A play and how long it really lasted (shared with Wrapped: see ListeningStats). */
+private class Play(val e: HistoryEntry, val listenedMs: Long, val skipped: Boolean)
 
-private fun plays(history: List<HistoryEntry>): List<Play> = history.mapIndexed { i, e ->
-    val gap = if (i == 0) Long.MAX_VALUE else history[i - 1].ts - e.ts // history is newest first
-    Play(e, if (e.listenedMs >= 0) e.listenedMs else minOf(e.ms(), gap.coerceAtLeast(0)))
-}
+private fun plays(history: List<HistoryEntry>): List<Play> =
+    com.music.spotui.data.preferences.ListeningStats.plays(history).map { Play(it.entry, it.listenedMs, it.skipped) }
 
 /** One ranked row: [move] is places up (+) or down (−) since the previous period, null when new. */
 private class Ranked(val key: String, val entry: HistoryEntry, val plays: Int, val minutes: Long, val move: Int?)
