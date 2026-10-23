@@ -10,17 +10,17 @@ plugins {
 }
 
 android {
-    namespace = "com.music.spotui"
+    namespace = "com.music.aalap"
     compileSdk = 34
 
     defaultConfig {
         applicationId = "com.music.spotui"
         minSdk = 26
         targetSdk = 34
-        // Must exceed every published build (spotui 1.6 shipped as versionCode 16).
+        // Must exceed every published build (1.6, when the app was called Spotui, shipped as versionCode 16).
         // 2.0.0 is the first Aalap release.
-        versionCode = 46
-        versionName = "3.16.0"
+        versionCode = 47
+        versionName = "4.0.0"
         // Optional Last.fm key for the similar-tracks source (empty = source off).
         buildConfigField("String", "LASTFM_API_KEY", "\"${(project.findProperty("lastfmApiKey") as String?).orEmpty()}\"")
 

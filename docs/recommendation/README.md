@@ -8,7 +8,7 @@ Example: Daru Badnaam → (what plays after it) → Backbone → (what plays aft
 ## Folder structure
 
 ```
-app/src/main/java/com/music/spotui/data/recommendation/
+app/src/main/java/com/music/aalap/data/recommendation/
 ├── Recommender.kt              entry point used by every screen
 └── engine/
     ├── Models.kt               Source (with RRF weight), Candidate, Song, Scored
@@ -27,7 +27,7 @@ app/src/main/java/com/music/spotui/data/recommendation/
         ├── SpotifyRadioSource.kt   2. Spotify song radio
         ├── JioSaavnRadioSource.kt  3. JioSaavn song radio (Indian/regional)
         └── LastFmSource.kt         3b. Last.fm track.getSimilar (needs a key)
-app/src/test/java/com/music/spotui/data/recommendation/FusionTest.kt
+app/src/test/java/com/music/aalap/data/recommendation/FusionTest.kt
 docs/recommendation/schema.sql
 ```
 
@@ -93,7 +93,7 @@ docs/recommendation/schema.sql
 ## Test
 
 ```bash
-./gradlew :app:testDebugUnitTest --tests 'com.music.spotui.data.recommendation.FusionTest'
+./gradlew :app:testDebugUnitTest --tests 'com.music.aalap.data.recommendation.FusionTest'
 ```
 
 The test covers fusion scores and order for the Daru Badnam example, single-source songs being kept, duplicate ranks, the song matcher, the finalScore weights, and the diversity rules.

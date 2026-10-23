@@ -1,0 +1,818 @@
+package com.music.aalap.ui.screens
+
+import android.annotation.SuppressLint
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.filled.Edit
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavController
+import com.music.aalap.data.preferences.CROSSFADE_MAX_MS
+import com.music.aalap.data.preferences.StreamQuality
+import com.music.aalap.data.preferences.getCellularQuality
+import com.music.aalap.data.preferences.getCrossfadeMs
+import com.music.aalap.data.preferences.setCrossfadeMs
+import com.music.aalap.data.preferences.getDownloadQuality
+import com.music.aalap.data.preferences.getLyricTranslateLang
+import com.music.aalap.data.preferences.isVideoFallbackEnabled
+import com.music.aalap.data.preferences.getWifiQuality
+import com.music.aalap.data.preferences.setCellularQuality
+import com.music.aalap.data.preferences.setDownloadQuality
+import com.music.aalap.data.preferences.setLyricTranslateLang
+import com.music.aalap.data.preferences.setVideoFallbackEnabled
+import com.music.aalap.data.preferences.setWifiQuality
+import com.music.aalap.data.preferences.MusicSource
+import com.music.aalap.data.preferences.getPrimaryMusicSource
+import com.music.aalap.data.preferences.isYoutubeLoggedIn
+import com.music.aalap.data.preferences.setPrimaryMusicSource
+import com.music.aalap.ui.theme.AppBackground
+import com.music.aalap.ui.theme.AppPalette
+import java.util.Locale
+
+private val translateLanguages by lazy {
+    Locale.getISOLanguages()
+        .map { it to Locale.forLanguageTag(it).getDisplayLanguage(Locale.getDefault()) }
+        .filter { it.second.isNotBlank() }
+        .sortedBy { it.second }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(navController: NavController) {
+    val context = LocalContext.current
+
+    var wifiQ by remember { mutableStateOf(getWifiQuality(context)) }
+    var cellQ by remember { mutableStateOf(getCellularQuality(context)) }
+    var dlQ by remember { mutableStateOf(getDownloadQuality(context)) }
+    var crossfadeMs by remember { mutableStateOf(getCrossfadeMs(context).toFloat()) }
+    var videoFallback by remember { mutableStateOf(isVideoFallbackEnabled(context)) }
+    var selectedLanguage by remember { mutableStateOf(getLyricTranslateLang(context)) }
+    var languageQuery by remember { mutableStateOf("") }
+    val youtubeConnected = isYoutubeLoggedIn(context)
+    var primarySource by remember {
+        mutableStateOf(getPrimaryMusicSource(context) ?: MusicSource.YOUTUBE_MUSIC)
+    }
+
+    Scaffold(
+        containerColor = AppBackground,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Profile", color = com.music.aalap.ui.theme.TextPrimary, fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = com.music.aalap.ui.theme.TextPrimary,
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .size(26.dp)
+                            .clickable { navController.popBackStack() }
+                    )
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = AppBackground)
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .consumeWindowInsets(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            ProfileHeader(navController)
+            ConnectedServicesSection(navController)
+            YourTasteSection()
+            SectionTitle("Appearance")
+            // Applies instantly: ThemeState drives the Aalap palette app-wide.
+            com.music.aalap.data.preferences.ThemeMode.entries.forEach { mode ->
+                SourceSettingRow(
+                    title = mode.label,
+                    subtitle = when (mode) {
+                        com.music.aalap.data.preferences.ThemeMode.SYSTEM -> "Match your phone's dark mode"
+                        com.music.aalap.data.preferences.ThemeMode.LIGHT -> "Warm cream background"
+                        com.music.aalap.data.preferences.ThemeMode.DARK -> "Deep indigo background"
+                    },
+                    selected = com.music.aalap.ui.theme.ThemeState.mode == mode,
+                ) { com.music.aalap.ui.theme.ThemeState.set(context, mode) }
+            }
+
+            SectionTitle("Your music")
+            NavRow("Your artists", "Follow artists, with suggestions from what you play") {
+                navController.navigate(com.music.aalap.ui.navigation.Routes.ArtistPicker.route)
+            }
+
+            SectionTitle("Sound")
+            NavRow("Sound and equalizer", "Presets, bass boost, normalize volume, playback speed") {
+                navController.navigate(com.music.aalap.ui.navigation.Routes.Sound.route)
+            }
+            NavRow("Your Aalap Wrapped", "Your month in music, ready to share") {
+                navController.navigate(com.music.aalap.ui.navigation.Routes.Wrapped.route)
+            }
+
+            SectionTitle("Playback")
+            var fastLoading by remember { mutableStateOf(com.music.aalap.data.preferences.isFastLoading(context)) }
+            SettingsSwitchRow(
+                title = "Fast loading",
+                subtitle = "Start songs sooner, load the whole song ahead and prepare the next two. Uses more data when you skip a lot.",
+                checked = fastLoading,
+            ) { fastLoading = it; com.music.aalap.data.preferences.setFastLoading(context, it) }
+            SubTitle("Song videos")
+            var songVideos by remember { mutableStateOf(com.music.aalap.data.preferences.getSongVideos(context)) }
+            com.music.aalap.data.preferences.SongVideos.entries.forEach { mode ->
+                SourceSettingRow(title = mode.label, subtitle = mode.subtitle, selected = songVideos == mode) {
+                    songVideos = mode
+                    com.music.aalap.data.preferences.setSongVideos(context, mode)
+                }
+            }
+
+            SectionTitle("Notifications")
+            var notifButtons by remember { mutableStateOf(com.music.aalap.data.preferences.isNotificationExtraButtons(context)) }
+            SettingsSwitchRow(
+                title = "Like and shuffle in notification",
+                subtitle = "Extra buttons next to previous / play / next",
+                checked = notifButtons,
+            ) {
+                notifButtons = it
+                com.music.aalap.data.preferences.setNotificationExtraButtons(context, it)
+                com.music.aalap.ui.notification.PlaybackService.refreshNotificationButtons?.invoke()
+            }
+            NavRow("Notification settings", "Allow notifications, lock screen and sound options") {
+                val intent = android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                runCatching { context.startActivity(intent) }
+            }
+
+            SectionTitle("Share")
+            ShareAalapRow()
+
+            SectionTitle("Offline")
+            val offline = com.music.aalap.data.preferences.OfflineState
+            SettingsSwitchRow(
+                title = "Offline mode",
+                subtitle = "Only play downloads, no data used",
+                checked = offline.manual,
+            ) { offline.setManual(context, it) }
+            SettingsSwitchRow(
+                title = "Auto-download Liked Songs",
+                subtitle = "On Wi-Fi only, in your download quality",
+                checked = offline.autoDownloadLiked,
+            ) { offline.setAutoDownloadLiked(context, it) }
+            SettingsSwitchRow(
+                title = "Go offline automatically",
+                subtitle = "When there's no internet",
+                checked = offline.autoWhenNoInternet,
+            ) { offline.setAutoWhenNoInternet(context, it) }
+            OfflineStorageCard()
+
+            SectionTitle("Audio quality")
+            QualityPicker(
+                title = "Streaming over Wi-Fi",
+                selected = wifiQ,
+            ) { wifiQ = it; setWifiQuality(context, it) }
+
+            QualityPicker(
+                title = "Streaming over cellular",
+                selected = cellQ,
+            ) { cellQ = it; setCellularQuality(context, it) }
+
+            QualityPicker(
+                title = "Download quality",
+                selected = dlQ,
+            ) { dlQ = it; setDownloadQuality(context, it) }
+
+            // Lossless FLAC comes from the Tidal community backend (no login). Falls back
+            // to best-quality YouTube on a miss.
+            Text(
+                "Lossless uses free community FLAC servers; if a song isn't there, Aalap plays High quality instead.",
+                color = com.music.aalap.ui.theme.TextMuted,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 4.dp, top = 6.dp),
+            )
+
+            Spacer(Modifier.height(12.dp))
+            SectionTitle("Lyrics")
+            val languageMatches = remember(languageQuery) {
+                val query = languageQuery.trim()
+                if (query.isBlank()) {
+                    emptyList()
+                } else {
+                    translateLanguages.filter { (code, name) ->
+                        code.contains(query, true) || name.contains(query, true)
+                    }.sortedWith(
+                        compareByDescending<Pair<String, String>> {
+                            it.first.equals(query, true) || it.second.equals(query, true)
+                        }.thenBy { it.second }
+                    ).take(8)
+                }
+            }
+            OutlinedTextField(
+                value = languageQuery,
+                onValueChange = {
+                    languageQuery = it
+                    if (it.isBlank()) {
+                        selectedLanguage = ""
+                        setLyricTranslateLang(context, "")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                singleLine = true,
+                label = { Text("Translate lyrics to", color = com.music.aalap.ui.theme.TextMuted) },
+                placeholder = { Text("Search languages", color = Color(0xFF72728A)) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = com.music.aalap.ui.theme.TextPrimary,
+                    unfocusedTextColor = com.music.aalap.ui.theme.TextPrimary,
+                    cursorColor = AppPalette,
+                    focusedBorderColor = AppPalette,
+                    unfocusedBorderColor = Color(0xFF3A3A46),
+                    focusedLabelColor = AppPalette,
+                    unfocusedLabelColor = com.music.aalap.ui.theme.TextMuted,
+                    focusedContainerColor = AppBackground,
+                    unfocusedContainerColor = AppBackground,
+                ),
+            )
+            languageMatches.forEach { (code, name) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(com.music.aalap.ui.theme.Surface)
+                        .clickable {
+                            selectedLanguage = code
+                            setLyricTranslateLang(context, code)
+                            languageQuery = ""
+                        }
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(name, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    Text(code, color = AppPalette, fontSize = 13.sp)
+                }
+            }
+            Text(
+                text = if (selectedLanguage.isBlank()) {
+                    "Using phone language"
+                } else {
+                    "Selected: ${translateLanguages.firstOrNull { it.first == selectedLanguage }?.second ?: selectedLanguage} ($selectedLanguage)"
+                },
+                color = com.music.aalap.ui.theme.TextMuted,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+            )
+
+            Spacer(Modifier.height(12.dp))
+            SectionTitle("Crossfade")
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Crossfade", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(
+                    if (crossfadeMs <= 0f) "Off" else "${(crossfadeMs / 1000f).let { String.format("%.0f", it) }}s",
+                    color = if (crossfadeMs <= 0f) com.music.aalap.ui.theme.TextMuted else AppPalette,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Text(
+                "Blend the end of a song into the start of the next",
+                color = com.music.aalap.ui.theme.TextMuted,
+                fontSize = 13.sp,
+            )
+            Slider(
+                value = crossfadeMs,
+                onValueChange = { crossfadeMs = it },
+                onValueChangeFinished = { setCrossfadeMs(context, crossfadeMs.toInt()) },
+                valueRange = 0f..CROSSFADE_MAX_MS.toFloat(),
+                steps = (CROSSFADE_MAX_MS / 1000) - 1, // 1-second stops
+                colors = SliderDefaults.colors(
+                    thumbColor = AppPalette,
+                    activeTrackColor = AppPalette,
+                    inactiveTrackColor = com.music.aalap.ui.theme.SurfaceHigh,
+                ),
+            )
+            Spacer(Modifier.height(12.dp))
+            // Power-user options, folded away so the page stays about everyday choices.
+            var showAdvanced by remember { mutableStateOf(false) }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { showAdvanced = !showAdvanced }
+                    .padding(top = 16.dp, bottom = 4.dp),
+            ) {
+                Text("Advanced", color = AppPalette, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(if (showAdvanced) "Hide" else "Show", color = com.music.aalap.ui.theme.TextMuted, fontSize = 13.sp)
+            }
+            androidx.compose.animation.AnimatedVisibility(visible = showAdvanced) {
+                Column {
+                    Spacer(Modifier.height(12.dp))
+                    SubTitle("Song matching")
+                    SettingsSwitchRow(
+                        title = "Allow video fallback",
+                        subtitle = "Use regular YouTube videos only after Music song results fail",
+                        checked = videoFallback,
+                    ) {
+                        videoFallback = it
+                        setVideoFallbackEnabled(context, it)
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    SubTitle("Soulseek (experimental)")
+                    var soulseekOn by remember { mutableStateOf(com.music.aalap.data.preferences.isSoulseekEnabled(context)) }
+                    SettingsSwitchRow(
+                        title = "Soulseek lossless fallback",
+                        subtitle = "When the FLAC servers miss, fetch FLACs from Soulseek (peer-to-peer). Uses data and shows your IP to peers.",
+                        checked = soulseekOn,
+                    ) {
+                        soulseekOn = it
+                        com.music.aalap.data.preferences.setSoulseekEnabled(context, it)
+                        // Off: leave the network now and close the listening port.
+                        if (!it) Thread { com.music.aalap.soulseek.SoulseekClient.disconnect() }.start()
+                    }
+
+                }
+            }
+
+            Spacer(Modifier.height(28.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.dp, Color(0xFFE57373).copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                    .clickable {
+                        com.music.aalap.data.api.AccountActions.logOut(context)
+                        navController.navigate(com.music.aalap.ui.navigation.Routes.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                    .padding(vertical = 14.dp),
+            ) {
+                Text("Log out", color = Color(0xFFE57373), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Text(
+                "Aalap ${com.music.aalap.BuildConfig.VERSION_NAME}",
+                color = com.music.aalap.ui.theme.TextMuted,
+                fontSize = 12.sp,
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            // The maker's mark in the corner, under the version.
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(top = 6.dp, end = 4.dp), contentAlignment = Alignment.CenterEnd) {
+                com.music.aalap.ui.components.Signature()
+            }
+            // Clears the floating mini player + tab bar so Log out can scroll fully into view.
+            Spacer(Modifier.height(190.dp))
+        }
+    }
+}
+
+@Composable
+private fun SourceSettingRow(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .background(if (selected) com.music.aalap.ui.theme.Surface else Color.Transparent)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
+        }
+        if (selected) {
+            Icon(Icons.Filled.Check, contentDescription = "Selected", tint = AppPalette, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+/** A tappable row that opens another screen. */
+@Composable
+private fun NavRow(title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 10.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
+        }
+        Text("›", color = com.music.aalap.ui.theme.TextMuted, fontSize = 22.sp)
+    }
+}
+
+/** Downloads on this phone: count, size, and liked songs still waiting for Wi-Fi. */
+@Composable
+private fun OfflineStorageCard() {
+    val context = LocalContext.current
+    val (count, bytes) = remember { com.music.aalap.data.preferences.downloadStorage(context) }
+    val pending = com.music.aalap.data.preferences.AutoDownloader.pendingCount
+    val gb = bytes / 1_073_741_824.0
+    val sizeLabel = if (gb >= 1) String.format("%.1f GB", gb) else "${bytes / 1_048_576} MB"
+    // Bar relative to the phone's free space + what Aalap already uses.
+    val free = remember { runCatching { context.filesDir.usableSpace }.getOrDefault(0L) }
+    val fraction = if (free + bytes > 0) (bytes.toFloat() / (free + bytes)).coerceIn(0.02f, 1f) else 0f
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(com.music.aalap.ui.theme.Surface)
+            .padding(14.dp),
+    ) {
+        Row(Modifier.fillMaxWidth()) {
+            Text("Storage used", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text(sizeLabel, color = AppPalette, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.height(8.dp))
+        Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(com.music.aalap.ui.theme.SurfaceHigh)) {
+            Box(Modifier.fillMaxWidth(fraction).height(6.dp).clip(RoundedCornerShape(3.dp)).background(AppPalette))
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            com.music.aalap.ui.components.counted(count, "song") + if (pending > 0) " · $pending waiting for Wi-Fi" else "",
+            color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp,
+        )
+    }
+}
+
+@Composable
+private fun SubTitle(text: String) {
+    Text(
+        text = text,
+        color = com.music.aalap.ui.theme.TextMuted,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(top = 12.dp, bottom = 2.dp)
+    )
+}
+
+/** Sends this Aalap to someone (WhatsApp, Drive, Quick Share…) as an installable file. */
+@Composable
+fun ShareAalapRow() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var preparing by remember { mutableStateOf(false) }
+    // Get the file ready while Profile is open, so the tap opens the share sheet at once.
+    LaunchedEffect(Unit) { runCatching { com.music.aalap.ui.share.ShareApp.prepare(context) } }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(enabled = !preparing) {
+                preparing = true
+                scope.launch {
+                    runCatching { com.music.aalap.ui.share.ShareApp.share(context) }.onFailure {
+                        android.widget.Toast.makeText(context, "Couldn't share Aalap. Try again.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    preparing = false
+                }
+            }
+            .padding(vertical = 10.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(com.music.aalap.ui.theme.Saffron.copy(alpha = 0.15f)),
+        ) {
+            if (preparing) androidx.compose.material3.CircularProgressIndicator(color = com.music.aalap.ui.theme.Saffron, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+            else Icon(Icons.Default.Share, contentDescription = null, tint = com.music.aalap.ui.theme.Saffron, modifier = Modifier.size(20.dp))
+        }
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Text("Share Aalap", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(if (preparing) "Getting the app ready…" else "Send the app on WhatsApp, Drive or Quick Share", color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        color = AppPalette,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+    )
+}
+
+@Composable
+private fun SettingsSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    // The whole row is the switch: tapping the words toggles it, and TalkBack reads
+    // "Offline mode, switch, off" instead of an unnamed switch.
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = androidx.compose.ui.semantics.Role.Switch, onValueChange = onCheckedChange)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = com.music.aalap.ui.theme.OnSaffron,
+                checkedTrackColor = AppPalette,
+                uncheckedThumbColor = com.music.aalap.ui.theme.TextMuted,
+                uncheckedTrackColor = com.music.aalap.ui.theme.SurfaceHigh,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun QualityPicker(
+    title: String,
+    selected: StreamQuality,
+    onSelect: (StreamQuality) -> Unit
+) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+        Text(title, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(8.dp))
+        // One compact row of choices instead of a four-item list per setting.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StreamQuality.entries.forEach { q ->
+                val isSel = q == selected
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(50))
+                        .background(if (isSel) AppPalette else com.music.aalap.ui.theme.SurfaceHigh)
+                        .clickable { onSelect(q) }
+                        .padding(vertical = 9.dp),
+                ) {
+                    Text(
+                        q.label,
+                        color = if (isSel) com.music.aalap.ui.theme.OnSaffron else com.music.aalap.ui.theme.TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = if (isSel) FontWeight.SemiBold else FontWeight.Normal,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+        Text(selected.detail, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, top = 6.dp))
+    }
+}
+
+/** Profile card: who is signed in, at-a-glance listening stats, and shortcuts. */
+@OptIn(com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi::class)
+@Composable
+private fun ProfileHeader(navController: NavController) {
+    val context = LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { com.music.aalap.data.api.ProfileCache.ensure(context) }
+    // The Aalap name (editable) leads; the connected accounts' own names are listed under it.
+    val serviceName = com.music.aalap.data.api.ProfileCache.name
+    var aalapName by remember { mutableStateOf(com.music.aalap.data.preferences.getAalapName(context)) }
+    val name: String? = aalapName.ifBlank { serviceName.orEmpty() }.ifBlank { null }
+    var editing by remember { mutableStateOf(false) }
+    if (editing) {
+        var draft by remember { mutableStateOf(name.orEmpty()) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { editing = false },
+            title = { Text("Your Aalap name") },
+            text = {
+                OutlinedTextField(
+                    value = draft, onValueChange = { draft = it }, singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = com.music.aalap.ui.theme.TextPrimary,
+                        unfocusedTextColor = com.music.aalap.ui.theme.TextPrimary,
+                        focusedBorderColor = AppPalette, cursorColor = AppPalette,
+                    ),
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    if (draft.isNotBlank()) {
+                        com.music.aalap.data.preferences.setAalapName(context, draft)
+                        aalapName = draft.trim()
+                    }
+                    editing = false
+                }) { Text("Save", color = AppPalette) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { editing = false }) {
+                    Text("Cancel", color = com.music.aalap.ui.theme.TextPrimary)
+                }
+            },
+            containerColor = com.music.aalap.ui.theme.Surface,
+            titleContentColor = com.music.aalap.ui.theme.TextPrimary,
+        )
+    }
+    // Your own photo first, else the connected account's picture.
+    val photoVersion by com.music.aalap.data.preferences.ProfilePhoto.version.collectAsState()
+    val ownPhoto = remember(photoVersion) { com.music.aalap.data.preferences.ProfilePhoto.get(context) }
+    val avatar: Any? = ownPhoto ?: com.music.aalap.data.api.ProfileCache.imageUrl
+    val photoScope = androidx.compose.runtime.rememberCoroutineScope()
+    val pickPhoto = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) photoScope.launch {
+            if (!com.music.aalap.data.preferences.ProfilePhoto.set(context, uri))
+                android.widget.Toast.makeText(context, "Couldn't use that photo. Try another.", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    var photoMenu by remember { mutableStateOf(false) }
+    val choosePhoto = {
+        pickPhoto.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
+    if (photoMenu) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { photoMenu = false },
+        containerColor = com.music.aalap.ui.theme.Surface,
+        title = { Text("Profile photo", color = com.music.aalap.ui.theme.TextPrimary) },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { photoMenu = false; choosePhoto() }) { Text("Choose a new photo", color = com.music.aalap.ui.theme.Saffron) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { photoMenu = false; com.music.aalap.data.preferences.ProfilePhoto.remove(context) }) { Text("Remove photo", color = Color(0xFFE57373)) } },
+    )
+    // One library: Spotify and YouTube Music together, each song and artist once
+    // (the same list the Liked page shows).
+    // Counted in the background so opening Profile never waits on it.
+    val likeVersion by com.music.aalap.data.preferences.likedVersion.collectAsState()
+    val liked by androidx.compose.runtime.produceState(0, likeVersion) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.music.aalap.data.preferences.LikedLibrary.count(context)
+        }
+    }
+    val artists by androidx.compose.runtime.produceState(0) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.music.aalap.data.api.YouTubeLibrary.mergeArtists(
+                com.music.aalap.data.preferences.getCachedFollowedArtists(context),
+                com.music.aalap.data.api.YouTubeLibrary.artists(context),
+            ).size
+        }
+    }
+    // The same count as "Your taste" below (every play Aalap recorded, skips included).
+    val plays by androidx.compose.runtime.produceState(com.music.aalap.data.preferences.getListeningHistory(context).size) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { com.music.aalap.data.recommendation.engine.Personalizer.summary(context).plays }.getOrNull()
+        }?.takeIf { it > 0 }?.let { value = it }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 8.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                androidx.compose.ui.graphics.Brush.linearGradient(
+                    listOf(AppPalette.copy(alpha = 0.28f), com.music.aalap.ui.theme.Surface)
+                )
+            )
+            .border(1.dp, com.music.aalap.ui.theme.Hairline, RoundedCornerShape(24.dp))
+            .padding(18.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(AppPalette)
+                    // Tap to pick your photo (or change / remove it).
+                    .clickable { if (ownPhoto != null) photoMenu = true else choosePhoto() },
+            ) {
+                if (avatar != null) {
+                    com.bumptech.glide.integration.compose.GlideImage(
+                        model = avatar,
+                        contentDescription = "Profile photo",
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.size(64.dp),
+                        requestBuilderTransform = { it.signature(com.bumptech.glide.signature.ObjectKey(photoVersion)) },
+                    )
+                } else {
+                    Text(
+                        name?.trim()?.firstOrNull()?.uppercase() ?: "A",
+                        color = com.music.aalap.ui.theme.OnSaffron,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            // Small pencil badge: the photo can be changed.
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.offset(x = (-20).dp, y = 22.dp).size(22.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(com.music.aalap.ui.theme.Surface).border(1.5.dp, AppPalette, androidx.compose.foundation.shape.CircleShape)
+                    .clickable { if (ownPhoto != null) photoMenu = true else choosePhoto() },
+            ) { Icon(Icons.Default.Edit, contentDescription = "Change profile photo", tint = com.music.aalap.ui.theme.TextPrimary, modifier = Modifier.size(12.dp)) }
+            Spacer(Modifier.width(14.dp - 22.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        name ?: "Your profile",
+                        color = com.music.aalap.ui.theme.TextPrimary,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Text(
+                        "  ✎", color = AppPalette, fontSize = 16.sp,
+                        modifier = Modifier.clickable { editing = true },
+                    )
+                }
+                val email = com.music.aalap.data.preferences.getAalapEmail(context)
+                if (email.isNotBlank()) Text(email, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
+                Text("Spotify + YouTube Music in one library", color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ProfileStat("$liked", "Liked", Modifier.weight(1f)) {
+                navController.navigate(com.music.aalap.ui.navigation.Routes.Liked.route)
+            }
+            ProfileStat("$artists", "Artists", Modifier.weight(1f)) {
+                navController.navigate(com.music.aalap.ui.navigation.Routes.ArtistPicker.route)
+            }
+            ProfileStat("$plays", "Plays", Modifier.weight(1f)) {
+                navController.navigate(com.music.aalap.ui.navigation.Routes.History.route)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileStat(value: String, label: String, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(com.music.aalap.ui.theme.AppBackground.copy(alpha = 0.55f))
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+    ) {
+        Text(value, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
+    }
+}

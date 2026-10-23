@@ -8,7 +8,7 @@ import android.webkit.WebView
 import androidx.annotation.MainThread
 import androidx.collection.ArrayMap
 import com.metrolist.innertube.YouTube
-import com.music.spotui.BuildConfig
+import com.music.aalap.BuildConfig
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope

@@ -1,0 +1,103 @@
+package com.music.aalap
+
+import android.app.Application
+import com.metrolist.innertube.YouTube
+import com.metrolist.innertube.models.YouTubeLocale
+import com.metrolist.music.utils.cipher.CipherDeobfuscator
+import com.music.aalap.data.api.Api
+import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import java.util.Locale
+import timber.log.Timber
+
+@HiltAndroidApp
+class MyApplication : Application(){
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    companion object {
+        // For non-DI singletons (LyricsApi) that need a Context to refresh the token.
+        @JvmStatic
+        lateinit var instance: MyApplication
+
+        @Volatile internal var visible = 0
+        /** True while an Aalap screen is on screen. */
+        val isInForeground: Boolean get() = visible > 0
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
+        // Whether any Aalap screen is showing (background starts need a foreground service).
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityStarted(a: android.app.Activity) { visible++ }
+            override fun onActivityStopped(a: android.app.Activity) { visible = (visible - 1).coerceAtLeast(0) }
+            override fun onActivityCreated(a: android.app.Activity, b: android.os.Bundle?) {}
+            override fun onActivityResumed(a: android.app.Activity) {}
+            override fun onActivityPaused(a: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(a: android.app.Activity, b: android.os.Bundle) {}
+            override fun onActivityDestroyed(a: android.app.Activity) {}
+        })
+        com.music.aalap.data.preferences.LikedLibrary.cleanUp(this)
+        if (BuildConfig.DEBUG && Timber.forest().isEmpty()) {
+            Timber.plant(Timber.DebugTree())
+        }
+        // GET /queue on 127.0.0.1:8765 for testing the recommendation engine (debug builds only).
+        if (BuildConfig.DEBUG) com.music.aalap.data.recommendation.engine.QueueEndpoint.start(this)
+        // Surface Spotify REST/GQL logs to logcat for diagnosis.
+        com.metrolist.spotify.Spotify.logger = { level, msg ->
+            android.util.Log.d("SpotifyREST", "[$level] $msg")
+        }
+        com.metrolist.spotify.SpotifyCanvas.setLogger { level, msg ->
+            android.util.Log.d("SpotifyCanvas", "[$level] $msg")
+        }
+        // Offline mode + network watcher (also drives Wi-Fi auto-downloads).
+        com.music.aalap.data.preferences.OfflineState.init(this)
+
+        // Deezer support was removed in 2.0: wipe any saved Deezer login token.
+        runCatching { deleteSharedPreferences("Deezer") }
+
+        // Required by the ported YouTube streaming flow (cipher/PoToken WebViews).
+        CipherDeobfuscator.initialize(this)
+
+        // Locale + visitorData must be set or the player can't mint a PoToken,
+        // and googlevideo rejects the stream URL with HTTP 403 (tracks stuck at 0:00).
+        val locale = Locale.getDefault()
+        YouTube.locale = YouTubeLocale(
+            gl = locale.country.takeIf { it.isNotBlank() } ?: "US",
+            hl = locale.language.takeIf { it.isNotBlank() } ?: "en",
+        )
+        val hasValidSavedLogin = com.music.aalap.data.preferences.isYoutubeLoggedIn(this)
+        val savedCookie = com.music.aalap.data.preferences.getYoutubeCookie(this)
+        val savedVisitorData = com.music.aalap.data.preferences.getYoutubeVisitorData(this)
+        val savedDataSyncId = com.music.aalap.data.preferences.getYoutubeDataSyncId(this)
+        YouTube.cookie = savedCookie.takeIf { hasValidSavedLogin && it.isNotBlank() }
+        YouTube.visitorData = savedVisitorData.takeIf { it.isNotBlank() }
+        YouTube.dataSyncId = savedDataSyncId.takeIf { it.isNotBlank() }
+        // Meld searches/browses with the same signed-in account used by /player.
+        // Leaving this false makes search anonymous and can return the clean edit.
+        YouTube.useLoginForBrowse = hasValidSavedLogin
+        // Keep the Spotify + YouTube Music library fresh: hourly in the background,
+        // and on launch when the last YouTube sync is over an hour old.
+        com.music.aalap.data.api.LibrarySyncWorker.schedule(this)
+        if (hasValidSavedLogin) appScope.launch {
+            kotlinx.coroutines.delay(4_000)
+            com.music.aalap.data.api.YouTubeLibrary.syncIfDue(this@MyApplication)
+        }
+        if (YouTube.visitorData.isNullOrBlank()) {
+            appScope.launch {
+                YouTube.visitorData = YouTube.visitorData().getOrNull() ?: YouTube.visitorData
+            }
+        }
+
+        // Warm the Home feed cache so the first navigation to Home is instant.
+        // No-op (gracefully) until a Spotify token is available.
+        val api = Api(this)
+        appScope.launch { runCatching { api.getHomeFeed().collect {} } }
+        appScope.launch { runCatching { api.getAlbums().collect {} } }
+        appScope.launch { runCatching { api.getArtists().collect {} } }
+    }
+}

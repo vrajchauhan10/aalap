@@ -1,0 +1,59 @@
+package com.music.aalap
+
+import android.annotation.SuppressLint
+import android.os.Build
+import androidx.annotation.RequiresApi
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Modifier
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import com.music.aalap.ui.navigation.MainBottomNavigation
+import com.music.aalap.ui.navigation.MyNavHost
+import com.music.aalap.ui.navigation.Routes
+
+
+@RequiresApi(Build.VERSION_CODES.S)
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+@Composable
+fun App() {
+    val bottomBarState = rememberSaveable { (mutableStateOf(true)) }
+    val bottomBarPlayerState = rememberSaveable { (mutableStateOf(true)) }
+    val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+
+    // Control TopBar and BottomBar
+    when (navBackStackEntry?.destination?.route) {
+        Routes.Home.route -> {
+            bottomBarState.value = true
+        }
+        Routes.Search.route -> {
+            bottomBarState.value = true
+        }
+        Routes.Library.route -> {
+            bottomBarState.value = true
+        }
+        Routes.Album.route -> {
+            bottomBarState.value = false
+        }
+    }
+
+    androidx.compose.foundation.layout.Box {
+    Scaffold(
+        modifier = Modifier,
+        bottomBar = {
+            MainBottomNavigation(navController = navController, bottomBarState = bottomBarState, bottomBarPlayerState)
+        }
+    ) {
+        MyNavHost(navHostController = navController, bottomBarState = bottomBarState, bottomBarPlayerState)
+    }
+    // Marigold petals that fall over everything when a song is liked anywhere.
+    com.music.aalap.ui.components.PetalShower()
+    }
+}
+
+

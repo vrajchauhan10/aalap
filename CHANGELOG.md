@@ -4,6 +4,20 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 4.0.0 — 23 Oct 2026 (build 47)
+- **A V in every Aaj ka Aalap poster.** Each design now carries the maker's V, made from
+  its own pieces rather than stamped on top: two marigold petals at the mandala's heart,
+  sashiko waves stitched in orange, one gold dip in the Bidri inlay, a V of mirrors,
+  beads, checks or stars in the grid patterns, two raised arms in the Warli dance, and so on.
+- **30 new designs (80 in all):** Paisley, Buti, Ajrakh jaal, Sanganeri, Kantha, Nakshi
+  kantha, Rangoli, Lotus mandala, Pochampally ikat, Toda embroidery, Tumpal border,
+  Bargello, Granny square, Basketweave, Herringbone parquet, Gingham, Tartan, Argyle,
+  Chevron knit, Asanoha sashiko, Shweshwe, Adinkra, Girih, Celtic knotwork, Arabesque,
+  Quatrefoil, Terrazzo, Papel picado, Paj ntaub and Vyshyvanka. Each has its V too.
+- **Spotui is now Aalap everywhere in the code** (package `com.music.aalap`). The app id
+  stays `com.music.spotui`, so this installs as an update and keeps all your data; home
+  screen icons and widgets keep working. Exported songs go to Music/Aalap.
+
 ## 3.16.0 — 24 Oct 2026 (build 46)
 - **Smaller signature on the music player** (about 30% smaller), so it stays out of
   the way of the controls. Other pages keep the regular size.
