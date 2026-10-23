@@ -43,6 +43,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -187,6 +189,9 @@ fun SettingsScreen(navController: NavController) {
                     .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
                 runCatching { context.startActivity(intent) }
             }
+
+            SectionTitle("Share")
+            ShareAalapRow()
 
             SectionTitle("Offline")
             val offline = com.music.spotui.data.preferences.OfflineState
@@ -495,6 +500,32 @@ private fun SubTitle(text: String) {
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.padding(top = 12.dp, bottom = 2.dp)
     )
+}
+
+/** Sends this Aalap to someone (WhatsApp, Drive, Quick Share…) as an installable file. */
+@Composable
+fun ShareAalapRow() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable { scope.launch { runCatching { com.music.spotui.ui.share.ShareApp.share(context) } } }
+            .padding(vertical = 10.dp),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(com.music.spotui.ui.theme.Saffron.copy(alpha = 0.15f)),
+        ) {
+            Icon(Icons.Default.Share, contentDescription = null, tint = com.music.spotui.ui.theme.Saffron, modifier = Modifier.size(20.dp))
+        }
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Text("Share Aalap", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text("Send the app on WhatsApp, Drive or Quick Share", color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
+        }
+    }
 }
 
 @Composable

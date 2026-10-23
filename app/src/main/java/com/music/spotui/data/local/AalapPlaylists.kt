@@ -24,6 +24,9 @@ object AalapPlaylists {
 
     fun isLocal(id: String) = id.startsWith(PREFIX)
 
+    /** Re-read after the stored playlists changed underneath (switching user). */
+    fun reload() { _version.value++ }
+
     private fun prefs(c: Context) = c.getSharedPreferences(PREF, Context.MODE_PRIVATE)
 
     private fun SongsModel.toJson() = JSONObject().apply {

@@ -51,6 +51,28 @@ object QueueEndpoint {
     private fun handle(context: Context, socket: Socket) {
         val line = socket.getInputStream().bufferedReader().readLine().orEmpty() // "GET /queue?… HTTP/1.1"
         val target = line.split(" ").getOrNull(1).orEmpty()
+        if (target.startsWith("/vaulttest")) {
+            // Save the library under a test email, restore it, save again: both copies must match.
+            val c = context.applicationContext
+            val test = "qa-roundtrip@aalap.test"
+            val counts = { listOf("LikedSongs", "aalap_playlists", "ListeningHistory", "LikedSongsFromSpotify")
+                .joinToString(", ") { n -> "$n=" + c.getSharedPreferences(n, Context.MODE_PRIVATE).all.size } }
+            val before = counts()
+            com.music.spotui.data.local.UserVault.save(c, test)
+            val dir = java.io.File(c.filesDir, "users")
+            val f = dir.listFiles().orEmpty().maxByOrNull { it.lastModified() }!!
+            val first = f.readText()
+            val restored = com.music.spotui.data.local.UserVault.restore(c, test)
+            com.music.spotui.data.local.UserVault.save(c, test)
+            val second = f.readText()
+            f.delete()
+            val bytes = "before: $before\nafter:  ${counts()}\nrestored=$restored identical=${first == second} size=${first.length}".toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
         if (target.startsWith("/poster")) {
             // /poster?i=N shows design N on the Aaj ka Aalap poster (-1 = today's), for checking each one.
             val i = target.substringAfter("i=", "-1").toIntOrNull() ?: -1

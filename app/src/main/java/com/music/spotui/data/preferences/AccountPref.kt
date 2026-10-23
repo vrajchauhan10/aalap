@@ -20,6 +20,9 @@ fun getAalapEmail(c: Context): String = prefs(c).getString(KEY_EMAIL, null).orEm
 fun setAalapAccount(c: Context, name: String, email: String) {
     // Listening logged on this phone before (or without) an email stays with this person.
     val before = com.music.spotui.data.recommendation.engine.RecoDb.userId(c)
+    // Signing back in with an email used on this phone before brings that person's
+    // library back (likes, Aalap playlists, history…); see UserVault.
+    com.music.spotui.data.local.UserVault.restore(c, email)
     prefs(c).edit().putString(KEY_NAME, name.trim()).putString(KEY_EMAIL, email.trim()).putBoolean(KEY_ONBOARDED, true).commit()
     val after = com.music.spotui.data.recommendation.engine.RecoDb.userId(c)
     Thread {
@@ -38,10 +41,16 @@ fun isAalapOnboarded(c: Context): Boolean =
 fun aalapDisplayName(c: Context, fallback: String): String = getAalapName(c).ifBlank { fallback }
 
 /**
- * Logging out of Aalap forgets the welcome step too. The email is kept as the last
- * account, so listening logged after logout (and before signing back in) isn't lost.
+ * Logging out of Aalap saves this person's library under their email and clears it
+ * (UserVault), then forgets the account and the welcome step. Their listening stats
+ * stay in the recommendation database under their email. Anything played before the
+ * next sign-in goes to whoever signs in next.
  */
 fun clearAalapAccount(c: Context) {
     val email = getAalapEmail(c)
-    prefs(c).edit().clear().putString(KEY_EMAIL, email).apply()
+    if (email.isNotBlank()) {
+        com.music.spotui.data.local.UserVault.save(c, email)
+        com.music.spotui.data.local.UserVault.clear(c)
+    }
+    prefs(c).edit().clear().commit()
 }

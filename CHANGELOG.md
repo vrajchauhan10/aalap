@@ -4,7 +4,21 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
-## 3.3.0 — 23 Oct 2026 (build 33)
+## 3.5.0 — 23 Oct 2026 (build 35)
+- **Share Aalap.** In Profile (Share section) and Library's account menu: sends the
+  app installed on your phone as "Aalap-3.5.0.apk" through WhatsApp, Drive, Quick Share
+  or any app. The other person taps the file to install it.
+
+## 3.4.0 — 23 Oct 2026 (build 34, shipped inside 3.5.0)
+- **Your library comes back when you sign in again.** Logging out saves your library
+  on the phone under your email and clears it, so the next person starts fresh. Signing
+  back in with the same email restores everything: likes (including songs liked only in
+  Aalap), Aalap playlists, listening history, recently played, followed artists, removed
+  playlists and your taste. Listening stats were already kept per email. Downloads stay
+  on the phone for everyone. Before, logging out kept the old account's email, so the
+  next person to sign in took over its listening history.
+
+ — 23 Oct 2026 (build 33)
 - **Tapping the notification no longer crashes the app.** Opening Aalap from the
   notification (or a widget) crashed in the opening animation, because Android shows
   that splash without an icon; now it opens straight back where you were.

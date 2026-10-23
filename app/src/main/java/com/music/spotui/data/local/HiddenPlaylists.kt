@@ -25,6 +25,8 @@ object HiddenPlaylists {
         _version.value++
     }
 
+    fun reload() { _version.value++ }
+
     fun showAll(c: Context) {
         prefs(c).edit().remove(KEY).apply()
         _version.value++

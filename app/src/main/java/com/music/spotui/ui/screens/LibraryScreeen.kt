@@ -854,6 +854,11 @@ private fun AccountSheet(
                 onDismiss()
                 navController.navigate(Routes.History.route)
             }
+            val shareScope = androidx.compose.runtime.rememberCoroutineScope()
+            AccountRow("Share Aalap") {
+                shareScope.launch { runCatching { com.music.spotui.ui.share.ShareApp.share(context) } }
+                onDismiss()
+            }
             HorizontalDivider(color = com.music.spotui.ui.theme.SurfaceHigh)
             AccountRow("Log out", tint = Color(0xFFE57373)) {
                 com.music.spotui.data.api.AccountActions.logOut(context)
