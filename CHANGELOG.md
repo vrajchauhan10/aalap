@@ -4,7 +4,14 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
-## 3.5.0 — 23 Oct 2026 (build 35)
+## 3.6.0 — 23 Oct 2026 (build 36)
+- **Share Aalap opens instantly.** The app file is now prepared as soon as Profile
+  opens (once per version), so tapping Share Aalap shows the share sheet in under a
+  second; before, it copied the 15 MB file first and showed nothing for a few
+  seconds. While preparing, the row shows a spinner and "Getting the app ready…", and
+  a message appears if sharing fails.
+
+ — 23 Oct 2026 (build 35)
 - **Share Aalap.** In Profile (Share section) and Library's account menu: sends the
   app installed on your phone as "Aalap-3.5.0.apk" through WhatsApp, Drive, Quick Share
   or any app. The other person taps the file to install it.

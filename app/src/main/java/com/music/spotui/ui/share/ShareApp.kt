@@ -13,14 +13,26 @@ import java.io.File
  * installs from that app the first time).
  */
 object ShareApp {
-    suspend fun share(context: Context) {
+    /** The app file, ready to send (copied once per version, so later shares are instant). */
+    suspend fun prepare(context: Context): File = withContext(Dispatchers.IO) {
         val c = context.applicationContext
         val version = c.packageManager.getPackageInfo(c.packageName, 0).versionName ?: ""
-        val apk = withContext(Dispatchers.IO) {
-            val dir = File(c.cacheDir, "share").apply { mkdirs() }
+        val dir = File(c.cacheDir, "share").apply { mkdirs() }
+        val out = File(dir, "Aalap-$version.apk")
+        val src = File(c.applicationInfo.sourceDir)
+        if (!out.exists() || out.length() != src.length()) {
             dir.listFiles { f -> f.name.startsWith("Aalap-") && f.name.endsWith(".apk") }?.forEach { it.delete() }
-            File(dir, "Aalap-$version.apk").also { out -> File(c.applicationInfo.sourceDir).copyTo(out, overwrite = true) }
+            val tmp = File(dir, "partial.tmp")
+            src.copyTo(tmp, overwrite = true)
+            tmp.renameTo(out)
         }
+        out
+    }
+
+    suspend fun share(context: Context) {
+        val c = context.applicationContext
+        val apk = prepare(c)
+        val version = apk.name.removePrefix("Aalap-").removeSuffix(".apk")
         val uri = FileProvider.getUriForFile(c, "${c.packageName}.fileprovider", apk)
         val send = Intent(Intent.ACTION_SEND).apply {
             type = "application/vnd.android.package-archive"

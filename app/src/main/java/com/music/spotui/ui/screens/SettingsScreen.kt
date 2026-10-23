@@ -507,23 +507,35 @@ private fun SubTitle(text: String) {
 fun ShareAalapRow() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var preparing by remember { mutableStateOf(false) }
+    // Get the file ready while Profile is open, so the tap opens the share sheet at once.
+    LaunchedEffect(Unit) { runCatching { com.music.spotui.ui.share.ShareApp.prepare(context) } }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .clickable { scope.launch { runCatching { com.music.spotui.ui.share.ShareApp.share(context) } } }
+            .clickable(enabled = !preparing) {
+                preparing = true
+                scope.launch {
+                    runCatching { com.music.spotui.ui.share.ShareApp.share(context) }.onFailure {
+                        android.widget.Toast.makeText(context, "Couldn't share Aalap. Try again.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    preparing = false
+                }
+            }
             .padding(vertical = 10.dp),
     ) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(com.music.spotui.ui.theme.Saffron.copy(alpha = 0.15f)),
         ) {
-            Icon(Icons.Default.Share, contentDescription = null, tint = com.music.spotui.ui.theme.Saffron, modifier = Modifier.size(20.dp))
+            if (preparing) androidx.compose.material3.CircularProgressIndicator(color = com.music.spotui.ui.theme.Saffron, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+            else Icon(Icons.Default.Share, contentDescription = null, tint = com.music.spotui.ui.theme.Saffron, modifier = Modifier.size(20.dp))
         }
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Text("Share Aalap", color = com.music.spotui.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text("Send the app on WhatsApp, Drive or Quick Share", color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
+            Text(if (preparing) "Getting the app ready…" else "Send the app on WhatsApp, Drive or Quick Share", color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp)
         }
     }
 }
