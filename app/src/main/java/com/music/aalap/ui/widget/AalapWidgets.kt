@@ -1,7 +1,5 @@
 package com.music.aalap.ui.widget
 
-import com.music.spotui.ui.widget.AalapWidgetCompact
-import com.music.spotui.ui.widget.AalapWidgetLarge
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -37,6 +35,12 @@ data class WidgetState(
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
 )
+
+/** Large widget: cover on the left; song, progress and like / previous / play / next on the right. */
+class AalapWidgetLarge : AalapWidgetBase(R.layout.widget_large, large = true)
+
+/** Small 2×2 widget: cover and song, then previous / play / next. */
+class AalapWidgetCompact : AalapWidgetBase(R.layout.widget_compact, large = false)
 
 abstract class AalapWidgetBase(private val layout: Int, private val large: Boolean) : AppWidgetProvider() {
 

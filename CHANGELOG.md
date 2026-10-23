@@ -4,6 +4,12 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 4.1.0 — 24 Oct 2026 (build 48)
+- **Aalap now has its own app ID, `com.music.aalap`.** Phones see it as a new app: it
+  installs next to the earlier build instead of updating it, and starts fresh (sign in
+  again; likes, history and downloads from the earlier build don't carry over). Remove
+  the earlier build once you're set up.
+
 ## 4.0.0 — 23 Oct 2026 (build 47)
 - **A V in every Aaj ka Aalap poster.** Each design now carries the maker's V, made from
   its own pieces rather than stamped on top: two marigold petals at the mandala's heart,
@@ -14,9 +20,8 @@ always see it as an update. Newest first.
   Bargello, Granny square, Basketweave, Herringbone parquet, Gingham, Tartan, Argyle,
   Chevron knit, Asanoha sashiko, Shweshwe, Adinkra, Girih, Celtic knotwork, Arabesque,
   Quatrefoil, Terrazzo, Papel picado, Paj ntaub and Vyshyvanka. Each has its V too.
-- **Spotui is now Aalap everywhere in the code** (package `com.music.aalap`). The app id
-  stays `com.music.spotui`, so this installs as an update and keeps all your data; home
-  screen icons and widgets keep working. Exported songs go to Music/Aalap.
+- **Aalap's own name throughout the code** (package `com.music.aalap`). Exported songs go
+  to Music/Aalap.
 
 ## 3.16.0 — 24 Oct 2026 (build 46)
 - **Smaller signature on the music player** (about 30% smaller), so it stays out of

@@ -50,12 +50,6 @@ Project layout:
 | `innertube` | Trimmed YouTube Music client |
 | `spotify` | Catalogue client |
 
-> The code lives in `com.music.aalap`. The Android application id is still
-> `com.music.spotui`, so existing installs update in place (changing it would make Android
-> treat Aalap as a new app). For the same reason the launcher entry and the two widgets
-> keep their old component names (`com.music.spotui.MainActivity`,
-> `com.music.spotui.ui.widget.*`), so icons and widgets already on home screens keep working.
-
 ## License
 
 Copyright © 2025–2026 Vraj Chauhan.
