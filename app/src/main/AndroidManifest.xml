@@ -75,6 +75,12 @@
             android:name="com.google.android.gms.car.application"
             android:resource="@xml/automotive_app_desc" />
 
+        <!-- Holds the foreground for a few seconds while a background play press finds its song. -->
+        <service
+            android:name=".ui.notification.StartupService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
         <service
             android:name=".ui.notification.PlaybackService"
             android:exported="true"

@@ -10,13 +10,12 @@
     android:orientation="horizontal"
     android:padding="14dp">
 
+    <!-- Always a square cover, whatever height the widget is given. -->
     <ImageView
         android:id="@+id/widget_art"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
-        android:adjustViewBounds="true"
+        android:layout_width="130dp"
+        android:layout_height="130dp"
         android:contentDescription="@string/widget_open"
-        android:maxWidth="150dp"
         android:scaleType="centerCrop"
         android:src="@drawable/logo" />
 

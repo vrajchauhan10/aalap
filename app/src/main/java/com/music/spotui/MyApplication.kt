@@ -22,12 +22,25 @@ class MyApplication : Application(){
         // For non-DI singletons (LyricsApi) that need a Context to refresh the token.
         @JvmStatic
         lateinit var instance: MyApplication
-            private set
+
+        @Volatile internal var visible = 0
+        /** True while an Aalap screen is on screen. */
+        val isInForeground: Boolean get() = visible > 0
     }
 
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // Whether any Aalap screen is showing (background starts need a foreground service).
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityStarted(a: android.app.Activity) { visible++ }
+            override fun onActivityStopped(a: android.app.Activity) { visible = (visible - 1).coerceAtLeast(0) }
+            override fun onActivityCreated(a: android.app.Activity, b: android.os.Bundle?) {}
+            override fun onActivityResumed(a: android.app.Activity) {}
+            override fun onActivityPaused(a: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(a: android.app.Activity, b: android.os.Bundle) {}
+            override fun onActivityDestroyed(a: android.app.Activity) {}
+        })
         com.music.spotui.data.preferences.LikedLibrary.cleanUp(this)
         if (BuildConfig.DEBUG && Timber.forest().isEmpty()) {
             Timber.plant(Timber.DebugTree())

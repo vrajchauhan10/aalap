@@ -300,7 +300,7 @@ class PlaybackService : MediaLibraryService() {
         override fun play() {
             if (mediaItemCount == 0) {
                 resumeLastSessionIfIdle()
-                SongPlayer.play()
+                startWithNetwork { SongPlayer.play() }
             } else {
                 super.play()
             }
@@ -308,10 +308,28 @@ class PlaybackService : MediaLibraryService() {
 
         override fun hasNextMediaItem() = true
         override fun hasPreviousMediaItem() = true
-        override fun seekToNext() = advance(forward = true)
-        override fun seekToNextMediaItem() = advance(forward = true)
-        override fun seekToPrevious() = advance(forward = false)
-        override fun seekToPreviousMediaItem() = advance(forward = false)
+        override fun seekToNext() = startWithNetwork { advance(forward = true) }
+        override fun seekToNextMediaItem() = startWithNetwork { advance(forward = true) }
+        override fun seekToPrevious() = startWithNetwork { advance(forward = false) }
+        override fun seekToPreviousMediaItem() = startWithNetwork { advance(forward = false) }
+    }
+
+    /**
+     * Pressed play / next / previous on the widget, notification or a headset while Aalap
+     * is in the background: the phone blocks background apps from the internet (battery
+     * saver, background limits), so the song couldn't be found and Aalap thought it was
+     * offline. Like any music app, Aalap first becomes a "playing music" foreground
+     * service (allowed right after you press a button), which lifts the block; then it
+     * re-reads the connection and starts the song.
+     */
+    private fun startWithNetwork(start: () -> Unit) {
+        val needed = !com.music.spotui.MyApplication.isInForeground && SongPlayer.exoPlayer?.isPlaying != true
+        if (needed) StartupService.start(this)
+        if (!needed) { start(); return }
+        android.os.Handler(mainLooper).postDelayed({
+            com.music.spotui.data.preferences.OfflineState.recheck(force = true)
+            start()
+        }, 700)
     }
 
     /** Advance the in-app queue one step in the given direction and start it. */

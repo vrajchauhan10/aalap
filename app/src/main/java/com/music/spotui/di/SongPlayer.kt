@@ -1478,6 +1478,8 @@ object SongPlayer {
         // Real listening time (History minutes) counts only while audio is coming out.
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             com.music.spotui.data.preferences.ListenClock.playingChanged(isPlaying)
+            // Music is playing: Media3's own notification keeps the foreground from here.
+            if (isPlaying) appCtx?.let { com.music.spotui.ui.notification.StartupService.stop(it) }
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {

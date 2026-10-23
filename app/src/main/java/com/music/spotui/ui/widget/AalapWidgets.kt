@@ -235,8 +235,19 @@ object AalapWidgets {
                     SessionCommand(PlaybackService.ACTION_LIKE, android.os.Bundle.EMPTY), android.os.Bundle.EMPTY,
                 )
             }
-            // Give the command a moment to reach the session before disconnecting.
-            android.os.Handler(app.mainLooper).postDelayed({ MediaController.releaseFuture(future) }, 1500)
+            // Stay connected until the music is playing (finding the song can take several
+            // seconds): disconnecting earlier let Android shut the player down mid-start.
+            val handler = android.os.Handler(app.mainLooper)
+            val release = Runnable { MediaController.releaseFuture(future) }
+            val starts = action == ACTION_PLAY_PAUSE || action == ACTION_NEXT || action == ACTION_PREV
+            if (starts && !controller.isPlaying) {
+                controller.addListener(object : androidx.media3.common.Player.Listener {
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        if (isPlaying) { handler.removeCallbacks(release); handler.postDelayed(release, 1500) }
+                    }
+                })
+                handler.postDelayed(release, 25_000)
+            } else handler.postDelayed(release, 1500)
         }, MoreExecutors.directExecutor())
     }
 }

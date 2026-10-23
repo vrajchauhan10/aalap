@@ -4,7 +4,20 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
-## 3.8.0 — 23 Oct 2026 (build 38)
+## 3.9.0 — 23 Oct 2026 (build 39)
+- **Play from the widget works when Aalap is in the background.** The phone blocks
+  background apps from the internet (battery saver, background limits), so the song
+  couldn't be found and you got "Couldn't find a playable stream". Now pressing play,
+  next or previous on the widget, notification or headset briefly runs a small
+  "Starting your music…" foreground helper, which lifts the block; the widget also stays
+  connected until the music actually starts (it used to disconnect after 1.5 s and the
+  player got shut down mid-start).
+- **Large widget is 4×2 like other widgets** (it asked for too much height, so Samsung
+  placed it 4×3) and the cover is always square. Widgets already placed keep their
+  size until resized.
+- Losing and regaining background internet no longer marks Aalap as offline.
+
+ — 23 Oct 2026 (build 38)
 - **Widgets: proper spacing and wording.**
   - Large: the song, artist, progress and controls sit together as one centred block
     next to the cover, with even gaps (no big empty space under the artist); larger

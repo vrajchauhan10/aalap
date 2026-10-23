@@ -66,6 +66,9 @@ object OfflineState {
                     override fun onAvailable(network: Network) = refresh()
                     override fun onLost(network: Network) = refresh()
                     override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) = refresh()
+                    // The phone blocks / unblocks a background app's internet (battery saver,
+                    // background limits): that's not the connection going away.
+                    override fun onBlockedStatusChanged(network: Network, blocked: Boolean) = refresh()
                 },
             )
         }
@@ -80,11 +83,13 @@ object OfflineState {
      * none, and then send no further update; so "no internet" is checked twice more
      * (after 2 s and 8 s) before it's believed, and every time the app comes back.
      */
-    fun recheck() {
+    fun recheck(force: Boolean = false) {
         val cm = connectivity ?: return
         val app = appContext ?: return
         val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
         val online = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        // force: a play press just lifted the background block; only ever turns "online" on.
+        if (force && !online) return
         unmetered = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true
         if (online) {
             main.removeCallbacksAndMessages(RECHECK)
