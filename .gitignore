@@ -21,3 +21,6 @@ keystore.properties
 *.jks
 *.keystore
 /release/
+
+# Built app files handed out for testing
+dist/
