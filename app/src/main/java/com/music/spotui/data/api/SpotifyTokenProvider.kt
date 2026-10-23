@@ -17,6 +17,12 @@ import kotlinx.coroutines.sync.withLock
  * until ~1 minute before expiry and refreshed on demand.
  */
 object SpotifyTokenProvider {
+    /** Forgets the current token (logging out), so nothing keeps using the old account. */
+    fun clear() {
+        com.metrolist.spotify.Spotify.accessToken = null
+        expiresAtMs = 0L
+    }
+
     private const val TAG = "SpotifyTokenProvider"
     private val mutex = Mutex()
     private var expiresAtMs: Long = 0L

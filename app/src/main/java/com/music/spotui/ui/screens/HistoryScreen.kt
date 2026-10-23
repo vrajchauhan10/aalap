@@ -111,7 +111,8 @@ private fun rankSongs(period: List<Play>, previous: List<Play>, n: Int): List<Ra
 
 private fun rankArtists(period: List<Play>, previous: List<Play>, n: Int): List<Ranked> {
     fun rank(list: List<Play>) = list.filter { !it.skipped && it.e.artist().isNotBlank() }.groupBy { it.e.artist().lowercase() }
-        .map { (k, ps) -> Ranked(k, ps.first().e, ps.size, ps.sumOf { it.listenedMs } / 60_000, null) }
+        // Shown with the normal spelling ("Arijit Singh") when some plays had it in capitals.
+        .map { (k, ps) -> Ranked(k, ps.firstOrNull { it.e.artist() != it.e.artist().uppercase() }?.e ?: ps.first().e, ps.size, ps.sumOf { it.listenedMs } / 60_000, null) }
         .sortedWith(compareByDescending<Ranked> { it.minutes }.thenByDescending { it.plays })
     val before = rank(previous).mapIndexed { i, r -> r.key to i }.toMap()
     return rank(period).take(n).mapIndexed { i, r -> Ranked(r.key, r.entry, r.plays, r.minutes, before[r.key]?.let { it - i }) }

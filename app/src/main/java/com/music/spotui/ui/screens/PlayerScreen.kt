@@ -594,7 +594,7 @@ fun PlayerTopBar(
             },
             painter = painterResource(id = R.drawable.ic_down),
             tint = Color.White,
-            contentDescription = "")
+            contentDescription = "Close player")
 
         // Spotify shows the source context here (album/playlist), not a generic label.
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -624,7 +624,7 @@ fun PlayerTopBar(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) { onMenuClick() },
-                contentDescription = "")
+                contentDescription = "More options")
         }
     }
 }
@@ -783,13 +783,13 @@ fun PlayerEndInfo() {
                 .size(22.dp),
             painter = painterResource(id = R.drawable.ic_devices),
             tint = Color.White,
-            contentDescription = "")
+            contentDescription = "Devices")
         Icon(
             modifier = Modifier
                 .size(16.dp),
             painter = painterResource(id = R.drawable.ic_share),
             tint = Color.White,
-            contentDescription = "")
+            contentDescription = "Share")
     }
 }
 
@@ -835,7 +835,7 @@ fun PlayerFull(
                 Color.White
             },
             painter = painterResource(id = R.drawable.ic_player_shuffle),
-            contentDescription = "")
+            contentDescription = "Shuffle")
         Icon(
             modifier = Modifier
                 .size(35.dp)
@@ -852,7 +852,7 @@ fun PlayerFull(
             ,
             tint = Color.White,
             painter = painterResource(id = R.drawable.ic_player_back),
-            contentDescription = "")
+            contentDescription = "Previous")
         androidx.compose.foundation.layout.Box(
             modifier = Modifier
                 // requiredSize forces an exact 64×64 square even if the parent Column
@@ -899,7 +899,7 @@ fun PlayerFull(
                 else
                     painterResource(id = R.drawable.play_svgrepo_com)
                 ,
-                contentDescription = "")
+                contentDescription = if (songPlayingState) "Pause" else "Play")
         }
 
         Icon(
@@ -917,7 +917,7 @@ fun PlayerFull(
             ,
             tint = Color.White,
             painter = painterResource(id = R.drawable.ic_player_skip),
-            contentDescription = "")
+            contentDescription = "Next")
         Icon(
             modifier = Modifier
                 .size(20.dp)
@@ -941,7 +941,7 @@ fun PlayerFull(
                 Color.White
             },
             painter = painterResource(id = R.drawable.ic_repeat),
-            contentDescription = "")
+            contentDescription = "Repeat")
     }
 }
 

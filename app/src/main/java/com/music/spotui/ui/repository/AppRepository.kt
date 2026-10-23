@@ -44,7 +44,7 @@ class AppRepository @Inject constructor(private val api : Api) {
                         artists = com.music.spotui.data.preferences.getAalapName(com.music.spotui.MyApplication.instance).ifBlank { "You" },
                         coverUri = p?.songs?.firstOrNull()?.coverUri.orEmpty(),
                         name = p?.name ?: "Playlist",
-                        time = "${p?.songs?.size ?: 0} songs · made in Aalap",
+                        time = com.music.spotui.ui.components.counted(p?.songs?.size ?: 0, "song") + " · made in Aalap",
                     )
                 )
             }

@@ -59,6 +59,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -264,7 +265,19 @@ fun LibraryScreen(navController: NavController) {
 
             when (entries) {
                 is Response.Loading -> LibrarySkeleton(PaddingValues(0.dp))
-                is Response.Success -> {
+                else -> {
+                    // Spotify unreachable (offline, down, or the login expired): everything on the
+                    // phone still shows (likes, downloads, history, Aalap playlists, artists).
+                    val retryScope = androidx.compose.runtime.rememberCoroutineScope()
+                    if (entries is Response.Error) Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(16.dp, 4.dp, 16.dp, 8.dp)
+                            .clip(RoundedCornerShape(14.dp)).background(com.music.spotui.ui.theme.SurfaceHigh).padding(horizontal = 14.dp, vertical = 10.dp),
+                    ) {
+                        Text("Couldn't reach Spotify. Showing what's on your phone.", color = com.music.spotui.ui.theme.TextMuted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        Text("Try again", color = com.music.spotui.ui.theme.Saffron, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.clickable { retryScope.launch { libraryViewModel.refreshAll() } }.padding(start = 10.dp))
+                    }
                     val q = searchQuery.trim()
                     // Switching filter slides the content in from the side you tapped (All →
                     // Artists moves left, back moves right); grid/list cross-fades.
@@ -305,10 +318,15 @@ fun LibraryScreen(navController: NavController) {
                         favouriteAlbums = if (q.isBlank() && (shownFilter == LibraryFilter.ALL || shownFilter == LibraryFilter.ALBUMS)) favouriteAlbums else emptyList(),
                         favouriteAlbumsAsGrid = shownFilter == LibraryFilter.ALBUMS,
                         onSeeAll = { filter = it },
+                        emptyText = when {
+                            q.isNotBlank() -> "Nothing matches that."
+                            shownFilter == LibraryFilter.PLAYLISTS -> "No playlists yet. Tap + at the top to make one."
+                            shownFilter == LibraryFilter.ALBUMS -> "No albums yet. Save an album and it shows up here."
+                            else -> "Nothing here yet."
+                        },
                     )
                     }
                 }
-                else -> Box(modifier = Modifier.padding(20.dp, 100.dp)) { Snackbar(showMessage = "Couldn't load your library") }
             }
         }
     }
@@ -364,12 +382,12 @@ private fun LibraryTiles(navController: NavController) {
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LibraryTile(
-                "Liked Songs", "$liked songs",
+                "Liked Songs", com.music.spotui.ui.components.counted(liked, "song"),
                 listOf(Color(0xFFFF8A3D), Color(0xFFE0461B)),
                 rememberVectorPainter(Icons.Default.Favorite), Modifier.weight(1f),
             ) { navController.navigate(Routes.Liked.route) }
             LibraryTile(
-                "Downloads", "$downloads songs",
+                "Downloads", com.music.spotui.ui.components.counted(downloads, "song"),
                 listOf(Color(0xFFFFC56B), Color(0xFFB86E00)),
                 painterResource(R.drawable.ic_download), Modifier.weight(1f),
             ) { navController.navigate(Routes.Downloads.route) }
@@ -436,6 +454,7 @@ private fun LibraryContent(
     favouriteAlbums: List<LibraryEntry> = emptyList(),
     favouriteAlbumsAsGrid: Boolean = false,
     onSeeAll: (LibraryFilter) -> Unit = {},
+    emptyText: String = "Nothing matches that.",
 ) {
     // Long-press a playlist to remove it (Aalap playlists are deleted; Spotify ones hidden in Aalap only).
     var removing by remember { mutableStateOf<LibraryEntry?>(null) }
@@ -560,7 +579,7 @@ private fun LibraryContent(
 
         if (entries.isEmpty() && artists.isEmpty() && !showTiles) {
             item(span = full) {
-                Text("Nothing matches that.", color = com.music.spotui.ui.theme.TextMuted, fontSize = 14.sp, modifier = Modifier.padding(20.dp, 30.dp))
+                Text(emptyText, color = com.music.spotui.ui.theme.TextMuted, fontSize = 14.sp, modifier = Modifier.padding(20.dp, 30.dp))
             }
         }
     }
@@ -843,8 +862,7 @@ private fun AccountSheet(
             }
             HorizontalDivider(color = com.music.spotui.ui.theme.SurfaceHigh)
             AccountRow("Log out", tint = Color(0xFFE57373)) {
-                SpotifySession.setSpDc(context, "")
-                Api.HomeCache.clear()
+                com.music.spotui.data.api.AccountActions.logOut(context)
                 onDismiss()
                 navController.navigate(Routes.Login.route) {
                     popUpTo(0) { inclusive = true }

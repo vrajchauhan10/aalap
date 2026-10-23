@@ -176,7 +176,7 @@ fun DownloadsScreen(navController: NavController) {
                     )
                     Text(
                         modifier = Modifier.padding(20.dp, 4.dp, 20.dp, 0.dp),
-                        text = "${songs.size} songs • available offline",
+                        text = com.music.spotui.ui.components.counted(songs.size, "song") + " • available offline",
                         color = Color.Gray,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium

@@ -184,8 +184,9 @@ internal fun ServiceLine(
             Text(status, color = TextMuted, fontSize = 12.sp, lineHeight = 15.sp)
         }
         when {
+            // The row itself is clickable, so the switch just shows the state.
             switch != null -> Switch(
-                checked = switch, onCheckedChange = { onClick() },
+                checked = switch, onCheckedChange = null,
                 colors = SwitchDefaults.colors(checkedThumbColor = OnSaffron, checkedTrackColor = Saffron, uncheckedTrackColor = SurfaceHigh),
             )
             action != null -> Text(
@@ -293,7 +294,7 @@ fun YourTasteSection() {
         Spacer(Modifier.height(12.dp))
         Text(
             // Plays from before 2.5 carry no skip data; show the finish rate once skips are being seen.
-            if (s.skipRate > 0) "${s.plays} plays · you finish ${(100 - s.skipRate * 100).toInt()}% of songs" else "${s.plays} plays",
+            if (s.skipRate > 0) "${com.music.spotui.ui.components.counted(s.plays, "play")} · you finish ${(100 - s.skipRate * 100).toInt()}% of songs" else com.music.spotui.ui.components.counted(s.plays, "play"),
             color = TextMuted, fontSize = 12.sp,
         )
     }

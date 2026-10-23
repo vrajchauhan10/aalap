@@ -25,6 +25,13 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    override fun onResume() {
+        super.onResume()
+        // Back in the app: read the connection again (see OfflineState.recheck).
+        com.music.spotui.data.preferences.OfflineState.recheck()
+    }
+
+
     private var controllerFuture: ListenableFuture<MediaController>? = null
 
     private val notificationPermission =

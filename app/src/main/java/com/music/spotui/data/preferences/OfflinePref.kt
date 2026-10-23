@@ -49,16 +49,15 @@ object OfflineState {
         started = true
         val app = context.applicationContext
         manual = prefs(app).getBoolean(KEY_MANUAL, false)
-        autoWhenNoInternet = prefs(app).getBoolean(KEY_AUTO_OFFLINE, false)
+        // On unless you turn it off: with no connection, Aalap switches to what's on the phone
+        // instead of trying (and failing) to stream.
+        autoWhenNoInternet = prefs(app).getBoolean(KEY_AUTO_OFFLINE, true)
         autoDownloadLiked = prefs(app).getBoolean(KEY_AUTO_DL_LIKED, false)
 
         val cm = app.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
-        fun refresh() {
-            val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
-            networkAvailable = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
-            unmetered = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true
-            AutoDownloader.maybeRun(app)
-        }
+        connectivity = cm
+        appContext = app
+        fun refresh() = recheck()
         refresh()
         runCatching {
             cm.registerNetworkCallback(
@@ -70,6 +69,39 @@ object OfflineState {
                 },
             )
         }
+    }
+
+    private var connectivity: ConnectivityManager? = null
+    private var appContext: Context? = null
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * Reads the connection again. While Android switches networks it can briefly report
+     * none, and then send no further update; so "no internet" is checked twice more
+     * (after 2 s and 8 s) before it's believed, and every time the app comes back.
+     */
+    fun recheck() {
+        val cm = connectivity ?: return
+        val app = appContext ?: return
+        val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
+        val online = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        unmetered = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) == true
+        if (online) {
+            main.removeCallbacksAndMessages(RECHECK)
+            networkAvailable = true
+        } else if (networkAvailable) {
+            main.removeCallbacksAndMessages(RECHECK)
+            main.postAtTime({ confirmOffline(cm) }, RECHECK, android.os.SystemClock.uptimeMillis() + 2_000)
+            main.postAtTime({ confirmOffline(cm) }, RECHECK, android.os.SystemClock.uptimeMillis() + 8_000)
+        }
+        AutoDownloader.maybeRun(app)
+    }
+
+    private val RECHECK = Any()
+
+    private fun confirmOffline(cm: ConnectivityManager) {
+        val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
+        networkAvailable = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
     }
 
     fun setManual(context: Context, on: Boolean) {

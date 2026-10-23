@@ -361,11 +361,20 @@ object SongPlayer {
     private const val FADE_IN_MS = 450L
     private const val FADE_STEPS = 12
 
+    // When a new track starts, the old one is paused first. That pause isn't the listener
+    // pausing, so it mustn't flip the play button to "paused" while the next song loads.
+    private var switchPause = false
+
+    private fun pauseForSwitch(p: ExoPlayer) {
+        switchPause = true
+        try { p.pause(); p.clearMediaItems() } finally { switchPause = false }
+    }
+
     private fun fadeOutThenClear() {
         fadeJob?.cancel()
         val p = player ?: return
         if (!p.isPlaying) {
-            runCatching { p.pause(); p.clearMediaItems() }
+            runCatching { pauseForSwitch(p) }
             return
         }
         fadeJob = scope.launch(Dispatchers.Main) {
@@ -374,7 +383,7 @@ object SongPlayer {
                 p.volume = start * (1f - i.toFloat() / FADE_STEPS)
                 delay(FADE_OUT_MS / FADE_STEPS)
             }
-            runCatching { p.pause(); p.clearMediaItems() }
+            runCatching { pauseForSwitch(p) }
             p.volume = 1f
         }
         // If cancelled mid-fade, the incoming track's fadeIn() resets the volume.
@@ -1467,6 +1476,7 @@ object SongPlayer {
         // Play/pause from the notification, headset or car goes straight to the player;
         // mirror it so the in-app button doesn't keep showing the old state.
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (!playWhenReady && switchPause) return
             if (!isCrossfading) boundState?.updatePlayingState(playWhenReady)
         }
 

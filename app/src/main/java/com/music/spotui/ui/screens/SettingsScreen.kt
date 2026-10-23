@@ -43,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -384,9 +385,7 @@ fun SettingsScreen(navController: NavController) {
                     .clip(RoundedCornerShape(16.dp))
                     .border(1.dp, Color(0xFFE57373).copy(alpha = 0.6f), RoundedCornerShape(16.dp))
                     .clickable {
-                        com.music.spotui.data.api.SpotifySession.setSpDc(context, "")
-                        com.music.spotui.data.api.Api.HomeCache.clear()
-                        com.music.spotui.data.preferences.clearAalapAccount(context)
+                        com.music.spotui.data.api.AccountActions.logOut(context)
                         navController.navigate(com.music.spotui.ui.navigation.Routes.Login.route) {
                             popUpTo(0) { inclusive = true }
                         }
@@ -481,7 +480,7 @@ private fun OfflineStorageCard() {
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            "$count songs" + if (pending > 0) " · $pending waiting for Wi-Fi" else "",
+            com.music.spotui.ui.components.counted(count, "song") + if (pending > 0) " · $pending waiting for Wi-Fi" else "",
             color = com.music.spotui.ui.theme.TextMuted, fontSize = 12.sp,
         )
     }
@@ -516,9 +515,12 @@ private fun SettingsSwitchRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
+    // The whole row is the switch: tapping the words toggles it, and TalkBack reads
+    // "Offline mode, switch, off" instead of an unnamed switch.
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .toggleable(value = checked, role = androidx.compose.ui.semantics.Role.Switch, onValueChange = onCheckedChange)
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -528,7 +530,7 @@ private fun SettingsSwitchRow(
         }
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = null,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = com.music.spotui.ui.theme.OnSaffron,
                 checkedTrackColor = AppPalette,
@@ -637,7 +639,12 @@ private fun ProfileHeader(navController: NavController) {
             ).size
         }
     }
-    val plays = remember { com.music.spotui.data.preferences.getListeningHistory(context).size }
+    // The same count as "Your taste" below (every play Aalap recorded, skips included).
+    val plays by androidx.compose.runtime.produceState(com.music.spotui.data.preferences.getListeningHistory(context).size) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { com.music.spotui.data.recommendation.engine.Personalizer.summary(context).plays }.getOrNull()
+        }?.takeIf { it > 0 }?.let { value = it }
+    }
 
     Column(
         modifier = Modifier

@@ -42,7 +42,7 @@ object ArtistPicker {
             .filter { (_, n) -> n >= 2 }
             .take(limit)
             .sortedBy { (name, _) -> key(name) in followed }
-            .map { (name, n) -> async { resolve(api, name)?.let { Pick(it, "$n plays") } } }
+            .map { (name, n) -> async { resolve(api, name)?.let { Pick(it, if (n == 1) "1 play" else "$n plays") } } }
             .awaitAll().filterNotNull().distinctBy { key(it.artist.name) }
     }
 

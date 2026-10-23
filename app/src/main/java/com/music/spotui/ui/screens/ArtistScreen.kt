@@ -478,7 +478,7 @@ private fun PopularTrackRow(
         Icon(
             painter = if (isLiked) painterResource(id = R.drawable.added) else painterResource(id = R.drawable.ic_add),
             contentDescription = "",
-            tint = if (isLiked) com.music.spotui.ui.theme.TextPrimary else Color.Gray,
+            tint = if (isLiked) com.music.spotui.ui.theme.Saffron else Color.Gray,
             modifier = Modifier
                 .size(20.dp)
                 .clickable(
@@ -488,6 +488,8 @@ private fun PopularTrackRow(
                     if (isLiked) removeLikedSongId(context, song.id.toString())
                     else { addLikedSongId(context, song.id.toString(), song); com.music.spotui.ui.components.LikeCelebration.burst() }
                     isLiked = isSongLiked(context, song.id.toString())
+                    // Mirror the like to the real Spotify account.
+                    com.music.spotui.data.api.SpotifySync.setTrackSaved(context, song.spotifyTrackId, isLiked)
                     artistViewModel.updateLikeState(!artistViewModel.likeState.value)
                 },
         )

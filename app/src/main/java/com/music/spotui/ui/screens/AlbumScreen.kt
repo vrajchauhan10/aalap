@@ -272,7 +272,7 @@ fun SumUpAlbumScreen(
                     fontWeight = FontWeight.Medium)
                 Text(modifier = Modifier
                     .padding(20.dp, 0.dp, 0.dp, 0.dp),
-                    text = "Album : ${album[0].time}",
+                    text = listOfNotNull("Album", album[0].time.takeIf { it.isNotBlank() }, com.music.spotui.ui.components.counted(albumSongs.size, "song")).joinToString(" · "),
                     color = Color.Gray,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium
@@ -541,6 +541,8 @@ fun SumUpAlbumScreen(
                                         com.music.spotui.ui.components.LikeCelebration.burst()
                                     }
                                     isLiked = isSongLiked(context, songId.toString())
+                                    // Mirror the like to the real Spotify account.
+                                    com.music.spotui.data.api.SpotifySync.setTrackSaved(context, albumSongs[song].spotifyTrackId, isLiked)
                                     albumViewModel.updateLikeState(!albumViewModel.likeState.value)
 
                                 },

@@ -152,7 +152,13 @@ class Api @Inject constructor(
     suspend fun artistReleases(artistId: String, newestFirst: Boolean = false): List<com.music.spotui.data.entity.LibraryEntry> {
         if (artistId.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
         val o = Spotify.artistOverview(artistId).getOrNull() ?: return emptyList()
-        return o.popularReleases
+        // Only the artist's own records: not label compilations ("Happy Vibes", "The Winter
+        // Playlist"…) that merely include one of their songs.
+        val own = o.popularReleases.filter { a ->
+            !a.albumType.equals("compilation", true) &&
+                (a.artists.isEmpty() || a.artists.any { it.name.equals(o.name, true) || it.id == artistId })
+        }
+        return own
             .let { r -> if (newestFirst) r.sortedByDescending { it.releaseDate.orEmpty() } else r.sortedBy { if (it.albumType.equals("album", true)) 0 else 1 } }
             .map { a ->
                 val artists = a.artists.joinToString(", ") { it.name }.ifBlank { o.name }
@@ -311,9 +317,10 @@ class Api @Inject constructor(
                 fun same(t: String) = t.lowercase().replace(Regex("""\(.*?\)|\[.*?\]"""), " ").replace(Regex("""\s+"""), " ").trim()
                 fun firstArtist(a: String) = com.music.spotui.data.recommendation.engine.SongMatcher.artistKeys(a).firstOrNull().orEmpty()
                 emit(Response.Success(SearchResults(
-                    songs = res.tracks?.items.orEmpty().map { it.toSongModel() }.distinctBy { "${same(it.title)}|${firstArtist(it.singer)}" },
-                    albums = res.albums?.items.orEmpty().map { it.toAlbumModel() }.distinctBy { "${same(it.name)}|${firstArtist(it.artists)}" },
-                    artists = res.artists?.items.orEmpty().map { it.toArtistModel() }.distinctBy { it.name.lowercase().trim() },
+                    // Spotify can return entries with no name; they can't be shown or opened.
+                    songs = res.tracks?.items.orEmpty().map { it.toSongModel() }.filter { it.title.isNotBlank() }.distinctBy { "${same(it.title)}|${firstArtist(it.singer)}" },
+                    albums = res.albums?.items.orEmpty().map { it.toAlbumModel() }.filter { it.name.isNotBlank() }.distinctBy { "${same(it.name)}|${firstArtist(it.artists)}" },
+                    artists = res.artists?.items.orEmpty().map { it.toArtistModel() }.filter { it.name.isNotBlank() }.distinctBy { it.name.lowercase().trim() },
                     shows = podcasts?.shows?.items.orEmpty().map { it.toPodcastModel() },
                     episodes = podcasts?.episodes?.items.orEmpty().map { it.toEpisodeSongModel(null) },
                 )))

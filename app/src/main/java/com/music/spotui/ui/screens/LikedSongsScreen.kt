@@ -223,7 +223,7 @@ fun LikedSongsScreen(navController: NavController) {
                             )
                             Text(
                                 modifier = Modifier.padding(20.dp, 4.dp, 20.dp, 0.dp),
-                                text = if (songs.size == allSongs.size) "${allSongs.size} songs" else "${songs.size} of ${allSongs.size} songs",
+                                text = if (songs.size == allSongs.size) com.music.spotui.ui.components.counted(allSongs.size, "song") else "${songs.size} of ${allSongs.size} songs",
                                 color = Color.Gray,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
@@ -349,6 +349,12 @@ fun LikedSongsScreen(navController: NavController) {
                             filter = filter, onFilter = { filter = it },
                             artists = topArtists,
                             hasAalapOnly = allSongs.any { it.id !in sources.spotify && it.id !in sources.youtube } && sources.spotify.isNotEmpty(),
+                        )
+                    }
+                    if (allSongs.isEmpty()) item(key = "empty") {
+                        Text(
+                            "No liked songs yet. Tap + on any song (or double-tap the cover in the player) and it lands here, along with your Spotify and YouTube Music likes.",
+                            color = com.music.spotui.ui.theme.TextMuted, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(20.dp, 24.dp),
                         )
                     }
                     if (songs.isEmpty() && allSongs.isNotEmpty()) item(key = "none") {

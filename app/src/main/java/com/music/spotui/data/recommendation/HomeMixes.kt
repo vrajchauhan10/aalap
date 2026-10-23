@@ -121,7 +121,7 @@ object HomeMixes {
 
     private const val TOP50_INDIA = "37i9dQZEVXbLZ52XmnySJg"
     private const val TOP50_GLOBAL = "37i9dQZEVXbMDoHDwVN2tF"
-    private const val VIRAL50_INDIA = "37i9dQZEVXbMWDif5SCBJq"
+    private const val VIRAL50_INDIA = "37i9dQZF1DXbVhgADFy3im" // Spotify's "Trending Now India"
 
     /** A chart's songs, cached for the day. */
     private suspend fun chart(c: Context, id: String): List<SongsModel> {
@@ -495,7 +495,7 @@ object HomeMixes {
     // ── New releases from your artists ──────────────────────────────────────
 
     suspend fun newReleases(c: Context): List<LibraryEntry> = coroutineScope {
-        val stamp = today()
+        val stamp = today() + "v3" // v3: compilations and label mixtapes left out, so today's list is rebuilt once
         val p = prefs(c)
         if (p.getString("releases.stamp", null) == stamp) runCatching {
             val a = JSONArray(p.getString("releases", "[]"))
@@ -511,7 +511,11 @@ object HomeMixes {
                 runCatching { api.artistReleases(id, newestFirst = true) }.getOrDefault(emptyList()).take(2)
             }
         }.awaitAll().flatten()
-        val list = all.distinctBy { it.spotifyId }.sortedByDescending { it.subtitle.take(4) }.take(16)
+        // Labels also publish mixtapes under a star's name ("Happy Vibes", "The Winter
+        // Playlist", "Bollywood New Love Hits"); those aren't new music from the artist.
+        val mixtape = Regex("""(?i)\b(playlist|hits|vibes|collection|best of|jukebox|non ?stop|mashup|top \d+|love songs|songs of|essentials|greatest|bangers)\b""")
+        val list = all.distinctBy { it.spotifyId }.filterNot { mixtape.containsMatchIn(it.name) }
+            .sortedByDescending { it.subtitle.take(4) }.take(16)
         if (list.isNotEmpty()) {
             val a = JSONArray()
             list.forEach { e -> a.put(JSONObject().put("id", e.spotifyId).put("name", e.name).put("sub", e.subtitle).put("cover", e.coverUri).put("artists", e.artists)) }

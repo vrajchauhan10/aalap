@@ -26,6 +26,8 @@ fun addLikedSongId(context: Context, songId: String, song: SongsModel? = null) {
     lastLikedId = songId
     lastLikedAtMs = System.currentTimeMillis()
     likedVersion.value++
+    // A like is a strong taste signal: rebuild the taste with it straight away.
+    com.music.spotui.data.recommendation.engine.Personalizer.invalidate()
 }
 
 fun removeLikedSongId(context: Context, songId: String) {
@@ -35,6 +37,7 @@ fun removeLikedSongId(context: Context, songId: String) {
     editor.apply()
     songId.toIntOrNull()?.let { AalapLikes.remove(context, it) }
     likedVersion.value++
+    com.music.spotui.data.recommendation.engine.Personalizer.invalidate()
 }
 
 fun isSongLiked(context: Context, songId: String): Boolean {

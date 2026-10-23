@@ -184,7 +184,7 @@ fun LikedSongsScreen(
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold)
                         Text(modifier = Modifier,
-                            text = " ${likedSongs.size} songs",
+                            text = " " + counted(likedSongs.size, "song"),
                             color = Color.Gray,
                             letterSpacing = 0.sp,
                             fontSize = 12.sp,
@@ -310,7 +310,9 @@ fun LikedSongsScreen(
                                         addLikedSongId(context, songId.toString(), likedSongs[song])
                                         com.music.spotui.ui.components.LikeCelebration.burst()
                                     }
-                                    //isLiked = isSongLiked(context, songId.toString())
+                                    // Mirror the like to the real Spotify account.
+                                    com.music.spotui.data.api.SpotifySync.setTrackSaved(
+                                        context, likedSongs[song].spotifyTrackId, isSongLiked(context, songId.toString()))
                                     albumViewModel.updateLikeState(!albumViewModel.likeState.value)
 
                                 },

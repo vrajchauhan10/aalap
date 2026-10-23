@@ -211,7 +211,7 @@ fun WrappedScreen(navController: NavController) {
                 Row(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                     Text("${i + 1}", color = if (i == 0) SaffronC else MutedC, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(26.dp))
                     Text(name, color = Color.White, fontSize = 16.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("$plays plays", color = MutedC, fontSize = 13.sp)
+                    Text(com.music.spotui.ui.components.counted(plays, "play"), color = MutedC, fontSize = 13.sp)
                 }
             }
 

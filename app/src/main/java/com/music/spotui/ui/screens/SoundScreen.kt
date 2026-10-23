@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
@@ -186,14 +187,16 @@ private fun Label(text: String) {
 
 @Composable
 private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+    // The whole row toggles (and is read out as one labelled switch).
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
+        .toggleable(value = checked, role = androidx.compose.ui.semantics.Role.Switch, onValueChange = onChange).padding(vertical = 8.dp)) {
         Column(Modifier.weight(1f)) {
             Text(title, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Text(subtitle, color = TextMuted, fontSize = 12.sp)
         }
         Switch(
             checked = checked,
-            onCheckedChange = onChange,
+            onCheckedChange = null,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = OnSaffron, checkedTrackColor = Saffron,
                 uncheckedThumbColor = TextMuted, uncheckedTrackColor = SurfaceHigh,

@@ -87,6 +87,14 @@ class HomeViewModel @Inject constructor(
         fetchAlbums()
         loadDiscovery()
         loadUnified()
+        // Left open past midnight (or into the next 6-hour window), Home still moves on:
+        // a cheap check every few minutes rebuilds the daily sections when the window changes.
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(5 * 60_000L)
+                refreshIfNewDay()
+            }
+        }
     }
 
     private fun loadDiscovery() = viewModelScope.launch(Dispatchers.IO) {

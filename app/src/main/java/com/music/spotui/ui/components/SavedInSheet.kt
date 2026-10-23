@@ -227,12 +227,14 @@ fun SavedInSheet(
                     },
                 ) { com.music.spotui.data.local.AalapPlaylists.toggle(context, pl.id, song) }
             }
-            if (song.spotifyTrackId.isNotBlank()) Text(
+            // Your Spotify playlists, only when there are some you can add to.
+            if (song.spotifyTrackId.isNotBlank() && playlists?.isEmpty() != true) Text(
                 "On Spotify", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(20.dp, 10.dp, 20.dp, 2.dp),
             )
             if (song.spotifyTrackId.isNotBlank()) when (val list = playlists) {
                 null -> Text("Loading playlists…", color = Color.Gray, fontSize = 14.sp, modifier = Modifier.padding(20.dp, 12.dp))
+                emptyList<com.metrolist.spotify.models.SpotifyPlaylist>() -> {}
                 else -> LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
                     items(list.size) { i ->
                         val pl = list[i]

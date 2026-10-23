@@ -203,18 +203,18 @@ fun LocalFilesScreen(navController: NavController) {
                         EmptyLibrary(importing, accent, onSongs = { addSongs.launch(arrayOf("audio/*")) }, onFolder = { addFolder.launch(null) })
                     }
                     album != null -> {
-                        item { CollectionHeader(album.cover, album.name, "${album.artist} · ${album.songs.size} songs", accent, round = false, onPlay = { play(album.songs, 0) }, onShuffle = { play(album.songs.shuffled(), 0) }) }
+                        item { CollectionHeader(album.cover, album.name, "${album.artist} · ${com.music.spotui.ui.components.counted(album.songs.size, "song")}", accent, round = false, onPlay = { play(album.songs, 0) }, onShuffle = { play(album.songs.shuffled(), 0) }) }
                         album.songs.forEachIndexed { i, song -> item(key = "a" + song.url) { LocalSongRow(song, playerViewModel.currentSongId.value, formats[song.url].orEmpty(), onClick = { play(album.songs, i) }, onRemove = { remove(song) }) } }
                     }
                     artist != null -> {
-                        item { CollectionHeader(artist.cover, artist.name, "${artist.songs.size} songs", accent, round = true, onPlay = { play(artist.songs, 0) }, onShuffle = { play(artist.songs.shuffled(), 0) }) }
+                        item { CollectionHeader(artist.cover, artist.name, com.music.spotui.ui.components.counted(artist.songs.size, "song"), accent, round = true, onPlay = { play(artist.songs, 0) }, onShuffle = { play(artist.songs.shuffled(), 0) }) }
                         artist.songs.forEachIndexed { i, song -> item(key = "r" + song.url) { LocalSongRow(song, playerViewModel.currentSongId.value, formats[song.url].orEmpty(), onClick = { play(artist.songs, i) }, onRemove = { remove(song) }) } }
                     }
                     else -> {
                         item {
                             val minutes = songs.sumOf { it.durationMs.toLong() } / 60_000
                             LocalHero(
-                                summary = "${songs.size} songs" + (if (minutes > 0) " · ${formatTotal(minutes)}" else "") + " · on this phone",
+                                summary = com.music.spotui.ui.components.counted(songs.size, "song") + (if (minutes > 0) " · ${formatTotal(minutes)}" else "") + " · on this phone",
                                 importing = importing,
                                 onPlay = { play(songs, 0) }, onShuffle = { play(songs.shuffled(), 0) },
                                 onSongs = { addSongs.launch(arrayOf("audio/*")) }, onFolder = { addFolder.launch(null) },
@@ -450,7 +450,7 @@ private fun ArtistRow(artist: LocalArtist, onClick: () -> Unit) {
         )
         Column(Modifier.padding(start = 14.dp).weight(1f)) {
             Text(artist.name, color = com.music.spotui.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            Text("${artist.songs.size} songs", color = Color.Gray, fontSize = 12.sp)
+            Text(com.music.spotui.ui.components.counted(artist.songs.size, "song"), color = Color.Gray, fontSize = 12.sp)
         }
     }
 }
