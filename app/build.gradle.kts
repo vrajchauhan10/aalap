@@ -19,8 +19,8 @@ android {
         targetSdk = 34
         // Must exceed every published build (spotui 1.6 shipped as versionCode 16).
         // 2.0.0 is the first Aalap release.
-        versionCode = 39
-        versionName = "3.9.0"
+        versionCode = 42
+        versionName = "3.12.0"
         // Optional Last.fm key for the similar-tracks source (empty = source off).
         buildConfigField("String", "LASTFM_API_KEY", "\"${(project.findProperty("lastfmApiKey") as String?).orEmpty()}\"")
 
@@ -119,6 +119,7 @@ dependencies {
     implementation("androidx.palette:palette-ktx:1.0.0")
 
     //exoplayer
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-exoplayer-dash:1.3.1")
     // HLS: Gaana streams are HLS (m3u8).

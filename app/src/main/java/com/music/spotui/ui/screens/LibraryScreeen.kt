@@ -197,7 +197,9 @@ fun LibraryScreen(navController: NavController) {
                         .clickable { showAccount = true },
                     contentAlignment = Alignment.Center
                 ) {
-                    val avatar = (account as? Response.Success)?.data?.imageUrl.orEmpty()
+                    val photoVersion by com.music.spotui.data.preferences.ProfilePhoto.version.collectAsState()
+                    val own = remember(photoVersion) { com.music.spotui.data.preferences.ProfilePhoto.get(context) }
+                    val avatar = own?.path ?: (account as? Response.Success)?.data?.imageUrl.orEmpty()
                     if (avatar.isNotBlank()) AccountAvatar(avatar, 40.dp)
                     else Icon(Icons.Default.Person, contentDescription = "Account", tint = com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(20.dp))
                 }

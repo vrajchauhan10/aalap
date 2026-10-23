@@ -42,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -140,7 +141,8 @@ fun SpotifyLoginScreen(navController: NavController) {
         // form or credential injection. We just watch for the sp_dc cookie (polled
         // above) to know when the user has signed in, then exchange it for a token.
         AndroidView(
-            modifier = Modifier.fillMaxSize().statusBarsPadding().padding(top = 40.dp),
+            // Above the keyboard and the gesture bar, so Next / Log in stay reachable.
+            modifier = Modifier.fillMaxSize().statusBarsPadding().padding(top = 40.dp).navigationBarsPadding().imePadding(),
             factory = { ctx ->
                 val cookieManager = CookieManager.getInstance()
                 cookieManager.setAcceptCookie(true)
@@ -165,15 +167,10 @@ fun SpotifyLoginScreen(navController: NavController) {
                     // a spoofed desktop UA on a phone trips Spotify's reCAPTCHA bot
                     // check and it wrongly returns "Incorrect email or password".
 
-                    webViewClient = object : WebViewClient() {
-                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                            pageReady.set(false)
-                        }
-                        override fun onPageFinished(view: WebView?, url: String?) {
-                            pageReady.set(true)
-                            view?.let(::fixSpotifyLoginLayout)
-                        }
-                    }
+                    setUpForSignIn(
+                        onPageStarted = { pageReady.set(false) },
+                        onPageFinished = { view, _ -> pageReady.set(true); fixSpotifyLoginLayout(view) },
+                    )
                     loadUrl(SpotifyAuth.LOGIN_URL)
                 }
             },

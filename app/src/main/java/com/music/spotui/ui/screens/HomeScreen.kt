@@ -224,6 +224,12 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
         items(carousels.size) { i ->
             BounceIn(11 + i, gen) { HomeFeedSection(navController, carousels[i]) }
         }
+        // The maker's mark, at the end of Home.
+        item {
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(top = 28.dp, end = 24.dp), contentAlignment = Alignment.CenterEnd) {
+                com.music.spotui.ui.components.Signature()
+            }
+        }
     }
 }
 
@@ -291,7 +297,9 @@ private fun HomeHeaderRow(navController: NavController) {
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
         }
-        val avatarUrl = com.music.spotui.data.api.ProfileCache.imageUrl
+        val photoVersion by com.music.spotui.data.preferences.ProfilePhoto.version.collectAsState()
+        val avatarUrl: Any? = remember(photoVersion) { com.music.spotui.data.preferences.ProfilePhoto.get(context) }
+            ?: com.music.spotui.data.api.ProfileCache.imageUrl
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier

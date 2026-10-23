@@ -4,7 +4,27 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
-## 3.9.0 — 23 Oct 2026 (build 39)
+## 3.12.0 — 24 Oct 2026 (build 42)
+- **Your signature.** A light, handwritten "crafted by V" on the opening screen (under
+  the logo), the welcome screen, the end of Home, and in Profile under the version.
+
+## 3.11.0 — 24 Oct 2026 (shipped inside 3.12.0)
+- **Profile photo.** Tap your photo in Profile (or its pencil badge) to pick one from your
+  gallery; tap again to change or remove it. Saved inside Aalap for your account (it comes
+  back when you sign in again) and shown in Profile, on Home and in Library.
+
+## 3.10.0 — 24 Oct 2026 (shipped inside 3.12.0)
+- **Sign-in screens are stable on every phone.**
+  - Spotify / YouTube Music cards: the "Required" / "Recommended" tag is on its own line,
+    so it no longer splits in two on narrow phones or with large text.
+  - "Start listening" stays fixed at the bottom of the screen instead of far below.
+  - Google sign-in (inside Spotify and YouTube Music): pages that open a new window
+    ("Continue with Google", "Forgot password?", "Create account") now open; password
+    recovery and sign-up open in the phone's browser, where codes and SMS work.
+  - Google's pages use their normal phone layout (they were zoomed out, with Next far
+    below), and sign-in pages move above the keyboard.
+
+ — 23 Oct 2026 (build 39)
 - **Play from the widget works when Aalap is in the background.** The phone blocks
   background apps from the internet (battery saver, background limits), so the song
   couldn't be found and you got "Couldn't find a playable stream". Now pressing play,

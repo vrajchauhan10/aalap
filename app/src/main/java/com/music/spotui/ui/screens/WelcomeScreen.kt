@@ -121,7 +121,9 @@ fun WelcomeScreen(navController: NavController) {
             "Next you'll connect your music once. Use the same Google account everywhere and it's a tap each.",
             color = TextMuted, fontSize = 12.sp, textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(28.dp))
+        com.music.spotui.ui.components.Signature()
+        Spacer(Modifier.height(20.dp))
     }
 }
 
@@ -171,16 +173,16 @@ fun ConnectServicesScreen(navController: NavController) {
     var appleCount by remember { mutableIntStateOf(com.music.spotui.data.local.AppleMusicImport.tracks(context).size) }
     var appleDialog by remember { mutableStateOf(false) }
 
+    // The list scrolls; the Start button stays on screen at the bottom.
+    Column(Modifier.fillMaxSize().background(AppBackground).statusBarsPadding().navigationBarsPadding()) {
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .background(AppBackground)
-            .statusBarsPadding()
-            .navigationBarsPadding()
+            .weight(1f)
+            .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 22.dp),
     ) {
-        Spacer(Modifier.height(36.dp))
+        Spacer(Modifier.height(28.dp))
         Text("Connect your music", color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Text(
             "Sign in once. Aalap stays connected and brings it all together.",
@@ -225,8 +227,10 @@ fun ConnectServicesScreen(navController: NavController) {
             ) { appleDialog = true }
         }
         if (appleDialog) AppleMusicImportDialog(onDismiss = { appleDialog = false }) { appleCount = it }
+        Spacer(Modifier.height(16.dp))
+    }
 
-        Spacer(Modifier.height(26.dp))
+    Column(Modifier.fillMaxWidth().background(AppBackground).padding(horizontal = 22.dp, vertical = 12.dp)) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
@@ -253,7 +257,7 @@ fun ConnectServicesScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
             )
         }
-        Spacer(Modifier.height(28.dp))
+    }
     }
 }
 
@@ -282,13 +286,13 @@ private fun SignInRow(logo: Int, name: String, tag: String, role: String, connec
         Image(painterResource(logo), contentDescription = name, modifier = Modifier.size(42.dp))
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(name, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.width(8.dp))
-                Text(tag, color = Saffron, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Saffron.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 2.dp))
-            }
-            Text(role, color = TextMuted, fontSize = 12.sp, lineHeight = 15.sp)
+            // Name, then the tag on its own line: side by side they got squeezed and split
+            // ("Recom-mended") on narrow phones or with larger text.
+            Text(name, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(tag, color = Saffron, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false,
+                modifier = Modifier.padding(top = 3.dp).clip(RoundedCornerShape(50)).background(Saffron.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 2.dp))
+            Text(role, color = TextMuted, fontSize = 12.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 4.dp))
         }
         Spacer(Modifier.width(10.dp))
         if (connected) {
@@ -301,7 +305,7 @@ private fun SignInRow(logo: Int, name: String, tag: String, role: String, connec
             }
         } else {
             Text(
-                "Sign in", color = OnSaffron, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                "Sign in", color = OnSaffron, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false,
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(Saffron).padding(horizontal = 14.dp, vertical = 8.dp),
             )
         }

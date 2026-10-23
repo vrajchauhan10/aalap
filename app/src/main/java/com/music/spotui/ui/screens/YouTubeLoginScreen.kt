@@ -23,6 +23,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -94,7 +96,8 @@ fun YouTubeLoginScreen(navController: NavController, next: String = "") {
 
     Box(Modifier.fillMaxSize().background(com.music.spotui.ui.theme.AppBackground)) {
         AndroidView(
-            modifier = Modifier.fillMaxSize().statusBarsPadding().padding(top = 42.dp),
+            // Above the keyboard and the gesture bar, so Next stays reachable.
+            modifier = Modifier.fillMaxSize().statusBarsPadding().padding(top = 42.dp).navigationBarsPadding().imePadding(),
             factory = { ctx ->
                 val cookies = CookieManager.getInstance().apply { setAcceptCookie(true) }
                 WebView(ctx).apply {
@@ -104,7 +107,7 @@ fun YouTubeLoginScreen(navController: NavController, next: String = "") {
                     settings.domStorageEnabled = true
                     settings.databaseEnabled = true
                     settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                    webViewClient = WebViewClient()
+                    setUpForSignIn()
                     loadUrl(YOUTUBE_LOGIN_URL)
                 }
             },

@@ -43,6 +43,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.offset
+import androidx.compose.material.icons.filled.Edit
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.foundation.selection.toggleable
@@ -406,6 +408,9 @@ fun SettingsScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(top = 2.dp), contentAlignment = Alignment.Center) {
+                com.music.spotui.ui.components.Signature()
+            }
             // Clears the floating mini player + tab bar so Log out can scroll fully into view.
             Spacer(Modifier.height(190.dp))
         }
@@ -664,7 +669,30 @@ private fun ProfileHeader(navController: NavController) {
             titleContentColor = com.music.spotui.ui.theme.TextPrimary,
         )
     }
-    val avatar = com.music.spotui.data.api.ProfileCache.imageUrl
+    // Your own photo first, else the connected account's picture.
+    val photoVersion by com.music.spotui.data.preferences.ProfilePhoto.version.collectAsState()
+    val ownPhoto = remember(photoVersion) { com.music.spotui.data.preferences.ProfilePhoto.get(context) }
+    val avatar: Any? = ownPhoto ?: com.music.spotui.data.api.ProfileCache.imageUrl
+    val photoScope = androidx.compose.runtime.rememberCoroutineScope()
+    val pickPhoto = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) photoScope.launch {
+            if (!com.music.spotui.data.preferences.ProfilePhoto.set(context, uri))
+                android.widget.Toast.makeText(context, "Couldn't use that photo. Try another.", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    var photoMenu by remember { mutableStateOf(false) }
+    val choosePhoto = {
+        pickPhoto.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
+    if (photoMenu) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { photoMenu = false },
+        containerColor = com.music.spotui.ui.theme.Surface,
+        title = { Text("Profile photo", color = com.music.spotui.ui.theme.TextPrimary) },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { photoMenu = false; choosePhoto() }) { Text("Choose a new photo", color = com.music.spotui.ui.theme.Saffron) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { photoMenu = false; com.music.spotui.data.preferences.ProfilePhoto.remove(context) }) { Text("Remove photo", color = Color(0xFFE57373)) } },
+    )
     // One library: Spotify and YouTube Music together, each song and artist once
     // (the same list the Liked page shows).
     // Counted in the background so opening Profile never waits on it.
@@ -708,7 +736,9 @@ private fun ProfileHeader(navController: NavController) {
                 modifier = Modifier
                     .size(64.dp)
                     .clip(androidx.compose.foundation.shape.CircleShape)
-                    .background(AppPalette),
+                    .background(AppPalette)
+                    // Tap to pick your photo (or change / remove it).
+                    .clickable { if (ownPhoto != null) photoMenu = true else choosePhoto() },
             ) {
                 if (avatar != null) {
                     com.bumptech.glide.integration.compose.GlideImage(
@@ -716,6 +746,7 @@ private fun ProfileHeader(navController: NavController) {
                         contentDescription = "Profile photo",
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                         modifier = Modifier.size(64.dp),
+                        requestBuilderTransform = { it.signature(com.bumptech.glide.signature.ObjectKey(photoVersion)) },
                     )
                 } else {
                     Text(
@@ -726,7 +757,14 @@ private fun ProfileHeader(navController: NavController) {
                     )
                 }
             }
-            Spacer(Modifier.width(14.dp))
+            // Small pencil badge: the photo can be changed.
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.offset(x = (-20).dp, y = 22.dp).size(22.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(com.music.spotui.ui.theme.Surface).border(1.5.dp, AppPalette, androidx.compose.foundation.shape.CircleShape)
+                    .clickable { if (ownPhoto != null) photoMenu = true else choosePhoto() },
+            ) { Icon(Icons.Default.Edit, contentDescription = "Change profile photo", tint = com.music.spotui.ui.theme.TextPrimary, modifier = Modifier.size(12.dp)) }
+            Spacer(Modifier.width(14.dp - 22.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
