@@ -49,6 +49,11 @@ abstract class AalapWidgetBase(private val layout: Int, private val large: Boole
         AalapWidgets.render(context, AalapWidgets.lastState(context))
     }
 
+    override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: android.os.Bundle) {
+        // Resized: switch between the square and the one-row layout.
+        AalapWidgets.render(context, AalapWidgets.lastState(context))
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         val action = intent.action ?: return
@@ -108,7 +113,15 @@ object AalapWidgets {
                 val s = latest
                 val rounded = artwork(app, s.coverUri)
                 if (largeIds.isNotEmpty()) manager.updateAppWidget(largeIds, views(app, R.layout.widget_large, true, s, rounded))
-                if (compactIds.isNotEmpty()) manager.updateAppWidget(compactIds, views(app, R.layout.widget_compact, false, s, rounded))
+                // The small widget fits how it's placed: square at 2×2, a one-row bar when
+                // it's wide and short (e.g. placed before 3.3 as 4×1).
+                compactIds.forEach { id ->
+                    val o = manager.getAppWidgetOptions(id)
+                    val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
+                    val w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+                    val layout = if (h in 1..129 && w > h * 2) R.layout.widget_compact_wide else R.layout.widget_compact
+                    manager.updateAppWidget(id, views(app, layout, false, s, rounded))
+                }
             }
         }
     }

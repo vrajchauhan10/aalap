@@ -4,7 +4,14 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
-## 3.6.0 — 23 Oct 2026 (build 36)
+## 3.7.0 — 23 Oct 2026 (build 37)
+- **Small widget fits how it's placed.** At 2×2 it's the square design (cover and
+  song, then previous · play · next). Placed wide and one row tall (like widgets added
+  before 3.3), it becomes a one-row black bar: cover, song, then previous · play · next
+  on the right, instead of the square design squeezed into a strip. Resizing switches
+  between the two.
+
+ — 23 Oct 2026 (build 36)
 - **Share Aalap opens instantly.** The app file is now prepared as soon as Profile
   opens (once per version), so tapping Share Aalap shows the share sheet in under a
   second; before, it copied the 15 MB file first and showed nothing for a few

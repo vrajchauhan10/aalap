@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Aalap small widget when placed wide and one row tall: plain black bar with the
+     cover, the song, and previous / play / next on the right. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg_black"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="10dp"
+    android:paddingEnd="8dp">
+
+    <ImageView
+        android:id="@+id/widget_art"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:contentDescription="@string/widget_open"
+        android:scaleType="centerCrop"
+        android:src="@drawable/logo" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/widget_idle_title"
+            android:textColor="#FFFFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_artist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/widget_idle_subtitle"
+            android:textColor="#FF9A9AA6"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/widget_prev"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:contentDescription="@string/widget_prev"
+        android:padding="9dp"
+        android:src="@drawable/ic_widget_prev"
+        android:tint="#FFE9E9EE" />
+
+    <ImageView
+        android:id="@+id/widget_play"
+        android:layout_width="42dp"
+        android:layout_height="42dp"
+        android:layout_marginStart="2dp"
+        android:layout_marginEnd="2dp"
+        android:background="@drawable/widget_play_saffron"
+        android:contentDescription="@string/widget_play"
+        android:padding="11dp"
+        android:src="@drawable/ic_widget_play"
+        android:tint="#FF1A0E05" />
+
+    <ImageView
+        android:id="@+id/widget_next"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:contentDescription="@string/widget_next"
+        android:padding="9dp"
+        android:src="@drawable/ic_widget_next"
+        android:tint="#FFE9E9EE" />
+</LinearLayout>
