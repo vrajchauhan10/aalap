@@ -30,7 +30,7 @@ in high quality, with lyrics and offline listening.
 
 ## Screenshot
 
-<img src="assets/screenshot-player.png" width="360" alt="Now playing in Aalap"/>
+<img src="assets/screenshot-home.png" width="360" alt="The Aalap home screen, with the Aaj ka Aalap poster"/>
 
 ## Build
 
