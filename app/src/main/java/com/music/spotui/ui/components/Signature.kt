@@ -3,21 +3,30 @@ package com.music.spotui.ui.components
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
+import com.music.spotui.R
 
-/** The maker's mark: a small, light, handwritten "crafted by V". */
+private val GreatVibes = FontFamily(Font(R.font.great_vibes))
+private val Parisienne = FontFamily(Font(R.font.parisienne))
+
+/**
+ * The maker's mark, small and light: "crafted by" in Great Vibes and the "V" in
+ * Parisienne. Placed in a bottom corner, never centred.
+ */
 @Composable
 fun Signature(modifier: Modifier = Modifier) {
+    val ink = com.music.spotui.ui.theme.TextMuted.copy(alpha = 0.6f)
     Text(
-        "crafted by V",
-        color = com.music.spotui.ui.theme.TextMuted.copy(alpha = 0.7f),
-        fontSize = 14.sp,
-        fontFamily = FontFamily.Cursive,
-        fontStyle = FontStyle.Italic,
-        fontWeight = FontWeight.Light,
+        buildAnnotatedString {
+            withStyle(SpanStyle(fontFamily = GreatVibes, fontSize = 17.sp)) { append("crafted by ") }
+            withStyle(SpanStyle(fontFamily = Parisienne, fontSize = 18.sp)) { append("V") }
+        },
+        color = ink,
         modifier = modifier,
     )
 }

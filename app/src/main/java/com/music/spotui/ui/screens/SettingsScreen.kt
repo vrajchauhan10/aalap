@@ -408,7 +408,8 @@ fun SettingsScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
-            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(top = 2.dp), contentAlignment = Alignment.Center) {
+            // The maker's mark in the corner, under the version.
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(top = 6.dp, end = 4.dp), contentAlignment = Alignment.CenterEnd) {
                 com.music.spotui.ui.components.Signature()
             }
             // Clears the floating mini player + tab bar so Log out can scroll fully into view.

@@ -122,8 +122,11 @@ fun WelcomeScreen(navController: NavController) {
             color = TextMuted, fontSize = 12.sp, textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(28.dp))
-        com.music.spotui.ui.components.Signature()
-        Spacer(Modifier.height(20.dp))
+        // The maker's mark in the bottom-right corner.
+        androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+            com.music.spotui.ui.components.Signature()
+        }
+        Spacer(Modifier.height(16.dp))
     }
 }
 
