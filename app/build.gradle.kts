@@ -19,8 +19,8 @@ android {
         targetSdk = 34
         // Must exceed every published build (spotui 1.6 shipped as versionCode 16).
         // 2.0.0 is the first Aalap release.
-        versionCode = 37
-        versionName = "3.7.0"
+        versionCode = 38
+        versionName = "3.8.0"
         // Optional Last.fm key for the similar-tracks source (empty = source off).
         buildConfigField("String", "LASTFM_API_KEY", "\"${(project.findProperty("lastfmApiKey") as String?).orEmpty()}\"")
 

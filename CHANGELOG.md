@@ -4,7 +4,18 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
-## 3.7.0 — 23 Oct 2026 (build 37)
+## 3.8.0 — 23 Oct 2026 (build 38)
+- **Widgets: proper spacing and wording.**
+  - Large: the song, artist, progress and controls sit together as one centred block
+    next to the cover, with even gaps (no big empty space under the artist); larger
+    text and buttons.
+  - Small 2×2: cover top-left, song and artist on one line each, controls along the
+    bottom (the title no longer wraps; no empty space at the top).
+  - Times show only when the song's length is known, and both use the same style
+    (01:30 / 04:29) instead of a lone "00:00". A paused song now shows where it stopped.
+  - Idle wording: "Tap play to start your music".
+
+ — 23 Oct 2026 (build 37)
 - **Small widget fits how it's placed.** At 2×2 it's the square design (cover and
   song, then previous · play · next). Placed wide and one row tall (like widgets added
   before 3.3), it becomes a one-row black bar: cover, song, then previous · play · next

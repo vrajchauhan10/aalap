@@ -3,7 +3,7 @@
     <string name="widget_large_desc">Now playing with artwork and controls</string>
     <string name="widget_compact_desc">Small player: cover, song, previous, play and next</string>
     <string name="widget_idle_title">Aalap</string>
-    <string name="widget_idle_subtitle">Tap to play</string>
+    <string name="widget_idle_subtitle">Tap play to start your music</string>
     <string name="widget_open">Open Aalap</string>
     <string name="widget_like">Like</string>
     <string name="widget_prev">Previous</string>

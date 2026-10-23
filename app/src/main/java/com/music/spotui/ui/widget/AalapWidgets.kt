@@ -89,7 +89,10 @@ object AalapWidgets {
         val saved = com.music.spotui.data.preferences.loadLastPlayback(context)?.first
             ?: return current.copy(playing = false)
         val liked = com.music.spotui.data.preferences.isSongLiked(context, saved.id.toString())
-        return WidgetState(saved.title, saved.singer, saved.coverUri, playing = false, liked = liked)
+        val (song, positionMs) = com.music.spotui.data.preferences.loadLastPlayback(context)!!
+        val dur = song.durationMs.toLong()
+        return WidgetState(saved.title, saved.singer, saved.coverUri, playing = false, liked = liked,
+            progress = if (dur > 0) (positionMs.toFloat() / dur).coerceIn(0f, 1f) else 0f, positionMs = positionMs, durationMs = dur)
     }
 
     /** Called by the playback service when anything shown on the widget changes. */
@@ -173,6 +176,8 @@ object AalapWidgets {
                     android.os.SystemClock.elapsedRealtime() - s.positionMs, null, s.playing && !idle,
                 )
                 setTextViewText(R.id.widget_duration, if (s.durationMs > 0) formatTime(s.durationMs) else "")
+                // Times only when the song's length is known (else just the bar).
+                setViewVisibility(R.id.widget_times, if (s.durationMs > 0 && !idle) android.view.View.VISIBLE else android.view.View.GONE)
                 setImageViewResource(R.id.widget_like, if (s.liked) R.drawable.ic_notif_heart_filled else R.drawable.ic_notif_heart)
                 // Gold when liked, white otherwise.
                 setInt(R.id.widget_like, "setColorFilter", if (s.liked) 0xFFFFC94D.toInt() else 0xFFE9E9EE.toInt())
@@ -182,7 +187,7 @@ object AalapWidgets {
 
     private fun formatTime(ms: Long): String {
         val total = ms / 1000
-        return "%d:%02d".format(total / 60, total % 60)
+        return "%02d:%02d".format(total / 60, total % 60) // same style as the elapsed time
     }
 
     /** True when at least one Aalap widget is on the home screen. */
