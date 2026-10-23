@@ -586,7 +586,7 @@ private fun ProfileHeader(navController: NavController) {
     // The Aalap name (editable) leads; the connected accounts' own names are listed under it.
     val serviceName = com.music.spotui.data.api.ProfileCache.name
     var aalapName by remember { mutableStateOf(com.music.spotui.data.preferences.getAalapName(context)) }
-    val name = aalapName.ifBlank { serviceName }
+    val name: String? = aalapName.ifBlank { serviceName.orEmpty() }.ifBlank { null }
     var editing by remember { mutableStateOf(false) }
     if (editing) {
         var draft by remember { mutableStateOf(name.orEmpty()) }

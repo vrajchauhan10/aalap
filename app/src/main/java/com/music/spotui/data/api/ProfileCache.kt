@@ -32,7 +32,9 @@ object ProfileCache {
             try {
                 if (SpotifyTokenProvider.ensureToken(context)) {
                     Spotify.me().onSuccess { user ->
-                        name = user.displayName ?: user.id
+                        // Spotify accounts without a display name have only an id like
+                        // "31rzydmapjxv3a3jljfdw3…"; that's not a name, so it's never shown.
+                        name = user.displayName?.takeIf { it.isNotBlank() && it != user.id }.orEmpty()
                         imageUrl = user.images.firstOrNull()?.url
                     }
                 }

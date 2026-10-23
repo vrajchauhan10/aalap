@@ -80,7 +80,7 @@ fun ConnectedServicesSection(navController: NavController) {
         onDispose { lifecycle.removeObserver(o) }
     }
     val spotifyOk = remember(tick) { SpotifySession.spDc(context).isNotBlank() }
-    val spotifyName = com.music.spotui.data.api.ProfileCache.name
+    val spotifyName = com.music.spotui.data.api.ProfileCache.name?.takeIf { it.isNotBlank() }
     val youtubeOk = remember(tick) { isYoutubeLoggedIn(context) }
     var saavnOn by remember { mutableStateOf(isJioSaavnEnabled(context)) }
     var gaanaOn by remember { mutableStateOf(isGaanaEnabled(context)) }

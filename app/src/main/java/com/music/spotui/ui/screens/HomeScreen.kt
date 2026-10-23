@@ -266,6 +266,8 @@ private fun HomeHeaderRow(navController: NavController) {
     val firstName = com.music.spotui.data.preferences.aalapDisplayName(
         context, com.music.spotui.data.api.ProfileCache.name.orEmpty(),
     ).trim().substringBefore(' ').ifBlank { null }
+        // An account id that slipped in as a name (old cache) isn't shown either.
+        ?.takeUnless { it.length >= 20 && it.all { c -> c.isLetterOrDigit() } && it.any { c -> c.isDigit() } }
     val greeting = when (java.time.LocalTime.now().hour) {
         in 5..11 -> "Good morning"
         in 12..16 -> "Good afternoon"
@@ -286,6 +288,7 @@ private fun HomeHeaderRow(navController: NavController) {
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
         }
         val avatarUrl = com.music.spotui.data.api.ProfileCache.imageUrl

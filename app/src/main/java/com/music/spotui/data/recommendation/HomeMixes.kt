@@ -232,7 +232,21 @@ object HomeMixes {
         val groups = listOf(taste.map { it to "Your taste" }, trending.map { it to "Trending" }, likes.map { it to "Liked" }, top.map { it to "Top hit" })
         val mixed = ArrayList<Pair<SongsModel, String>>()
         for (i in 0 until 10) groups.forEach { g -> g.getOrNull(i)?.let(mixed::add) }
-        val unique = mixed.distinctBy { "${it.first.title.lowercase()}|${key(it.first.singer)}" }
+        val sameSong: (Pair<SongsModel, String>) -> String = { "${it.first.title.lowercase()}|${key(it.first.singer)}" }
+        val unique = mixed.distinctBy(sameSong).toMutableList()
+        // Short of 30 (little taste data yet, few likes, or overlaps between groups): top up
+        // from the rest of each pool, so the list is always a full 30 when songs exist.
+        if (unique.size < 30) {
+            val seen = unique.mapTo(HashSet(), sameSong)
+            val spare = tasteJob.await().drop(9).map { it to "Your taste" } +
+                trendingJob.await().map { it to "Trending" } +
+                topJob.await().map { it to "Top hit" } +
+                liked.shuffled(rnd).map { it to "Liked" }
+            for (s in spare) {
+                if (unique.size >= 30) break
+                if (seen.add(sameSong(s))) unique += s
+            }
+        }
         val ordered = Diversifier.spreadArtists(unique) { it.first.singer }.take(30)
         // Mark songs that fit your taste closely, whatever brought them in.
         val profile = Personalizer.profile(c)
