@@ -87,7 +87,11 @@ private fun HistoryEntry.artist() = singer.substringBefore(",").trim()
 private fun HistoryEntry.toSong() = SongsModel(songId, title, album, singer, image, url, spotifyTrackId, durationMs = durationMs)
 private fun HistoryEntry.songKey() = "${title.lowercase().substringBefore(" (")}|${artist().lowercase()}"
 
-/** A play with how long it really lasted: until the next song started, at most the song's length. */
+/**
+ * A play and how long the music actually played: measured (paused and buffering time
+ * not counted) for plays since 3.0; older plays fall back to an estimate (until the
+ * next song started, at most the song's length).
+ */
 private class Play(val e: HistoryEntry, val listenedMs: Long) {
     /** Under 30 s (or under half a short song) counts as a skip, not a listen. */
     val skipped: Boolean get() = listenedMs < minOf(30_000L, e.ms() / 2)
@@ -95,7 +99,7 @@ private class Play(val e: HistoryEntry, val listenedMs: Long) {
 
 private fun plays(history: List<HistoryEntry>): List<Play> = history.mapIndexed { i, e ->
     val gap = if (i == 0) Long.MAX_VALUE else history[i - 1].ts - e.ts // history is newest first
-    Play(e, minOf(e.ms(), gap.coerceAtLeast(0)))
+    Play(e, if (e.listenedMs >= 0) e.listenedMs else minOf(e.ms(), gap.coerceAtLeast(0)))
 }
 
 /** One ranked row: [move] is places up (+) or down (−) since the previous period, null when new. */

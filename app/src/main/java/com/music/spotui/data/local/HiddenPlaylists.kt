@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Spotify playlists removed from the Aalap library. They stay on Spotify; library
- * syncs skip them until they're shown again from the account menu in Library.
+ * syncs skip them.
  */
 object HiddenPlaylists {
     private const val PREF = "hidden_playlists"

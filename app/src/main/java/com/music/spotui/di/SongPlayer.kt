@@ -1475,6 +1475,11 @@ object SongPlayer {
 
         // Play/pause from the notification, headset or car goes straight to the player;
         // mirror it so the in-app button doesn't keep showing the old state.
+        // Real listening time (History minutes) counts only while audio is coming out.
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            com.music.spotui.data.preferences.ListenClock.playingChanged(isPlaying)
+        }
+
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             if (!playWhenReady && switchPause) return
             if (!isCrossfading) boundState?.updatePlayingState(playWhenReady)

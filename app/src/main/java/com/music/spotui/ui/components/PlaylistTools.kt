@@ -198,7 +198,7 @@ fun RemovePlaylistDialog(playlistId: String, name: String, onDismiss: () -> Unit
         text = {
             Text(
                 if (local) "The playlist is removed from Aalap. The songs stay in your library."
-                else "It stays in your Spotify account and won't come back here when Aalap syncs. You can show it again from your account menu in Library.",
+                else "It stays in your Spotify account and won't come back here when Aalap syncs.",
                 color = com.music.spotui.ui.theme.TextMuted,
             )
         },

@@ -854,12 +854,6 @@ private fun AccountSheet(
                 onDismiss()
                 navController.navigate(Routes.History.route)
             }
-            // Spotify playlists removed from Aalap (they stay on Spotify) can come back from here.
-            val hiddenCount = remember { com.music.spotui.data.local.HiddenPlaylists.ids(context).size }
-            if (hiddenCount > 0) AccountRow("Show $hiddenCount hidden playlist${if (hiddenCount == 1) "" else "s"}") {
-                com.music.spotui.data.local.HiddenPlaylists.showAll(context)
-                onDismiss()
-            }
             HorizontalDivider(color = com.music.spotui.ui.theme.SurfaceHigh)
             AccountRow("Log out", tint = Color(0xFFE57373)) {
                 com.music.spotui.data.api.AccountActions.logOut(context)

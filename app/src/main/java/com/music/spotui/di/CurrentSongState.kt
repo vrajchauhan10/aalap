@@ -194,6 +194,8 @@ class CurrentSongState @Inject constructor() {
                     durationMs = _queue.value.firstOrNull { it.id == songId }?.durationMs ?: 0,
                 ),
             )
+            // Start measuring this song's real listening time.
+            if (!skippedOffline) com.music.spotui.data.preferences.ListenClock.songStarted(com.music.spotui.MyApplication.instance, songId)
         }
     }
 }
