@@ -35,7 +35,7 @@ object VibeStore {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val cache = LruCache<String, Vibe>(8000)
     private val languages = LruCache<String, String>(8000)
-    private data class ArtistInfo(val feel: Map<Feel, Double>, val mass: Double, val language: String, val at: Long)
+    private data class ArtistInfo(val feel: Map<Feel, Double>, val mass: Double, val language: String, val at: Long, val audioEnergy: Double? = null)
     private val artists = ConcurrentHashMap<String, ArtistInfo>()
     @Volatile private var trending: Pair<Long, Set<String>>? = null
 
@@ -72,11 +72,14 @@ object VibeStore {
         val share = count.mapValues { it.value / n }
         // Devotional and instrumental are what an artist does now and then, unless it's mostly what they do.
         val feel = share.mapValues { (f, v) -> if ((f == Feel.DEVOTIONAL || f == Feel.FOCUS) && v < 0.4) v * 0.3 else v }
+        // The artist's typical measured energy (when at least two of their songs were measured).
+        val measured = db.audio(songs.map { it.id }).values
         val info = ArtistInfo(
             feel = feel,
             mass = withEvidence.toDouble(),
             language = lang.maxByOrNull { it.value }?.key.orEmpty(),
             at = System.currentTimeMillis(),
+            audioEnergy = measured.takeIf { it.size >= 2 }?.map { it.energy }?.average(),
         )
         artists[key] = info
         return info
@@ -95,6 +98,7 @@ object VibeStore {
             val ids = Source.entries.flatMap { src -> db.cachedList(s.id, src, NEIGHBOUR_AGE_MS).orEmpty().take(8) }.distinct().take(16)
             if (ids.isNotEmpty()) neighbourIds[s.id] = ids
         }
+        val audio = db.audio(todo.map { it.id })
         val nSongs = db.songs(neighbourIds.values.flatten().toSet())
         val nTags = db.tags(nSongs.keys)
         for (s in todo) {
@@ -109,10 +113,12 @@ object VibeStore {
                 ids.mapNotNull { nSongs[it] }.forEach { ns -> Vibe.addInto(n, direct(ns, nTags[ns.id]), 1.0); k++ }
                 if (k > 0) Vibe.addInto(raw, n, 0.7 / k * minOf(k, 6))
             }
-            val v = Vibe.of(raw, Vibe.styles(s.title, s.info.album, s.artists))
+            // Measured from the sound: the song's own, else its artist's typical energy.
+            val own = audio[s.id]
+            val v = Vibe.of(raw, Vibe.styles(s.title, s.info.album, s.artists)).withAudio(own?.energy ?: a.audioEnergy, own?.bpm)
             cache.put(s.id, v)
             out[s.id] = v
-            languages.put(s.id, s.info.language.ifBlank { a.language }.lowercase())
+            languages.put(s.id, s.info.language.ifBlank { a.language.ifBlank { guessLanguage(s.title, s.info.album) } }.lowercase())
         }
         return out
     }
@@ -137,8 +143,24 @@ object VibeStore {
         song.info.language.takeIf { it.isNotBlank() }?.let { return it.lowercase() }
         languages.get(song.id)?.let { return it }
         val key = SongMatcher.artistKeys(song.artists).firstOrNull().orEmpty()
-        return artistInfo(RecoDb.get(context), key).language.lowercase().also { languages.put(song.id, it) }
+        return artistInfo(RecoDb.get(context), key).language.ifBlank { guessLanguage(song.title, song.info.album) }.lowercase().also { languages.put(song.id, it) }
     }
+
+    /** Saves a song's measured tempo and energy (from [com.music.aalap.audio.AudioAnalysis]). */
+    fun saveAudio(context: Context, song: SongsModel, r: com.music.aalap.audio.AudioFeatures.Result) {
+        scope.launch {
+            runCatching {
+                val db = RecoDb.get(context)
+                val s = db.resolve(SongBridge.toCandidate(song))
+                db.putAudio(s.id, r.bpm, r.energy, r.loudnessDb, r.beatStrength)
+                cache.remove(s.id)
+                SongMatcher.artistKeys(s.artists).firstOrNull()?.let { artists.remove(it) }
+                Log.d(TAG, "measured '${s.title}': " + "%.0f bpm, energy %.2f".format(r.bpm, r.energy))
+            }
+        }
+    }
+
+    fun guessLanguage(title: String, album: String = ""): String = LanguageGuess.of(title, album)
 
     // ── labels ─────────────────────────────────────────────────────────────
 

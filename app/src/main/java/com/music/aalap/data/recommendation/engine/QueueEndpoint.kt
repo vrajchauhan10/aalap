@@ -113,6 +113,52 @@ object QueueEndpoint {
             }
             return
         }
+        if (target.startsWith("/reco5")) {
+            // Debug (5.0): /reco5?dial=SURPRISE  /reco5?langs=punjabi:2,english:1 (or langs=auto)
+            //   /reco5?feedback=BLOCK_ARTIST&q=…  /reco5?clearfeedback=1  /reco5?audio=1  /reco5?blend=1
+            val c = context.applicationContext
+            val p = target.substringAfter("?", "").split("&").filter { "=" in it }.associate {
+                URLDecoder.decode(it.substringBefore("="), "UTF-8") to URLDecoder.decode(it.substringAfter("="), "UTF-8")
+            }
+            val out = JSONObject()
+            p["dial"]?.let { com.music.aalap.data.preferences.RecoPrefs.setDiscovery(c, com.music.aalap.data.preferences.RecoPrefs.Discovery.valueOf(it)) }
+            p["langs"]?.let { v ->
+                com.music.aalap.data.preferences.RecoPrefs.setLanguageLevels(c, if (v == "auto") emptyMap() else v.split(",").associate { it.substringBefore(":") to it.substringAfter(":").toInt() })
+            }
+            if (p["clearfeedback"] != null) Feedback.clearAll(c)
+            p["feedback"]?.let { kind ->
+                val cand = runBlocking { com.music.aalap.data.api.Api(c).searchCandidate(p["q"].orEmpty()) } ?: error("no song for ${p["q"]}")
+                val s = Feedback.record(c, SongBridge.toSongsModel(RecoDb.get(c).resolve(cand)), Feedback.Kind.valueOf(kind))
+                out.put("recorded", "$kind ${s.title} — ${s.artists}")
+            }
+            if (p["audio"] != null) {
+                val db = RecoDb.get(c)
+                val rows = db.readableDatabase.rawQuery("SELECT a.song_id, s.title, s.artist, a.bpm, a.energy, a.loudness_db FROM song_audio a LEFT JOIN songs s ON s.canonical_id = a.song_id ORDER BY a.at DESC LIMIT 20", null)
+                    .use { cur -> JSONArray().apply { while (cur.moveToNext()) put("${cur.getString(1)} — ${cur.getString(2)}: " + "%.0f bpm, energy %.2f, %.1f dB".format(cur.getDouble(3), cur.getDouble(4), cur.getDouble(5))) } }
+                out.put("measured", rows).put("count", db.audioCount())
+            }
+            if (p["blend"] != null) {
+                val mine = com.music.aalap.data.recommendation.Blend.myCard(c)
+                val code = com.music.aalap.data.recommendation.Blend.encode(mine)
+                // A made-up friend who loves Punjabi pop and party songs.
+                val friend = com.music.aalap.data.recommendation.Blend.TasteCard("Test friend", listOf("Diljit Dosanjh", "Karan Aujla", "AP Dhillon", "Badshah"),
+                    mapOf("PARTY" to 1.0, "ENERGETIC" to 0.9), listOf("Punjabi"),
+                    listOf(Triple("Lover", "Diljit Dosanjh", ""), Triple("Softly", "Karan Aujla", ""), Triple("Brown Munde", "AP Dhillon", ""), Triple("Proper Patola", "Diljit Dosanjh, Badshah", ""), Triple("Naah", "Harrdy Sandhu", "")))
+                val (id, n) = runBlocking { com.music.aalap.data.recommendation.Blend.make(c, friend) }
+                val songs = com.music.aalap.data.local.AalapPlaylists.get(c, id)?.songs.orEmpty()
+                out.put("my_code_chars", code.length).put("my_artists", JSONArray(mine.artists.take(6))).put("my_songs", mine.songs.size)
+                    .put("blend_songs", n).put("blend", JSONArray(songs.map { "${it.title} — ${it.singer.substringBefore(",")}" }))
+                com.music.aalap.data.local.AalapPlaylists.delete(c, id) // test only: don't leave it in the library
+            }
+            out.put("dial", com.music.aalap.data.preferences.RecoPrefs.discovery(c).name)
+                .put("langs", JSONObject(com.music.aalap.data.preferences.RecoPrefs.languageLevels(c) as Map<*, *>))
+            val bytes = out.toString(2).toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
         if (target.startsWith("/vibe?ids=")) {
             // Debug: the feel, energy and language the engine sees for canonical ids (comma-separated).
             val ids = URLDecoder.decode(target.substringAfter("ids="), "UTF-8").split(",").filter { it.isNotBlank() }
@@ -269,6 +315,8 @@ object QueueEndpoint {
                 put("artist", s.song.artists)
                 put("via", item.via)
                 put("liked", s.song.id in Personalizer.profile(context, userId).liked)
+                put("known", s.song.id in Personalizer.profile(context, userId).heard)
+                put("bpm", s.vibe.bpm ?: JSONObject.NULL)
                 put("sources", JSONArray(s.sources.map { it.name }))
                 put("global_score", s.global); put("taste_score", s.taste)
                 put("habit_score", s.habit); put("final_score", s.final)

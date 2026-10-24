@@ -4,6 +4,35 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 5.0.0 — 24 Oct 2026 (build 52)
+- **Aalap listens to the music.** While a song plays, Aalap measures its tempo and
+  energy on the phone (nothing is uploaded) and remembers them. Recommendations use the
+  real sound, not just labels: a calm song isn't followed by a loud one.
+- **Smooth flow.** The next song keeps close to the last one's energy and tempo, so the
+  queue doesn't jump from a slow ballad to a dance track.
+- **Learns from how long you listen.** Hearing a song to the end counts more than half
+  of it; skipping in the first seconds counts against it more than a late skip.
+- **"More like this" / "Less like this" / "Don't play this song" / "Don't play <artist>"**
+  in every song's menu and the player menu. The queue changes right away; it's
+  remembered, and Settings → Recommendations can clear it. A blocked artist doesn't play
+  in duets or features either.
+- **Discovery dial** (Settings → Recommendations): Familiar, Mostly familiar, Balanced,
+  Explore, Surprise me.
+- **Language mix** (Settings → Recommendations): choose Off / Some / Lots per language
+  (Hindi, Punjabi, English…). Languages you ask for come in even when the song you
+  started with is in another one, in the same mood.
+- **Re-discover and surprises.** Old favourites you haven't played in a while come back
+  now and then, and sometimes a song by an artist new to you that fits the mood.
+- **Ask Aalap.** A mic button on Home, an "Ask Aalap" Quick Settings tile and an app
+  shortcut (long-press the icon): say a song, artist or mood. The first request right
+  after the app opens no longer fails.
+- **Blend** (Settings → Share): share your taste as a code, and make a playlist with a
+  friend's code: your songs that suit them, theirs that suit you, and new songs you'd
+  both like. Free and private: no server or account, and no history is shared.
+- Tested: 56 automatic tests (feel, flow, dial, language mix, feedback, re-discover,
+  tempo detection, Blend codes) and on the phone (tempo of real songs, language mix,
+  blocking, Blend, the menus, mic, tile and shortcut).
+
 ## 4.4.0 — 24 Oct 2026 (build 51)
 - **Ready for Gemini (Android AppFunctions).** Aalap now tells Android what it can do
   for an assistant: play music (a song, an artist, a mood, Liked Songs, Aaj ka Aalap, or

@@ -217,6 +217,18 @@ fun SongOptionsSheet(
                 // Same as the player: a song card, with the link hidden behind "Listen on Aalap".
                 com.music.aalap.ui.screens.shareSongCard(context, shareScope, song, onDismiss)
             }
+            // Tell the recommendations what you think of this song.
+            listOf(
+                Triple(androidx.compose.ui.graphics.vector.ImageVector.vectorResource(com.music.aalap.R.drawable.ic_thumb_up), "More like this", com.music.aalap.data.recommendation.engine.Feedback.Kind.MORE),
+                Triple(androidx.compose.ui.graphics.vector.ImageVector.vectorResource(com.music.aalap.R.drawable.ic_thumb_down), "Less like this", com.music.aalap.data.recommendation.engine.Feedback.Kind.LESS),
+                Triple(androidx.compose.ui.graphics.vector.ImageVector.vectorResource(com.music.aalap.R.drawable.ic_block), "Don't play this song", com.music.aalap.data.recommendation.engine.Feedback.Kind.BLOCK_SONG),
+                Triple(androidx.compose.ui.graphics.vector.ImageVector.vectorResource(com.music.aalap.R.drawable.ic_block), "Don't play " + song.singer.substringBefore(",").trim(), com.music.aalap.data.recommendation.engine.Feedback.Kind.BLOCK_ARTIST),
+            ).forEach { (icon, label, kind) ->
+                SongMenuRow(icon, label) {
+                    playerViewModel.feedback(song, kind, context)
+                    onDismiss()
+                }
+            }
             Spacer(modifier = Modifier.padding(8.dp))
         }
     }

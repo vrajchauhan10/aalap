@@ -1273,6 +1273,20 @@ fun PlayerOptionsSheet(
                     icon = Icons.Default.Share,
                     label = "Share song"
                 ) { shareSongCard(context, shareScope, currentSong, onDismiss) }
+                if (currentSong != null) {
+                    // Tell the recommendations what you think of this song.
+                    listOf(
+                        Triple(androidx.compose.ui.graphics.vector.ImageVector.vectorResource(com.music.aalap.R.drawable.ic_thumb_up), "More like this", com.music.aalap.data.recommendation.engine.Feedback.Kind.MORE),
+                        Triple(androidx.compose.ui.graphics.vector.ImageVector.vectorResource(com.music.aalap.R.drawable.ic_thumb_down), "Less like this", com.music.aalap.data.recommendation.engine.Feedback.Kind.LESS),
+                        Triple(androidx.compose.ui.graphics.vector.ImageVector.vectorResource(com.music.aalap.R.drawable.ic_block), "Don't play this song", com.music.aalap.data.recommendation.engine.Feedback.Kind.BLOCK_SONG),
+                        Triple(androidx.compose.ui.graphics.vector.ImageVector.vectorResource(com.music.aalap.R.drawable.ic_block), "Don't play " + currentSong.singer.substringBefore(",").trim(), com.music.aalap.data.recommendation.engine.Feedback.Kind.BLOCK_ARTIST),
+                    ).forEach { (icon, label, kind) ->
+                        PlayerMenuRow(icon = icon, label = label) {
+                            playerViewModel.feedback(currentSong, kind, context)
+                            onDismiss()
+                        }
+                    }
+                }
                 PlayerMenuRow(
                     icon = if (downloaded) Icons.Default.CheckCircle else ImageVector.vectorResource(R.drawable.ic_download),
                     iconTint = if (downloaded) Color(AppPalette.toArgb()) else com.music.aalap.ui.theme.TextPrimary,

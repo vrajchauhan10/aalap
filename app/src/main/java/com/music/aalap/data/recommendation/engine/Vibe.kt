@@ -24,12 +24,33 @@ enum class Feel(val energy: Double, val label: String) {
  * 0..1), and its [styles] (lofi, rap, remix, sufi…), which work like genres.
  * Pure (no Android), so the queue rules can be tested on their own.
  */
-class Vibe(val weights: Map<Feel, Double>, val confidence: Double, val styles: Set<String> = emptySet()) {
+class Vibe(
+    val weights: Map<Feel, Double>,
+    val confidence: Double,
+    val styles: Set<String> = emptySet(),
+    /** Measured from the sound itself while it played (0..1), when known. */
+    val audioEnergy: Double? = null,
+    /** Beats per minute, measured from the sound, when known. */
+    val bpm: Double? = null,
+) {
 
     val known: Boolean get() = confidence >= 0.15 && weights.isNotEmpty()
 
-    /** 0..1: how high-tempo the song is. 0.5 when unknown. */
-    val energy: Double get() = if (weights.isEmpty()) 0.5 else weights.entries.sumOf { it.key.energy * it.value }
+    /** Whether the energy is more than a guess (from the sound, or a known feel). */
+    val energyKnown: Boolean get() = audioEnergy != null || known
+
+    /** 0..1: how high-energy the song is: measured from the sound when known, else from its feel. 0.5 when unknown. */
+    val energy: Double get() {
+        val fromFeel = if (weights.isEmpty()) null else weights.entries.sumOf { it.key.energy * it.value }
+        return when {
+            audioEnergy != null && fromFeel != null -> 0.4 * fromFeel + 0.6 * audioEnergy
+            audioEnergy != null -> audioEnergy
+            fromFeel != null -> fromFeel
+            else -> 0.5
+        }
+    }
+
+    fun withAudio(energy: Double?, bpm: Double?): Vibe = Vibe(weights, confidence, styles, energy ?: audioEnergy, bpm ?: this.bpm)
 
     val dominant: Feel? get() = weights.maxByOrNull { it.value }?.key
 
@@ -46,7 +67,7 @@ class Vibe(val weights: Map<Feel, Double>, val confidence: Double, val styles: S
 
     override fun toString(): String =
         weights.entries.sortedByDescending { it.value }.take(2).joinToString("+") { "${it.key.label} %.0f%%".format(it.value * 100) } +
-            " (E %.2f, conf %.2f%s)".format(energy, confidence, if (styles.isEmpty()) "" else ", " + styles.joinToString("/"))
+            " (E %.2f, conf %.2f%s%s)".format(energy, confidence, if (bpm != null) ", %.0f bpm".format(bpm) else "", if (styles.isEmpty()) "" else ", " + styles.joinToString("/"))
 
     companion object {
         val UNKNOWN = Vibe(emptyMap(), 0.0)

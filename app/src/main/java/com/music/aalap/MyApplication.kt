@@ -39,6 +39,10 @@ class MyApplication : Application(), androidx.appfunctions.service.AppFunctionCo
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // Each song's tempo and energy, measured as it plays, go to the recommendation engine.
+        com.music.aalap.audio.AudioAnalysis.onMeasured = { song, result ->
+            com.music.aalap.data.recommendation.engine.VibeStore.saveAudio(this, song, result)
+        }
         // Whether any Aalap screen is showing (background starts need a foreground service).
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(a: android.app.Activity) { visible++ }

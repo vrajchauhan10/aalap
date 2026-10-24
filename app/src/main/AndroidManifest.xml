@@ -34,6 +34,8 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Long-press the app icon: "Ask Aalap". -->
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
             <!-- Voice assistants (Google Assistant, Gemini, Bixby): "play Kesariya on Aalap". -->
             <intent-filter>
                 <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
@@ -88,6 +90,17 @@
             android:resource="@xml/automotive_app_desc" />
 
         <!-- Holds the foreground for a few seconds while a background play press finds its song. -->
+        <!-- Quick-settings tile: "Ask Aalap". -->
+        <service
+            android:name=".ui.notification.VoiceTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_mic"
+            android:label="@string/ask_aalap"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
         <service
             android:name=".ui.notification.StartupService"
             android:exported="false"

@@ -21,14 +21,36 @@ import com.music.aalap.di.SongPlayer
 import com.music.aalap.ui.notification.PlaybackService
 import com.music.aalap.ui.theme.AalapTheme
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     @javax.inject.Inject lateinit var currentSongState: com.music.aalap.di.CurrentSongState
 
+    /** The phone's speech recogniser, for the voice button; what you say goes to VoicePlay. */
+    private val speech = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
+        val words = res.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (res.resultCode == RESULT_OK && !words.isNullOrBlank()) {
+            com.music.aalap.di.VoicePlay.handle(this, currentSongState, com.music.aalap.di.VoicePlay.Request(words), fromApp = true)
+        }
+    }
+
+    private fun listen() {
+        val i = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Play a song, an artist or a mood")
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
+        runCatching { speech.launch(i) }.onFailure {
+            android.widget.Toast.makeText(this, "This phone has no speech recognition", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     /** A voice assistant or an aalap://play link asked for music. */
     private fun handlePlayIntent(intent: android.content.Intent?) {
+        if (intent?.action == com.music.aalap.di.VoiceAsk.ACTION) { listen(); return }
         val req = com.music.aalap.di.VoicePlay.fromIntent(intent)
             ?: intent?.data?.takeIf { it.scheme == "aalap" && it.host == "play" }?.let {
                 com.music.aalap.di.VoicePlay.Request(it.getQueryParameter("q").orEmpty())
@@ -112,6 +134,10 @@ class MainActivity : ComponentActivity() {
         }
         // Opened by a voice request (not when Android rebuilds the screen: it was handled then).
         if (savedInstanceState == null) handlePlayIntent(intent)
+        // The mic on Home.
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) { com.music.aalap.di.VoiceAsk.requests.collect { listen() } }
+        }
     }
 
     override fun onDestroy() {

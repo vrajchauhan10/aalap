@@ -78,6 +78,20 @@ docs/recommendation/schema.sql
 
 **Fallbacks** when no source answers: your own transitions after the seed, then the seed artist's top tracks.
 
+### 5.0 additions
+
+| Part | How |
+|---|---|
+| Audio analysis | `audio/AudioFeatureTap` listens to ~40 s of each song as it plays (passing audio through unchanged) and `AudioFeatures` measures its tempo (onset autocorrelation, 60–180 bpm, preferring ~120 when half/double time fit equally) and energy (loudness, beat strength, tempo). Saved per song in `song_audio`; an artist's typical measured energy fills in for their unmeasured songs. |
+| Listening length | A play counts `0.35 + 0.65 × share heard`; a skip −0.6, a skip in the first 10 s −0.9 (`TasteProfile.playWeight`). Feels you finish are weighted the same way. |
+| Smooth flow | Energy change over 0.18 from the song before: ×(1 − 1.6 × excess, at most −45%); tempo off by over 20% (half/double time allowed): ×0.85; within 6%: +0.03. |
+| Feedback | `Feedback`: blocked songs/artists never play; "less like this" ×0.2 for the song, ×0.55 per time for its artist, and its feel −40%; "more like this" ×1.3 song, +15% per time for its artist, +20% for its feel. Acts at once: skips/removes and redoes the queued picks; the session is nudged toward (+1) or away (−1) for two hours. |
+| Discovery dial | Familiar 75% known · Mostly familiar 55% · Balanced (learned) · Explore 20% · Surprise me 8% known and 30% surprises. The pull grows with the distance from the middle. |
+| Language mix | Off / Some / Lots per language; languages turned off ×0.35; a language behind its share +0.08 + 0.4 × gap; one well over ×0.8. Titles without a language label get one from their words (`LanguageGuess`). |
+| Re-discover | Songs finished 3+ times but not played for 45+ days join the candidates when they fit; +0.1 up to 10% of the queue, ×0.5 beyond. |
+| Surprise | New to you, by an artist you don't usually play, and fits the session (≥ 0.65): +0.12 (more on Surprise me) up to the dial's share. |
+| Blend | `Blend`: a taste code (top artists, feels, languages, 25 favourites; gzip + base64) to share; from a friend's code, a playlist of your songs that fit them, theirs that fit you, and new songs after artists you share. |
+
 ### The session
 
 The session is the song you chose (counts most, 1.2), the songs you played in the

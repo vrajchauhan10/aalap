@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">Aalap</string>
+    <string name="ask_aalap">Ask Aalap</string>
+    <string name="ask_aalap_long">Ask Aalap: say a song, artist or mood</string>
     <string name="widget_large_desc">Now playing with artwork and controls</string>
     <string name="widget_compact_desc">Small player: cover, song, previous, play and next</string>
     <string name="widget_idle_title">Aalap</string>

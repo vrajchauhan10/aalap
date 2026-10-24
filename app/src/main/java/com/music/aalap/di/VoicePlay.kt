@@ -162,7 +162,12 @@ object VoicePlay {
                 "${song.title} — ${song.singer}"
             }
             is Plan.Artist -> {
-                val top = api.artistTopCandidates(plan.name)
+                var top = api.artistTopCandidates(plan.name)
+                if (top.isEmpty()) {
+                    kotlinx.coroutines.delay(1_200)
+                    runCatching { com.music.aalap.data.api.SpotifyTokenProvider.ensureToken(context, force = true) }
+                    top = api.artistTopCandidates(plan.name)
+                }
                 val db = com.music.aalap.data.recommendation.engine.RecoDb.get(context)
                 val songs = db.resolveAll(top).map(com.music.aalap.data.recommendation.engine.SongBridge::toSongsModel)
                 if (songs.isEmpty()) return findSong(context, plan.query())?.let { s ->
@@ -293,7 +298,13 @@ object VoicePlay {
             val q = query.lowercase()
             return com.music.aalap.data.preferences.getDownloadedSongs(context).firstOrNull { q.contains(it.title.lowercase()) || it.title.lowercase().contains(q) }
         }
-        val results = com.music.aalap.data.api.Api(context).searchCandidates(query, 10)
+        var results = com.music.aalap.data.api.Api(context).searchCandidates(query, 10)
+        // Right after Aalap starts the search sign-in may not be ready yet: refresh it once and retry.
+        if (results.isEmpty()) {
+            kotlinx.coroutines.delay(1_200)
+            runCatching { com.music.aalap.data.api.SpotifyTokenProvider.ensureToken(context, force = true) }
+            results = com.music.aalap.data.api.Api(context).searchCandidates(query, 10)
+        }
         val c = bestMatch(query, results, known(context)) ?: return null
         val song = com.music.aalap.data.recommendation.engine.RecoDb.get(context).resolve(c)
         return com.music.aalap.data.recommendation.engine.SongBridge.toSongsModel(song)

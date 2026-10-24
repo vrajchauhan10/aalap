@@ -211,6 +211,11 @@ object QueueEngine {
             add(s, if (i == 0 && !p.skipped) 0.8 else if (p.skipped) -0.9 * base else 0.8 * base)
         }
         if (out.none { it.id == seed.id }) songs[seed.id]?.let { add(it, if (anchor == null) 1.0 else 0.6) }
+        // "More / less like this" from the last two hours turn the session toward or away.
+        com.music.aalap.data.recommendation.PlayContext.nudges().forEach { (model, w) ->
+            val s = db.resolve(SongBridge.toCandidate(model))
+            out.add(SessionSong(s.id, s.artists, VibeStore.vibe(context, s), VibeStore.language(context, s), w))
+        }
         return out
     }
 
@@ -256,12 +261,27 @@ object QueueEngine {
         val sessionSongs = buildSession(context, userId, seed, anchor)
         val trending = VibeStore.trendingIds(context)
         val favouriteIds = profile.songAffinity.entries.sortedByDescending { it.value }.take(40).map { it.key }
-        var state = PickState(recentArtists = sessionSongs.mapNotNull { SongMatcher.artistKeys(it.artists).firstOrNull() })
+        var state = PickState(
+            recentArtists = sessionSongs.mapNotNull { SongMatcher.artistKeys(it.artists).firstOrNull() },
+            lastVibe = sessionSongs.firstOrNull { it.id == seed.id }?.vibe ?: VibeStore.vibe(context, seed),
+        )
+        // Your settings: the discovery dial and the language mix; and your feedback.
+        val dial = com.music.aalap.data.preferences.RecoPrefs.discovery(context)
+        val feedback = Feedback.snapshot(context, userId)
         val targets = Targets(
-            familiar = if (profile.isNew) 0.0 else profile.familiarTarget,
+            familiar = if (profile.isNew) 0.0 else dial.familiar ?: profile.familiarTarget,
             maxLiked = 0.35,
             fromList = if (poolSongs.isNotEmpty()) 0.35 else 0.0,
+            rediscover = if (dial == com.music.aalap.data.preferences.RecoPrefs.Discovery.SURPRISE) 0.05 else 0.1,
+            surprise = if (profile.isNew) 0.0 else dial.surprise,
+            languageMix = com.music.aalap.data.preferences.RecoPrefs.languageMix(context),
         )
+        val rediscoverIds = profile.rediscover.toList()
+        // Your language mix: what plays after the seed is mostly in its own language, so
+        // the other languages you asked for come from a radio of each in this feel (fetched
+        // alongside; joins from the pick it's ready for).
+        val mix = targets.languageMix
+        val langRadio = if (mix.isEmpty()) null else scope.async { languageRadio(context, mix, state.lastVibe ?: Vibe.UNKNOWN) }
         RecoTrace.log("━━━━ UP NEXT after '${seed.title}' — ${seed.artists} ━━━━")
         RecoTrace.log("  session: ${sessionSongs.size} songs, feel ${Session(sessionSongs, profile.dayPartFeel).vibe}; " +
             "aim ${"%.0f".format(targets.familiar * 100)}% known songs" + (if (poolSongs.isNotEmpty()) ", ${"%.0f".format(targets.fromList * 100)}% from '${play.poolName}'" else ""))
@@ -285,10 +305,11 @@ object QueueEngine {
 
             // Candidates: what the world plays next, your habits, and (only if they fit)
             // the playlist you started from, your all-time favourites and today's trending songs.
-            val globalOf = fused.associate { it.id to it.score / top }
+            val langPool = langRadio?.takeIf { it.isCompleted && !it.isCancelled }?.let { runCatching { it.await() }.getOrNull() }.orEmpty()
+            val globalOf = langPool + fused.associate { it.id to it.score / top }
             val sourcesOf = fused.associate { it.id to it.sources }
             val extraPool = poolSongs.filter { it.id !in excluded }.shuffled(rnd).take(30)
-            val extraIds = favouriteIds + trending.shuffled(rnd).take(25)
+            val extraIds = favouriteIds + trending.shuffled(rnd).take(25) + rediscoverIds.shuffled(rnd).take(20)
             // What plays after the session as a whole stays in the running at every step, so one
             // off pick can't drag the queue somewhere else (all candidates would follow it).
             val sessionIds = sessionRank.entries.sortedByDescending { it.value }.take(30).map { it.key }
@@ -297,7 +318,7 @@ object QueueEngine {
             val vibes = VibeStore.vibes(context, songs.values)
             val session = Session(sessionSongs, profile.dayPartFeel)
             val features = songs.values.mapNotNull { s ->
-                if (s.id in excluded || SongBridge.appId(s) in excludeAppIds) return@mapNotNull null
+                if (s.id in excluded || SongBridge.appId(s) in excludeAppIds || feedback.blocked(s)) return@mapNotNull null
                 val v = vibes[s.id] ?: Vibe.UNKNOWN
                 val global = globalOf[s.id] ?: 0.0
                 val habit = habits[s.id]?.let { TasteProfile.habit(it.count, it.lastAt, now) } ?: 0.0
@@ -306,11 +327,18 @@ object QueueEngine {
                 // Songs nobody suggested after this one only join if they fit the session (feel and language).
                 if (global == 0.0 && habit == 0.0 && (sessionRank[s.id] ?: 0.0) < 0.3 &&
                     (session.vibeScore(v) < (if (fromList) 0.5 else 0.62) || session.languageScore(lang) < 0.5)) return@mapNotNull null
+                // A language you turned off in your mix doesn't play (unless it's all there is).
+                if (mix.isNotEmpty() && (mix[lang] ?: 0.0) <= 0.0 && lang.isNotBlank() && global < 0.5) return@mapNotNull null
                 Features(
                     song = s, global = global, session = sessionRank[s.id] ?: 0.0, vibe = v,
                     language = lang, taste = profile.taste(s.info, s.id, v), habit = habit,
                     trend = s.id in trending, familiar = s.id in profile.heard, liked = s.id in profile.liked,
                     fromList = fromList, sources = sourcesOf[s.id].orEmpty(),
+                    rediscover = s.id in profile.rediscover,
+                    // A surprise: new to you, by an artist you don't usually play, and it fits.
+                    surprise = !profile.isNew && s.id !in profile.heard && s.id !in profile.liked &&
+                        SongMatcher.artistKeys(s.artists).firstOrNull() !in profile.usualArtists && session.vibeScore(v) >= 0.65,
+                    feedback = feedback.factor(s, v),
                 )
             }
             if (RecoTrace.on) {
@@ -354,6 +382,29 @@ object QueueEngine {
     }
 
     /** No source answered: your own transitions after the seed, then the artist's top tracks. */
+    /**
+     * Songs in each language of your mix (up to three) that fit [feel]: what plays after
+     * a top search hit for "<feel> <language> songs". Canonical id → score (0..0.6), a
+     * bit under what the seed's own sources score so the session still leads.
+     */
+    private suspend fun languageRadio(context: Context, mix: Map<String, Double>, feel: Vibe): Map<String, Double> = coroutineScope {
+        val db = RecoDb.get(context)
+        val mood = feel.takeIf { it.known }?.dominant?.label.orEmpty()
+        mix.filterValues { it > 0 }.keys.take(3).map { lang ->
+            async {
+                runCatching {
+                    withTimeoutOrNull(8_000) {
+                        val hit = com.music.aalap.data.api.Api(context).searchCandidate("$mood $lang songs".trim()) ?: return@withTimeoutOrNull emptyMap()
+                        val start = db.resolve(hit)
+                        val fused = Fusion.fuse(ranked(context, start, BACKGROUND_TIMEOUT_MS)).take(30)
+                        val top = fused.firstOrNull()?.score?.takeIf { it > 0 } ?: 1.0
+                        fused.associate { it.id to 0.6 * it.score / top } + (start.id to 0.5)
+                    }
+                }.getOrNull().orEmpty()
+            }
+        }.awaitAll().fold(HashMap<String, Double>()) { acc, m -> m.forEach { (k, v) -> acc[k] = maxOf(acc[k] ?: 0.0, v) }; acc }
+    }
+
     private suspend fun fallback(
         context: Context,
         userId: String,

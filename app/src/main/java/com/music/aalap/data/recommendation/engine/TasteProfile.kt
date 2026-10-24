@@ -35,7 +35,12 @@ class TasteProfile(
     val familiarTarget: Double = 0.35,
     /** Songs you've finished at least once. */
     val heard: Set<String> = emptySet(),
+    /** Old favourites: finished 3+ times, not played in 45+ days. */
+    val rediscover: Set<String> = emptySet(),
 ) {
+    /** Artists you play a fair bit (a song by anyone else can be a surprise). */
+    val usualArtists: Set<String> by lazy { artistWeight.filterValues { it >= 0.15 }.keys }
+
     /** "For new users with no history, use globalScore only." */
     val isNew: Boolean get() = playCount < 3
 
@@ -75,6 +80,14 @@ class TasteProfile(
             val ageDays = (now - lastAt).coerceAtLeast(0) / 86_400_000.0
             return strength * (if (ageDays <= 90) 1.0 else 0.6)
         }
+
+        /**
+         * What one play says about liking a song (before fading with age): a full listen +1,
+         * half a song about +0.67, a skip -0.6, a skip in the first 10 seconds -0.9.
+         * [heard] is the share of the song heard (0..1).
+         */
+        fun playWeight(skipped: Boolean, listenedMs: Long, heard: Double): Double =
+            if (skipped) (if (listenedMs in 1 until 10_000) -0.9 else -0.6) else 0.35 + 0.65 * heard.coerceIn(0.0, 1.0)
 
         /** finalScore = 0.6·global + 0.2·taste + 0.2·habit (global only for new listeners). */
         fun final(global: Double, taste: Double, habit: Double, isNew: Boolean): Double =

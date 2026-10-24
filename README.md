@@ -17,8 +17,11 @@ in high quality, with lyrics and offline listening.
 - **Plays everywhere.** Several audio sources race each other in the background, so a
   song keeps playing when one source is slow. You only ever see Aalap.
 - **Daily Home.** Mood mixes, charts, fresh picks and your favourites, refreshed through the day.
-- **Smart radio.** Up next blends several recommendation feeds with your own listening
-  habits.
+- **Smart radio.** Up next blends what YouTube Music, Spotify and JioSaavn play next with
+  your session's feel, your taste, how much of each song you hear, trends and old
+  favourites; measures each song's tempo and energy on the phone for a smooth flow; obeys
+  "more / less like this", a discovery dial and your language mix.
+- **Blend.** Share a taste code with a friend; Aalap makes a playlist of both your tastes.
 - **Lyrics.** Synced, karaoke-style lyrics. Share any line as a card.
 - **Replay.** Your top artists and songs and minutes listened, by month and year. Also a
   Wrapped-style recap.

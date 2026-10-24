@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import com.music.aalap.data.recommendation.engine.Feedback.Kind as K
 
 /**
  * Starting music from a list.
@@ -62,6 +63,72 @@ object SmartPlay {
                 Recommender.next(app, song, setOf(song.id), length = 6).collect { next ->
                     val q = state.queue.value
                     if (q.firstOrNull()?.id != song.id) throw CancellationException("queue replaced")
+                    if (q.none { it.id == next.id }) state.updateQueue(q + next)
+                }
+            }
+        }
+    }
+
+    /**
+     * Your feedback on [song] from its menu. It's remembered for good, and acts now:
+     * "more like this" redoes the queued recommendations toward it; "less like this",
+     * "don't play this song" and "don't play this artist" skip it if it's playing and
+     * take matching songs out of the queue.
+     */
+    fun feedback(context: Context, state: CurrentSongState, song: SongsModel, kind: com.music.aalap.data.recommendation.engine.Feedback.Kind) {
+        val app = context.applicationContext
+        when (kind) {
+            K.MORE -> PlayContext.nudge(song, 1.0)
+            K.LESS -> PlayContext.nudge(song, -1.0)
+            else -> {}
+        }
+        scope.launch {
+            runCatching { com.music.aalap.data.recommendation.engine.Feedback.record(app, song, kind) }
+            val artist = com.music.aalap.data.recommendation.engine.SongMatcher.artistKeys(song.singer).firstOrNull()
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                val q = state.queue.value
+                val cur = q.indexOfFirst { it.id == state.songId.value }
+                // Take out what shouldn't play any more.
+                val gone: (SongsModel) -> Boolean = { s ->
+                    when (kind) {
+                        K.BLOCK_SONG, K.LESS -> s.id == song.id
+                        K.BLOCK_ARTIST -> artist != null && artist in com.music.aalap.data.recommendation.engine.SongMatcher.artistKeys(s.singer)
+                        K.MORE -> false
+                    }
+                }
+                val skipNow = cur >= 0 && kind != K.MORE && gone(q[cur])
+                // The engine's queued picks after the current song are redone with the feedback.
+                val kept = q.filterIndexed { i, s -> i <= cur || (!gone(s) && !PlayContext.isAuto(s.id)) }
+                state.updateQueue(kept)
+                val playing = kept.getOrNull(cur.coerceAtLeast(0))
+                if (skipNow) {
+                    val next = kept.getOrNull(cur + 1)
+                    if (next != null) {
+                        state.updateSongState(next.coverUri, next.title, next.singer, true, next.id, cur + 1, next.album)
+                        SongPlayer.playSong(next.url, app)
+                    }
+                }
+                val seed = if (skipNow) kept.getOrNull(cur + 1) ?: playing else playing
+                // Only where the engine was choosing (a playlist playing in order stays as it is).
+                val hadPicks = q.drop(cur + 1).any { PlayContext.isAuto(it.id) }
+                if (seed != null && (hadPicks || kept.size <= cur + 2)) refill(app, state, seed)
+                android.widget.Toast.makeText(app, when (kind) {
+                    K.MORE -> "More like this, coming up"
+                    K.LESS -> "Less like this from now on"
+                    K.BLOCK_SONG -> "Won't play this song again"
+                    K.BLOCK_ARTIST -> "Won't play ${song.singer.substringBefore(",")} again"
+                }, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /** Adds fresh recommendations after [seed] (the engine sees the feedback). */
+    private fun refill(app: Context, state: CurrentSongState, seed: SongsModel) {
+        job?.cancel()
+        job = scope.launch {
+            runCatching {
+                Recommender.next(app, seed, state.queue.value.mapTo(HashSet()) { it.id }, length = 6).collect { next ->
+                    val q = state.queue.value
                     if (q.none { it.id == next.id }) state.updateQueue(q + next)
                 }
             }

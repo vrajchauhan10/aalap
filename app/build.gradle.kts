@@ -24,8 +24,8 @@ android {
         targetSdk = 34
         // Must exceed every published build (1.6 shipped as versionCode 16).
         // 2.0.0 is the first Aalap release.
-        versionCode = 51
-        versionName = "4.4.0"
+        versionCode = 52
+        versionName = "5.0.0"
         // Optional Last.fm key for the similar-tracks source (empty = source off).
         buildConfigField("String", "LASTFM_API_KEY", "\"${(project.findProperty("lastfmApiKey") as String?).orEmpty()}\"")
 
@@ -96,6 +96,8 @@ dependencies {
     // Spotify metadata + YouTube streaming, ported from Meld (replaces Firebase data layer)
     implementation(project(":spotify"))
     implementation(project(":innertube"))
+    // Real org.json for unit tests (Android's is a stub off the device).
+    testImplementation("org.json:json:20240303")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")

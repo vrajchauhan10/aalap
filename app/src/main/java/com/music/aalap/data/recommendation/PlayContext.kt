@@ -49,4 +49,18 @@ object PlayContext {
     }
 
     fun isAuto(appId: Int): Boolean = appId in auto
+
+    private val nudgeList = Collections.synchronizedList(ArrayList<Triple<SongsModel, Double, Long>>())
+
+    /** "More like this" (+1) or "less like this" (-1) on [song]: the session turns toward or away from it. */
+    fun nudge(song: SongsModel, weight: Double) {
+        nudgeList += Triple(song, weight, System.currentTimeMillis())
+        if (nudgeList.size > 20) nudgeList.removeAt(0)
+    }
+
+    /** Nudges from the last two hours (song, weight). */
+    fun nudges(): List<Pair<SongsModel, Double>> {
+        val cut = System.currentTimeMillis() - 2 * 3_600_000L
+        return synchronized(nudgeList) { nudgeList.filter { it.third >= cut }.map { it.first to it.second } }
+    }
 }

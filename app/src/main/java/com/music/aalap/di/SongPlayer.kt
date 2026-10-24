@@ -1384,6 +1384,8 @@ object SongPlayer {
                     .setAudioProcessorChain(
                         androidx.media3.exoplayer.audio.DefaultAudioSink.DefaultAudioProcessorChain(
                             filter,
+                            // Measures each song's tempo and energy as it plays (for recommendations).
+                            com.music.aalap.audio.AudioFeatureTap(),
                         ),
                     ).build()
         }

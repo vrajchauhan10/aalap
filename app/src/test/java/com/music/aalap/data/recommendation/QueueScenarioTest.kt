@@ -79,7 +79,13 @@ class QueueScenarioTest {
                 }
             }
             val id = "${g.name}:$i"
-            WSong(Song(id, Candidate(title = "${g.label} song $i", artists = artist, language = g.language)), g, vibe, artist, rnd0.nextDouble() < 0.08)
+            // Tempo and measured energy around the genre's own, with spread (some songs calmer, some faster).
+            val baseBpm = mapOf(Feel.PARTY to 124.0, Feel.ENERGETIC to 138.0, Feel.HAPPY to 112.0, Feel.ROMANTIC to 86.0,
+                Feel.SAD to 74.0, Feel.CHILL to 82.0, Feel.DEVOTIONAL to 92.0, Feel.FOCUS to 70.0).getValue(g.main)
+            val baseE = mapOf(Feel.PARTY to 0.85, Feel.ENERGETIC to 0.9, Feel.HAPPY to 0.7, Feel.ROMANTIC to 0.45,
+                Feel.SAD to 0.3, Feel.CHILL to 0.35, Feel.DEVOTIONAL to 0.4, Feel.FOCUS to 0.25).getValue(g.main)
+            val v2 = vibe.withAudio((baseE + (rnd0.nextDouble() - 0.5) * 0.5).coerceIn(0.05, 1.0), baseBpm * (0.85 + rnd0.nextDouble() * 0.3))
+            WSong(Song(id, Candidate(title = "${g.label} song $i", artists = artist, language = g.language)), g, v2, artist, rnd0.nextDouble() < 0.08)
         }
     }
     private val byId = world.associateBy { it.song.id }
@@ -178,6 +184,10 @@ class QueueScenarioTest {
         pool: List<WSong> = emptyList(),
         skipped: List<WSong> = emptyList(),
         onPick: (WSong) -> Unit = {},
+        tune: (Targets) -> Targets = { it },
+        feedback: com.music.aalap.data.recommendation.engine.Feedback.Snapshot = com.music.aalap.data.recommendation.engine.Feedback.Snapshot(),
+        rediscoverIds: Set<String> = emptySet(),
+        flow: Boolean = true,
     ): List<WSong> {
         val out = ArrayList<WSong>()
         val excluded = hashSetOf(seed.song.id)
@@ -185,8 +195,8 @@ class QueueScenarioTest {
         session += SessionSong(seed.song.id, seed.artist, seed.vibe, seed.genre.language, 1.2)
         skipped.forEach { session += SessionSong(it.song.id, it.artist, it.vibe, it.genre.language, -0.9) }
         val profile = if (isNew) TasteProfile.EMPTY else newProfile
-        var state = PickState(recentArtists = listOf(com.music.aalap.data.recommendation.engine.SongMatcher.artistKeys(seed.artist).first()))
-        val targets = Targets(familiar = if (isNew) 0.0 else profile.familiarTarget, maxLiked = 0.35, fromList = if (pool.isEmpty()) 0.0 else 0.35)
+        var state = PickState(recentArtists = listOf(com.music.aalap.data.recommendation.engine.SongMatcher.artistKeys(seed.artist).first()), lastVibe = seed.vibe)
+        val targets = tune(Targets(familiar = if (isNew) 0.0 else profile.familiarTarget, maxLiked = 0.35, fromList = if (pool.isEmpty()) 0.0 else 0.35, surprise = if (isNew) 0.0 else 0.1))
         val poolIds = pool.map { it.song.id }.toSet()
         val favourites = profile.songAffinity.entries.sortedByDescending { it.value }.take(40).map { it.key }
         val trending = world.filter { it.trending }
@@ -199,20 +209,25 @@ class QueueScenarioTest {
             val wsum = sessionSeeds.sumOf { it.second }
             val sess = Session(session)
             val sessionIds = sessionRank.entries.sortedByDescending { it.value }.take(30).map { it.key }
-            val ids = global.keys + pool.shuffled(r).take(30).map { it.song.id } + favourites + trending.shuffled(r).take(25).map { it.song.id } + sessionIds
+            val ids = global.keys + pool.shuffled(r).take(30).map { it.song.id } + favourites + trending.shuffled(r).take(25).map { it.song.id } + sessionIds + rediscoverIds.shuffled(r).take(20)
             val features = ids.distinct().mapNotNull { id ->
                 val s = byId.getValue(id)
                 val g = global[id] ?: 0.0
                 val fromList = id in poolIds
                 val sr = (sessionRank[id] ?: 0.0) / wsum
+                if (feedback.blocked(s.song)) return@mapNotNull null
                 if (g == 0.0 && sr < 0.3 && (sess.vibeScore(s.vibe) < (if (fromList) 0.5 else 0.62) || sess.languageScore(s.genre.language) < 0.5)) return@mapNotNull null
                 Features(
                     song = s.song, global = g, session = (sessionRank[id] ?: 0.0) / wsum, vibe = s.vibe, language = s.genre.language,
                     taste = profile.taste(s.song.info, id, s.vibe), habit = 0.0, trend = s.trending,
                     familiar = id in profile.heard, liked = id in profile.liked, fromList = fromList,
+                    rediscover = id in rediscoverIds,
+                    surprise = !isNew && id !in profile.heard && id !in profile.liked &&
+                        com.music.aalap.data.recommendation.engine.SongMatcher.artistKeys(s.artist).first() !in profile.usualArtists && sess.vibeScore(s.vibe) >= 0.65,
+                    feedback = feedback.factor(s.song, s.vibe),
                 )
             }
-            val pick = QueuePicker.pick(features, sess, isNew, state, targets, cur.artist, excluded, r) ?: return out
+            val pick = QueuePicker.pick(features, sess, isNew, if (flow) state else state.copy(lastVibe = null), targets, cur.artist, excluded, r) ?: return out
             val ws = byId.getValue(pick.song.id)
             state = state.after(features.first { it.song.id == ws.song.id })
             out += ws; excluded += ws.song.id; cur = ws
@@ -353,6 +368,106 @@ class QueueScenarioTest {
         line("Across all genres: songs you already play ${pct(old.known)} → ${pct(st.known)}, liked songs ${pct(old.liked)} → ${pct(st.liked)}, trending ${pct(old.trending)} → ${pct(st.trending)}.\n")
         assertTrue("liked songs capped", st.liked <= 0.35)
         save()
+    }
+
+    // ── Aalap 5.0 ───────────────────────────────────────────────────────────
+
+    @Test
+    fun smoothFlowAvoidsJumps() {
+        line("## Smooth flow (energy and tempo from song to song)\n")
+        fun jumps(flow: Boolean): Pair<Double, Double> {
+            val r = Random(21); var gap = 0.0; var big = 0; var n = 0
+            genres.forEach { g -> repeat(15) {
+                val seed = seedOf(g.name, r)
+                val q = listOf(seed) + newQueue(seed, 10, Random(r.nextLong()), flow = flow)
+                q.zipWithNext().forEach { (a, b) -> val d = kotlin.math.abs(a.vibe.energy - b.vibe.energy); gap += d; if (d > 0.3) big++; n++ }
+            } }
+            return gap / n to big.toDouble() / n
+        }
+        val (offGap, offBig) = jumps(false); val (onGap, onBig) = jumps(true)
+        line("Average energy change between songs: ${"%.2f".format(offGap)} → **${"%.2f".format(onGap)}**; big jumps (over 0.3): ${pct(offBig)} → **${pct(onBig)}**.\n")
+        save()
+        assertTrue("smoother", onGap < offGap && onBig < offBig)
+    }
+
+    @Test
+    fun discoveryDial() {
+        line("## The discovery dial\n")
+        line("| Setting | Songs you know | Surprises (artists you don't play) |")
+        line("|---|---|---|")
+        val dials = listOf(
+            "Familiar" to { t: Targets -> t.copy(familiar = 0.75, surprise = 0.0) },
+            "Balanced" to { t: Targets -> t },
+            "Surprise me" to { t: Targets -> t.copy(familiar = 0.08, surprise = 0.3) },
+        )
+        val known = ArrayList<Double>(); val surprises = ArrayList<Double>()
+        for ((label, tune) in dials) {
+            val r = Random(9); var k = 0; var sp = 0; var n = 0
+            listOf("bollywood_romantic", "bollywood_sad", "punjabi_party", "english_pop", "hindi_hiphop").forEach { gname -> repeat(20) {
+                val q = newQueue(seedOf(gname, r), 10, Random(r.nextLong()), tune = tune)
+                k += q.count { it.song.id in playedIds }
+                sp += q.count { it.song.id !in playedIds && it.song.id !in likedIds && com.music.aalap.data.recommendation.engine.SongMatcher.artistKeys(it.artist).first() !in newProfile.usualArtists }
+                n += q.size
+            } }
+            known += k.toDouble() / n; surprises += sp.toDouble() / n
+            line("| $label | ${pct(k.toDouble() / n)} | ${pct(sp.toDouble() / n)} |")
+        }
+        line("")
+        save()
+        assertTrue("familiar has the most known songs", known[0] > known[1] && known[1] > known[2])
+        assertTrue("surprise me has the most surprises", surprises[2] > surprises[0])
+    }
+
+    @Test
+    fun languageMixIsFollowed() {
+        line("## Language mix\n")
+        val r = Random(13); var hindi = 0; var punjabi = 0; var english = 0; var n = 0
+        val mix = mapOf("punjabi" to 0.6, "english" to 0.4)
+        listOf("punjabi_party", "english_pop", "bollywood_party", "english_workout").forEach { gname -> repeat(20) {
+            val q = newQueue(seedOf(gname, r), 10, Random(r.nextLong()), tune = { it.copy(languageMix = mix) })
+            hindi += q.count { it.genre.language == "hindi" }; punjabi += q.count { it.genre.language == "punjabi" }; english += q.count { it.genre.language == "english" }; n += q.size
+        } }
+        line("Mix set to Punjabi 60% + English 40% (Hindi off): Punjabi ${pct(punjabi.toDouble() / n)}, English ${pct(english.toDouble() / n)}, Hindi ${pct(hindi.toDouble() / n)}.\n")
+        save()
+        assertTrue("hindi mostly kept out (${pct(hindi.toDouble() / n)})", hindi.toDouble() / n < 0.15)
+        assertTrue("punjabi and english make the queue", (punjabi + english).toDouble() / n > 0.8)
+    }
+
+    @Test
+    fun feedbackIsObeyed() {
+        line("## \"Not this\" feedback\n")
+        val r = Random(17)
+        val blockedArtist = com.music.aalap.data.recommendation.engine.SongMatcher.artistKeys("bollywood_romantic_artist_0").first()
+        val sadIds = byGenre.getValue("bollywood_sad").take(6).map { it.song.id }
+        val fb = com.music.aalap.data.recommendation.engine.Feedback.build(
+            rows = listOf("BLOCK_ARTIST" to blockedArtist) + sadIds.map { "LESS" to it },
+            songs = sadIds.associateWith { byId.getValue(it).song },
+            vibes = sadIds.associateWith { byId.getValue(it).vibe },
+        )
+        var blockedSeen = 0; var sadWith = 0; var sadWithout = 0; var n = 0
+        repeat(60) {
+            val seed = seedOf("bollywood_sad", r)
+            val a = newQueue(seed, 10, Random(r.nextLong()), feedback = fb)
+            val b = newQueue(seed, 10, Random(r.nextLong()))
+            blockedSeen += a.count { it.artist == "bollywood_romantic_artist_0" } + newQueue(seedOf("bollywood_romantic", r), 10, Random(r.nextLong()), feedback = fb).count { it.artist == "bollywood_romantic_artist_0" }
+            sadWith += a.count { it.genre.main == Feel.SAD }; sadWithout += b.count { it.genre.main == Feel.SAD }; n += 10
+        }
+        line("Blocked artist: played $blockedSeen times in $n songs. \"Less like this\" on 6 sad songs: sad songs ${pct(sadWithout.toDouble() / n)} → ${pct(sadWith.toDouble() / n)}.\n")
+        save()
+        assertEquals("blocked artist never plays", 0, blockedSeen)
+        assertTrue("less like this lowers sad ($sadWith vs $sadWithout)", sadWith < sadWithout)
+    }
+
+    @Test
+    fun rediscoverBringsBackOldFavourites() {
+        line("## Re-discover\n")
+        val r = Random(23)
+        val old = byGenre.getValue("bollywood_romantic").drop(40).take(15).map { it.song.id }.toSet()
+        var back = 0; var n = 0
+        repeat(60) { val q = newQueue(seedOf("bollywood_romantic", r), 10, Random(r.nextLong()), rediscoverIds = old); back += q.count { it.song.id in old }; n += q.size }
+        line("Old favourites (played a lot, not for 45+ days) coming back: ${pct(back.toDouble() / n)} of songs (aim ~10%).\n")
+        save()
+        assertTrue("some come back (${pct(back.toDouble() / n)})", back.toDouble() / n in 0.04..0.25)
     }
 
     private fun save() {

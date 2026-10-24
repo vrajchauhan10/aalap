@@ -297,6 +297,23 @@ private fun HomeHeaderRow(navController: NavController) {
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             )
         }
+        // Ask Aalap: say a song, an artist or a mood.
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .padding(end = 10.dp)
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(com.music.aalap.ui.theme.SurfaceHigh)
+                .clickable { com.music.aalap.di.VoiceAsk.start() },
+        ) {
+            androidx.compose.material3.Icon(
+                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_mic),
+                contentDescription = "Ask Aalap: say a song, artist or mood",
+                tint = com.music.aalap.ui.theme.Saffron,
+                modifier = Modifier.size(22.dp),
+            )
+        }
         val photoVersion by com.music.aalap.data.preferences.ProfilePhoto.version.collectAsState()
         val avatarUrl: Any? = remember(photoVersion) { com.music.aalap.data.preferences.ProfilePhoto.get(context) }
             ?: com.music.aalap.data.api.ProfileCache.imageUrl

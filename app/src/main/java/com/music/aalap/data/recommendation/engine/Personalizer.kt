@@ -19,6 +19,13 @@ object Personalizer {
 
     @Volatile private var cached: Triple<String, Long, TasteProfile>? = null
 
+    /** 0..1: how much of a play you heard (1 when unknown, e.g. the play still going). */
+    private fun listened(p: RecoDb.Play, s: Song): Double {
+        val dur = s.info.durationSec * 1000L
+        if (p.listenedMs <= 0 || dur <= 0) return 1.0
+        return (p.listenedMs.toDouble() / dur).coerceIn(0.0, 1.0)
+    }
+
     /** Drops the cached profile (a play was just logged, a song liked…). */
     fun invalidate() { cached = null }
 
@@ -58,13 +65,16 @@ object Personalizer {
             val keys = SongMatcher.artistKeys(s.artists)
             val main = keys.firstOrNull() ?: continue
             val decay = Math.pow(0.5, (now - p.playedAt) / 86_400_000.0 / HALF_LIFE_DAYS)
-            val w = if (p.skipped) -0.6 * decay else decay
+            // How much of it you heard: all of it counts fully, half of it about two thirds;
+            // a skip in the first 10 seconds says more than one at 25 seconds.
+            val heard = listened(p, s)
+            val w = TasteProfile.playWeight(p.skipped, p.listenedMs, heard) * decay
             keys.forEachIndexed { i, k -> artist[k] = (artist[k] ?: 0.0) + w * (if (i == 0) 1.0 else 0.6) }
             artistPlays[main] = (artistPlays[main] ?: 0) + 1
             if (p.skipped) {
                 artistSkips[main] = (artistSkips[main] ?: 0) + 1
             } else {
-                songAff[p.songId] = (songAff[p.songId] ?: 0.0) + decay
+                songAff[p.songId] = (songAff[p.songId] ?: 0.0) + decay * (0.35 + 0.65 * heard)
                 s.info.language.takeIf { it.isNotBlank() }?.let { lang[it] = (lang[it] ?: 0.0) + decay }
                 if (dayPart(p.playedAt) == partNow) {
                     partArtist[main] = (partArtist[main] ?: 0) + 1
@@ -114,7 +124,8 @@ object Personalizer {
             feelPlays++
             if (p.skipped) Vibe.addInto(skippedFeel, v.weights, decay * v.confidence)
             else {
-                Vibe.addInto(finishedFeel, v.weights, decay * v.confidence)
+                val heard = songs[p.songId]?.let { listened(p, it) } ?: 1.0
+                Vibe.addInto(finishedFeel, v.weights, decay * v.confidence * (0.35 + 0.65 * heard))
                 if (dayPart(p.playedAt) == partNow) Vibe.addInto(partFeel, v.weights, decay * v.confidence)
             }
         }
@@ -147,6 +158,8 @@ object Personalizer {
             dayPartFeel = partFeel.values.sum().takeIf { it > 0 }?.let { t -> partFeel.mapValues { it.value / t } }.orEmpty(),
             familiarTarget = familiarTarget,
             heard = plays.filter { !it.skipped }.mapTo(HashSet()) { it.songId },
+            rediscover = plays.filter { !it.skipped }.groupBy { it.songId }
+                .filter { (_, ps) -> ps.size >= 3 && now - ps.maxOf { it.playedAt } > 45 * 86_400_000L }.keys,
         )
         // Snapshot for the user_taste table (and the Profile "Your taste" card).
         runCatching {

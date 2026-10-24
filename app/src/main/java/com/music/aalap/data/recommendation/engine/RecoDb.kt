@@ -18,6 +18,8 @@ import org.json.JSONArray
  *  - play_history: every play, with whether it was skipped
  *  - song_tags:    what a song is known to be: a feel from a mood playlist it's on
  *                  (src "mood"), or on today's charts (tag TREND, src "chart")
+ *  - song_audio:   tempo and energy measured from the sound while the song played
+ *  - feedback:     "more / less like this", "don't play this song / artist"
  *
  * All access goes through this class; every method is safe off the main thread.
  */
@@ -26,7 +28,7 @@ class RecoDb private constructor(context: Context) :
 
     companion object {
         private const val NAME = "aalap_reco.db"
-        private const val VERSION = 2
+        private const val VERSION = 3
 
         @Volatile private var instance: RecoDb? = null
         fun get(context: Context): RecoDb =
@@ -75,6 +77,12 @@ class RecoDb private constructor(context: Context) :
                 weight REAL NOT NULL DEFAULT 1, at INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY(song_id, tag, src))""",
             "CREATE INDEX IF NOT EXISTS song_tags_tag ON song_tags(tag, at)",
+            """CREATE TABLE IF NOT EXISTS song_audio(
+                song_id TEXT PRIMARY KEY, bpm REAL NOT NULL, energy REAL NOT NULL,
+                loudness_db REAL NOT NULL DEFAULT 0, beat REAL NOT NULL DEFAULT 0, at INTEGER NOT NULL DEFAULT 0)""",
+            """CREATE TABLE IF NOT EXISTS feedback(
+                user_id TEXT NOT NULL, kind TEXT NOT NULL, target TEXT NOT NULL, at INTEGER NOT NULL,
+                PRIMARY KEY(user_id, kind, target))""",
         )
     }
 
@@ -258,6 +266,46 @@ class RecoDb private constructor(context: Context) :
 
     fun tagCount(src: String): Int =
         readableDatabase.rawQuery("SELECT COUNT(DISTINCT song_id) FROM song_tags WHERE src = ?", arrayOf(src)).use { if (it.moveToFirst()) it.getInt(0) else 0 }
+
+    // ── song_audio ──────────────────────────────────────────────────────────
+
+    data class Audio(val bpm: Double, val energy: Double)
+
+    fun putAudio(songId: String, bpm: Double, energy: Double, loudnessDb: Double, beat: Double) {
+        writableDatabase.insertWithOnConflict("song_audio", null, ContentValues().apply {
+            put("song_id", songId); put("bpm", bpm); put("energy", energy); put("loudness_db", loudnessDb)
+            put("beat", beat); put("at", System.currentTimeMillis())
+        }, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    fun audio(ids: Collection<String>): Map<String, Audio> {
+        if (ids.isEmpty()) return emptyMap()
+        val out = HashMap<String, Audio>()
+        ids.chunked(400).forEach { chunk ->
+            readableDatabase.rawQuery("SELECT song_id, bpm, energy FROM song_audio WHERE song_id IN (${chunk.joinToString(",") { "?" }})", chunk.toTypedArray())
+                .use { c -> while (c.moveToNext()) out[c.getString(0)] = Audio(c.getDouble(1), c.getDouble(2)) }
+        }
+        return out
+    }
+
+    fun audioCount(): Int = readableDatabase.rawQuery("SELECT COUNT(*) FROM song_audio", null).use { if (it.moveToFirst()) it.getInt(0) else 0 }
+
+    // ── feedback ────────────────────────────────────────────────────────────
+
+    /** [kind]: MORE / LESS (target = song id), BLOCK_SONG (song id), BLOCK_ARTIST (artist key). */
+    fun putFeedback(userId: String, kind: String, target: String) {
+        writableDatabase.insertWithOnConflict("feedback", null, ContentValues().apply {
+            put("user_id", userId); put("kind", kind); put("target", target); put("at", System.currentTimeMillis())
+        }, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    fun removeFeedback(userId: String, kind: String, target: String) {
+        writableDatabase.delete("feedback", "user_id = ? AND kind = ? AND target = ?", arrayOf(userId, kind, target))
+    }
+
+    fun feedback(userId: String): List<Pair<String, String>> =
+        readableDatabase.rawQuery("SELECT kind, target FROM feedback WHERE user_id = ? ORDER BY at DESC", arrayOf(userId))
+            .use { c -> buildList { while (c.moveToNext()) add(c.getString(0) to c.getString(1)) } }
 
     // ── source_cache ────────────────────────────────────────────────────────
 

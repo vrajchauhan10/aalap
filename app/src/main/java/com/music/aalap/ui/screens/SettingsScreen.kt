@@ -151,6 +151,9 @@ fun SettingsScreen(navController: NavController) {
                 navController.navigate(com.music.aalap.ui.navigation.Routes.ArtistPicker.route)
             }
 
+            SectionTitle("Recommendations")
+            com.music.aalap.ui.components.RecommendationSettings()
+
             SectionTitle("Sound")
             NavRow("Sound and equalizer", "Presets, bass boost, normalize volume, playback speed") {
                 navController.navigate(com.music.aalap.ui.navigation.Routes.Sound.route)
@@ -194,6 +197,7 @@ fun SettingsScreen(navController: NavController) {
 
             SectionTitle("Share")
             ShareAalapRow()
+            com.music.aalap.ui.components.BlendSettings(navController)
 
             SectionTitle("Offline")
             val offline = com.music.aalap.data.preferences.OfflineState

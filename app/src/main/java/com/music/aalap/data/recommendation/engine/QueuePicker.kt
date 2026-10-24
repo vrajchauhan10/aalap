@@ -109,6 +109,12 @@ data class Features(
     /** From the playlist you started from. */
     val fromList: Boolean = false,
     val sources: Set<Source> = emptySet(),
+    /** A song you used to play a lot but haven't for a while. */
+    val rediscover: Boolean = false,
+    /** Fits the session but is outside your usual artists: a surprise. */
+    val surprise: Boolean = false,
+    /** Your "more / less like this" feedback, as a multiplier (1 = none). */
+    val feedback: Double = 1.0,
 )
 
 /** How the songs picked so far are made up, so the queue keeps a good mix. */
@@ -119,6 +125,12 @@ data class PickState(
     val familiar: Int = 0,
     val liked: Int = 0,
     val fromList: Int = 0,
+    val rediscover: Int = 0,
+    val surprise: Int = 0,
+    /** Picks per language. */
+    val languages: Map<String, Int> = emptyMap(),
+    /** The song before (for a smooth flow of energy and tempo). */
+    val lastVibe: Vibe? = null,
 ) {
     fun after(f: Features): PickState = copy(
         recentArtists = listOfNotNull(SongMatcher.artistKeys(f.song.artists).firstOrNull()) + recentArtists,
@@ -126,6 +138,10 @@ data class PickState(
         familiar = familiar + if (f.familiar) 1 else 0,
         liked = liked + if (f.liked) 1 else 0,
         fromList = fromList + if (f.fromList) 1 else 0,
+        rediscover = rediscover + if (f.rediscover) 1 else 0,
+        surprise = surprise + if (f.surprise) 1 else 0,
+        languages = if (f.language.isBlank()) languages else languages + (f.language to (languages[f.language] ?: 0) + 1),
+        lastVibe = f.vibe,
     )
 }
 
@@ -134,7 +150,17 @@ data class PickState(
  * finish new songs vs ones you know). [maxLiked]: liked songs are welcome but never
  * take over. [fromList]: share from the playlist you started from (0 if none).
  */
-data class Targets(val familiar: Double = 0.35, val maxLiked: Double = 0.35, val fromList: Double = 0.0)
+data class Targets(
+    val familiar: Double = 0.35,
+    val maxLiked: Double = 0.35,
+    val fromList: Double = 0.0,
+    /** Share of old favourites to bring back. */
+    val rediscover: Double = 0.1,
+    /** Share of surprises (from the discovery dial). */
+    val surprise: Double = 0.1,
+    /** Your chosen language mix (shares, adding up to 1); empty = follow the session. */
+    val languageMix: Map<String, Double> = emptyMap(),
+)
 
 /** The score's parts, from what the world plays next to your own behaviour. */
 data class Weights(val global: Double, val session: Double, val fit: Double, val taste: Double, val habit: Double, val trend: Double) {
@@ -158,7 +184,10 @@ object QueuePicker {
     fun score(f: Features, session: Session, isNew: Boolean, state: PickState, targets: Targets): Scored {
         val w = if (isNew) Weights.NEW else Weights.ESTABLISHED
         val feel = session.vibeScore(f.vibe)
-        val fit = 0.7 * feel + 0.3 * session.languageScore(f.language)
+        val mixTop = targets.languageMix.values.maxOrNull() ?: 0.0
+        val lang = if (mixTop > 0 && f.language.isNotBlank()) 0.25 + 0.75 * ((targets.languageMix[f.language] ?: 0.0) / mixTop)
+            else session.languageScore(f.language)
+        val fit = 0.7 * feel + 0.3 * lang
         var s = w.global * f.global + w.session * f.session + w.fit * fit + w.taste * f.taste +
             w.habit * f.habit + w.trend * (if (f.trend) 1.0 else 0.0)
         val tags = LinkedHashSet<String>()
@@ -178,8 +207,10 @@ object QueuePicker {
 
         if (state.picks > 0 || targets.familiar > 0) {
             val famShare = if (state.picks == 0) 0.0 else state.familiar.toDouble() / state.picks
-            if (f.familiar && famShare < targets.familiar) { s += 0.06; tags += "known" }
-            if (!f.familiar && famShare >= targets.familiar) { s += 0.04; tags += "new" }
+            // The further the dial is from the middle, the harder it pulls.
+            if (f.familiar && famShare < targets.familiar) { s += 0.06 + 0.3 * maxOf(0.0, targets.familiar - 0.35); tags += "known" }
+            if (!f.familiar && famShare >= targets.familiar) { s += 0.04 + 0.4 * maxOf(0.0, 0.35 - targets.familiar); tags += "new" }
+            if (f.familiar && famShare >= targets.familiar + 0.1 && targets.familiar < 0.3) { s *= 0.7; tags += "known-capped" }
         }
         if (f.liked && state.picks > 0) {
             // Would picking it put liked songs over their share? Then other songs go first.
@@ -194,6 +225,45 @@ object QueuePicker {
             }
         }
         if (f.trend) tags += "trending"
+
+        // Smooth flow: no sudden jumps in energy or tempo from the song before.
+        state.lastVibe?.let { prev ->
+            if (prev.energyKnown && f.vibe.energyKnown) {
+                val gap = kotlin.math.abs(prev.energy - f.vibe.energy)
+                if (gap > 0.18) { s *= 1.0 - minOf(0.45, (gap - 0.18) * 1.6); tags += "energy-jump" }
+            }
+            val a = prev.bpm; val b = f.vibe.bpm
+            if (a != null && b != null && a > 0 && b > 0) {
+                // Half or double time flows fine (a 70 bpm song after a 140 bpm one).
+                val r = maxOf(a, b) / minOf(a, b)
+                val off = minOf(r, kotlin.math.abs(r - 2.0) + 1.0)
+                if (off > 1.2) { s *= 0.85; tags += "tempo-jump" } else if (off < 1.06) { s += 0.03; tags += "tempo-match" }
+            }
+        }
+
+        // Your language mix: keep each language near its share, and none you turned off.
+        if (mixTop > 0 && f.language.isNotBlank()) {
+            val want = targets.languageMix[f.language] ?: 0.0
+            if (want <= 0.0) { s *= 0.35; tags += "language-off" }
+            else {
+                val have = if (state.picks == 0) 0.0 else (state.languages[f.language] ?: 0).toDouble() / state.picks
+                // The further a language is behind its share, the harder it pulls.
+                if (have < want) { s += 0.08 + 0.4 * (want - have); tags += "language-mix" }
+                else if (have > want + 0.1) { s *= 0.8; tags += "language-full" }
+            }
+        }
+
+        // Old favourites and surprises, each up to its share.
+        val share = { n: Int -> if (state.picks == 0) 0.0 else n.toDouble() / state.picks }
+        if (f.rediscover) {
+            if (share(state.rediscover) < targets.rediscover) { s += 0.1; tags += "rediscover" }
+            else { s *= 0.5; tags += "rediscover-capped" }
+        }
+        if (f.surprise && share(state.surprise) < targets.surprise) { s += 0.12 + 0.6 * maxOf(0.0, targets.surprise - 0.1); tags += "surprise" }
+
+        // "More / less like this".
+        if (f.feedback != 1.0) { s *= f.feedback; tags += if (f.feedback > 1.0) "more-like" else "less-like" }
+
         return Scored(
             song = f.song, global = f.global, taste = f.taste, habit = f.habit, final = s.coerceAtLeast(0.0),
             sources = f.sources, session = f.session, fit = fit, trend = if (f.trend) 1.0 else 0.0,

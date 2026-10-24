@@ -327,6 +327,10 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
         currentSongState.updateRepeatState(repeatState)
     }
 
+    /** "More / less like this", "don't play this song / artist" (see [com.music.aalap.di.SmartPlay.feedback]). */
+    fun feedback(song: SongsModel, kind: com.music.aalap.data.recommendation.engine.Feedback.Kind, context: Context) =
+        com.music.aalap.di.SmartPlay.feedback(context, currentSongState, song, kind)
+
     val repeatMode = currentSongState.repeatMode
     fun updateRepeatMode(mode: com.music.aalap.di.RepeatMode) = currentSongState.updateRepeatMode(mode)
     fun updateLikeState(likeState : Boolean){
