@@ -4,6 +4,23 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 4.4.0 — 24 Oct 2026 (build 51)
+- **Ready for Gemini (Android AppFunctions).** Aalap now tells Android what it can do
+  for an assistant: play music (a song, an artist, a mood, Liked Songs, Aaj ka Aalap, or
+  carry on), pause, resume, next, previous, what's playing, and like the current song.
+  Android 16 lists these next to Samsung's own apps' actions, and they work while Aalap
+  is closed. Gemini already uses this system for Google's and Samsung's apps; Google is
+  opening it to other apps through an early access programme, so Gemini will call
+  Aalap's actions once Aalap is let in. Tested on the phone the way an assistant calls
+  them: every action worked, including from the home screen.
+- **Fixed a crash when music started very quickly from the background** (resume from
+  the widget, notification, headset or an assistant): the "Starting your music…" helper
+  could be stopped before Android had made it a foreground service, and Android closed
+  the app. Tested: pause and resume three times in a row, no crash.
+- Voice requests: a request that matches nothing now says so instead of playing an
+  unrelated song, and small spelling differences still find the song ("kesriya arijit").
+- Builds with the Android 16 SDK (compileSdk 36) and Android Gradle Plugin 8.9.1.
+
 ## 4.3.0 — 24 Oct 2026 (build 50)
 - **Play Aalap with your voice.** "Hey Google, play Kesariya on Aalap" (also Gemini and
   Bixby, on the phone or in the car): Aalap opens on the player and plays it. It

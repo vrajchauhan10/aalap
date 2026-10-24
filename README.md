@@ -24,8 +24,10 @@ in high quality, with lyrics and offline listening.
   Wrapped-style recap.
 - **Sound.** Equalizer presets, speed control, crossfade and fast loading.
 - **Offline.** Download songs and playlists, up to 320 kbps.
-- **Voice.** "Hey Google, play Kesariya on Aalap", "play party songs on Aalap", "play my
-  liked songs on Aalap": works with Google Assistant, Gemini and Bixby, and in the car.
+- **Voice and assistants.** "Play Kesariya on Aalap", "play party songs on Aalap", "play my
+  liked songs on Aalap": through Android's play-from-search (Google Assistant, Bixby,
+  Android Auto) and Android AppFunctions on Android 16+ (play, pause, resume, next,
+  previous, now playing, like), which Gemini uses as Google opens it to more apps.
 - **Widgets and notifications.** Play/pause, skip, like and shuffle from the home screen and
   the notification shade.
 - **Light and dark themes** in the Aalap saffron and indigo palette.

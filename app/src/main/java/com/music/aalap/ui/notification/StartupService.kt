@@ -38,6 +38,9 @@ class StartupService : Service() {
             .build()
         runCatching { ServiceCompat.startForeground(this, ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK) }
             .onFailure { stopSelf(); return START_NOT_STICKY }
+        foreground = true
+        // The music already started before this service got going: it's done.
+        if (stopRequested) { stopRequested = false; foreground = false; running = false; stopSelf(); return START_NOT_STICKY }
         main.removeCallbacksAndMessages(null)
         main.postDelayed({ stopSelf() }, 20_000)
         return START_NOT_STICKY
@@ -45,6 +48,8 @@ class StartupService : Service() {
 
     override fun onDestroy() {
         main.removeCallbacksAndMessages(null)
+        foreground = false
+        running = false
         super.onDestroy()
     }
 
@@ -55,12 +60,21 @@ class StartupService : Service() {
             private set
 
         fun start(c: Context) {
+            stopRequested = false
             running = runCatching { ContextCompat.startForegroundService(c, Intent(c, StartupService::class.java)) }.isSuccess
         }
 
+        @Volatile private var foreground = false
+        @Volatile private var stopRequested = false
+
         fun stop(c: Context) {
             if (!running) return
+            // Stopping before the service has called startForeground() makes Android kill
+            // the app ("did not then call startForeground"), which happened when music
+            // started very fast (a resume). Then it stops itself as soon as it's up.
+            if (!foreground) { stopRequested = true; return }
             running = false
+            foreground = false
             c.stopService(Intent(c, StartupService::class.java))
         }
     }

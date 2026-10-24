@@ -57,6 +57,9 @@ class VoicePlayTest {
         // Your own version wins a tie.
         val two = listOf(c("Tum Hi Ho", "Some Cover Band"), c("Tum Hi Ho", "Arijit Singh"))
         assertEquals("Arijit Singh", VoicePlay.bestMatch("tum hi ho", two, known = setOf("tum hi ho|arijit singh"))?.artists)
+        // Spelled a little differently still finds it; nonsense finds nothing.
+        assertEquals("Kesariya (From \"Brahmastra\")", VoicePlay.bestMatch("kesriya arijit", results)?.title)
+        assertEquals(null, VoicePlay.bestMatch("xqzv blorpt nonsense", listOf(c("X-COOL! - Instrumental - Slowed", "tienanh109, HDN"))))
     }
 
     @Test fun artists() {

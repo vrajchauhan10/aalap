@@ -9,9 +9,14 @@ plugins {
     id("com.google.dagger.hilt.android")
 }
 
+ksp {
+    // One list of all of Aalap's AppFunctions for the system to index.
+    arg("appfunctions:aggregateAppFunctions", "true")
+}
+
 android {
     namespace = "com.music.aalap"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.music.aalap"
@@ -19,8 +24,8 @@ android {
         targetSdk = 34
         // Must exceed every published build (1.6 shipped as versionCode 16).
         // 2.0.0 is the first Aalap release.
-        versionCode = 50
-        versionName = "4.3.0"
+        versionCode = 51
+        versionName = "4.4.0"
         // Optional Last.fm key for the similar-tracks source (empty = source off).
         buildConfigField("String", "LASTFM_API_KEY", "\"${(project.findProperty("lastfmApiKey") as String?).orEmpty()}\"")
 
@@ -108,6 +113,11 @@ dependencies {
 
     //coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.7.3")
+    // Android AppFunctions: Aalap's actions for Gemini and other assistants (Android 16+).
+    implementation("androidx.appfunctions:appfunctions:1.0.0-alpha08")
+    implementation("androidx.appfunctions:appfunctions-service:1.0.0-alpha08")
+    ksp("androidx.appfunctions:appfunctions-compiler:1.0.0-alpha08")
 
     //glide
     implementation("com.github.bumptech.glide:compose:1.0.0-beta01")

@@ -233,9 +233,18 @@ object VoicePlay {
      * own songs (played or liked) win ties. Spotify's order breaks the rest.
      */
     fun bestMatch(query: String, results: List<com.music.aalap.data.recommendation.engine.Candidate>, known: Set<String> = emptySet()): com.music.aalap.data.recommendation.engine.Candidate? {
-        if (results.isEmpty()) return null
         val q = norm(query)
-        return results.withIndex().maxByOrNull { (i, c) ->
+        // Spotify always returns something; a result must share a word with what was said
+        // (spelling may differ a little: "kesriya" ~ "kesariya"), or nothing was found.
+        val words = q.split(" ").filter { it.length >= 3 && it !in setOf("the", "and", "song", "songs", "from", "by") }
+        fun related(c: com.music.aalap.data.recommendation.engine.Candidate): Boolean {
+            if (words.isEmpty()) return true
+            val theirs = norm(c.title + " " + c.artists.replace(",", " ")).split(" ").filter { it.length >= 3 }
+            return words.any { w -> theirs.any { t -> close(w, t) } }
+        }
+        val relevant = results.filter(::related)
+        if (relevant.isEmpty()) return null
+        return relevant.withIndex().maxByOrNull { (i, c) ->
             val title = norm(c.title)
             val artists = c.artists.split(",").map { norm(it) }.filter { it.isNotBlank() }
             val namedArtist = artists.any { it.isNotBlank() && q.contains(it) }
@@ -248,9 +257,33 @@ object VoicePlay {
                 else -> 0.0
             }
             if (namedArtist) score += 2.0
+            // Each word you said that's in the title or the artists (small spelling differences allowed).
+            val titleWords = title.split(" ").filter { it.length >= 3 }
+            val artistWords = artists.flatMap { it.split(" ") }.filter { it.length >= 3 }
+            words.forEach { w ->
+                when {
+                    titleWords.any { close(w, it) } -> score += 1.2
+                    artistWords.any { close(w, it) } -> score += 1.0
+                }
+            }
             if (known.contains(title + "|" + artists.firstOrNull().orEmpty())) score += 1.0
             score - i * 0.15
         }?.value
+    }
+
+    /** Same word, allowing a small spelling difference (transliterations vary). */
+    private fun close(a: String, b: String): Boolean {
+        if (a == b) return true
+        if (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a))) return true
+        val allowed = if (minOf(a.length, b.length) <= 5) 1 else 2
+        if (kotlin.math.abs(a.length - b.length) > allowed) return false
+        var prev = IntArray(b.length + 1) { it }
+        for (i in 1..a.length) {
+            val cur = IntArray(b.length + 1); cur[0] = i
+            for (j in 1..b.length) cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
+            prev = cur
+        }
+        return prev[b.length] <= allowed
     }
 
     /** The best song for spoken words: Spotify search; offline, your downloads. */

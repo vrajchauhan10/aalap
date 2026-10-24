@@ -15,8 +15,16 @@ import java.util.Locale
 import timber.log.Timber
 
 @HiltAndroidApp
-class MyApplication : Application(){
+class MyApplication : Application(), androidx.appfunctions.service.AppFunctionConfiguration.Provider {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @javax.inject.Inject lateinit var currentSongState: com.music.aalap.di.CurrentSongState
+
+    /** How the system builds Aalap's AppFunctions (for Gemini and other assistants). */
+    override val appFunctionConfiguration: androidx.appfunctions.service.AppFunctionConfiguration
+        get() = androidx.appfunctions.service.AppFunctionConfiguration.Builder()
+            .addEnclosingClassFactory(com.music.aalap.ai.AalapAppFunctions::class.java) { com.music.aalap.ai.AalapAppFunctions(currentSongState) }
+            .build()
 
     companion object {
         // For non-DI singletons (LyricsApi) that need a Context to refresh the token.
