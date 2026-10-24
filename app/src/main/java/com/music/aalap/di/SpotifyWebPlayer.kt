@@ -91,8 +91,9 @@ object SpotifyWebPlayer {
     fun attach(activity: Activity) {
         if (webView != null) return
         try {
-            // Lets `chrome://inspect` attach to the hidden player for diagnosis.
-            WebView.setWebContentsDebuggingEnabled(true)
+            // Lets `chrome://inspect` attach to the hidden player for diagnosis: debug builds
+            // only, since this WebView holds the Spotify login cookie.
+            if (com.music.aalap.BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
             val wv = WebView(activity)
             wv.settings.apply {
                 javaScriptEnabled = true

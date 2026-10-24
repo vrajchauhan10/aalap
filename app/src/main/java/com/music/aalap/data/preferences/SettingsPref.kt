@@ -71,10 +71,31 @@ private const val KEY_YT_VISITOR_DATA = "youtube_visitor_data"
 private const val KEY_YT_DATA_SYNC_ID = "youtube_data_sync_id"
 private const val KEY_YT_LOGIN_VERSION = "youtube_login_version"
 private const val YT_LOGIN_VERSION = 2
-fun getYoutubeCookie(c: Context): String = prefs(c).getString(KEY_YT_COOKIE, "").orEmpty()
-fun setYoutubeCookie(c: Context, v: String) = prefs(c).edit().putString(KEY_YT_COOKIE, v).apply()
-fun getYoutubeVisitorData(c: Context): String = prefs(c).getString(KEY_YT_VISITOR_DATA, "").orEmpty()
-fun getYoutubeDataSyncId(c: Context): String = prefs(c).getString(KEY_YT_DATA_SYNC_ID, "").orEmpty()
+
+/**
+ * The YouTube login lives in its own file, left out of backups and device transfers
+ * (see backup_rules.xml), so a login cookie never leaves the phone. Logins saved by older
+ * versions in the general settings are moved here once.
+ */
+private fun ytPrefs(c: Context): android.content.SharedPreferences {
+    val yt = c.getSharedPreferences("youtube_session", Context.MODE_PRIVATE)
+    val old = prefs(c)
+    if (old.contains(KEY_YT_COOKIE) || old.contains(KEY_YT_LOGIN_VERSION)) {
+        yt.edit()
+            .putString(KEY_YT_COOKIE, old.getString(KEY_YT_COOKIE, "").orEmpty())
+            .putString(KEY_YT_VISITOR_DATA, old.getString(KEY_YT_VISITOR_DATA, "").orEmpty())
+            .putString(KEY_YT_DATA_SYNC_ID, old.getString(KEY_YT_DATA_SYNC_ID, "").orEmpty())
+            .putInt(KEY_YT_LOGIN_VERSION, old.getInt(KEY_YT_LOGIN_VERSION, 0))
+            .commit()
+        old.edit().remove(KEY_YT_COOKIE).remove(KEY_YT_VISITOR_DATA).remove(KEY_YT_DATA_SYNC_ID).remove(KEY_YT_LOGIN_VERSION).commit()
+    }
+    return yt
+}
+
+fun getYoutubeCookie(c: Context): String = ytPrefs(c).getString(KEY_YT_COOKIE, "").orEmpty()
+fun setYoutubeCookie(c: Context, v: String) = ytPrefs(c).edit().putString(KEY_YT_COOKIE, v).apply()
+fun getYoutubeVisitorData(c: Context): String = ytPrefs(c).getString(KEY_YT_VISITOR_DATA, "").orEmpty()
+fun getYoutubeDataSyncId(c: Context): String = ytPrefs(c).getString(KEY_YT_DATA_SYNC_ID, "").orEmpty()
 
 /** Handles both primary-channel and delegated-channel DATASYNC_ID shapes used by YouTube. */
 fun normalizeYoutubeDataSyncId(value: String): String = when {
@@ -84,7 +105,7 @@ fun normalizeYoutubeDataSyncId(value: String): String = when {
 }
 
 fun setYoutubeLogin(c: Context, cookie: String, visitorData: String = "", dataSyncId: String = "") {
-    prefs(c).edit()
+    ytPrefs(c).edit()
         .putString(KEY_YT_COOKIE, cookie)
         .putString(KEY_YT_VISITOR_DATA, visitorData)
         .putString(KEY_YT_DATA_SYNC_ID, normalizeYoutubeDataSyncId(dataSyncId))
@@ -93,7 +114,7 @@ fun setYoutubeLogin(c: Context, cookie: String, visitorData: String = "", dataSy
 }
 
 fun clearYoutubeLogin(c: Context) {
-    prefs(c).edit()
+    ytPrefs(c).edit()
         .remove(KEY_YT_COOKIE)
         .remove(KEY_YT_VISITOR_DATA)
         .remove(KEY_YT_DATA_SYNC_ID)
@@ -103,7 +124,7 @@ fun clearYoutubeLogin(c: Context) {
 
 /** SAPISID is required to sign InnerTube requests; a generic Google cookie is not a login. */
 fun isYoutubeLoggedIn(c: Context): Boolean =
-    prefs(c).getInt(KEY_YT_LOGIN_VERSION, 0) >= YT_LOGIN_VERSION &&
+    ytPrefs(c).getInt(KEY_YT_LOGIN_VERSION, 0) >= YT_LOGIN_VERSION &&
         getYoutubeCookie(c).split(';').any { it.substringBefore('=').trim() == "SAPISID" }
 
 /**

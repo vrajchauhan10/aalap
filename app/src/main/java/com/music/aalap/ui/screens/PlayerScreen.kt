@@ -278,7 +278,7 @@ fun PlayerScreen(navController: NavController) {
     // Load the current track's Spotify Canvas (full-screen looping video background).
     LaunchedEffect(playerViewModel.currentSongId.value, queueSongs) {
         val track = queueSongs.firstOrNull { it.id == playerViewModel.currentSongId.value }
-        playerViewModel.loadCanvas(track?.spotifyTrackId.orEmpty())
+        playerViewModel.loadCanvas(track)
     }
 
 
@@ -340,6 +340,7 @@ fun PlayerScreen(navController: NavController) {
             // scrim on top so the title, slider and buttons stay readable.
             CanvasVideo(
                 url = canvasUrl,
+                onFail = { playerViewModel.videoFailed() },
                 modifier = Modifier.fillMaxSize(),
             )
             Box(
@@ -1535,22 +1536,28 @@ fun PlayerMenuRow(
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
-private fun CanvasVideo(url: String, modifier: Modifier = Modifier) {
+private fun CanvasVideo(url: String, onFail: () -> Unit = {}, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    var failed by remember(url) { mutableStateOf(false) }
     val exo = remember(url) {
-        val cached = androidx.media3.datasource.cache.CacheDataSource.Factory()
+        val sources = androidx.media3.datasource.cache.CacheDataSource.Factory()
             .setCache(SongPlayer.mediaCache(context.applicationContext))
             .setUpstreamDataSourceFactory(androidx.media3.datasource.DefaultHttpDataSource.Factory())
         androidx.media3.exoplayer.ExoPlayer.Builder(context)
-            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(cached))
+            .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(sources))
             .build().apply {
                 setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
                 repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
                 volume = 0f
                 playWhenReady = true
+                // If the video can't play, the artwork comes back instead of a black screen.
+                addListener(object : androidx.media3.common.Player.Listener {
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) { failed = true; onFail() }
+                })
                 prepare()
             }
     }
+    if (failed) return
     val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
     androidx.compose.runtime.DisposableEffect(url, lifecycle) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, _ ->

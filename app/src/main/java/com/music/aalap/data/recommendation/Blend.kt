@@ -57,7 +57,15 @@ object Blend {
     fun decode(text: String): TasteCard? = runCatching {
         val code = Regex("""${Regex.escape(PREFIX)}([A-Za-z0-9_-]+)""").find(text)?.groupValues?.get(1) ?: return null
         val bytes = java.util.Base64.getUrlDecoder().decode(code)
-        val o = JSONObject(GZIPInputStream(ByteArrayInputStream(bytes)).readBytes().decodeToString())
+        if (bytes.size > 64 * 1024) return null
+        // A real code unpacks to a few KB; reading stops at 256 KB so a crafted one can't
+        // balloon in memory.
+        val unpacked = GZIPInputStream(ByteArrayInputStream(bytes)).use { z ->
+            val out = ByteArrayOutputStream(); val buf = ByteArray(8192); var n: Int
+            while (z.read(buf).also { n = it } > 0) { out.write(buf, 0, n); if (out.size() > 256 * 1024) return null }
+            out.toByteArray()
+        }
+        val o = JSONObject(unpacked.decodeToString())
         val a = o.getJSONArray("a"); val l = o.getJSONArray("l"); val s = o.getJSONArray("s"); val f = o.getJSONObject("f")
         TasteCard(
             name = o.optString("n").ifBlank { "Friend" },

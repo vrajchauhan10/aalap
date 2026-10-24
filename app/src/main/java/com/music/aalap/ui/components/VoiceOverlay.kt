@@ -42,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -92,6 +93,7 @@ fun VoiceOverlay(onCancel: () -> Unit, onRetry: () -> Unit) {
         ) {
             Column(
                 Modifier.fillMaxWidth().padding(12.dp).navigationBarsPadding()
+                    .voiceGlow(state)
                     .clip(RoundedCornerShape(28.dp)).background(Surface)
                     .clickable(remember { MutableInteractionSource() }, indication = null) {}
                     .padding(horizontal = 24.dp, vertical = 28.dp),
@@ -166,6 +168,54 @@ private fun ThinkingDots() {
         repeat(3) { i ->
             val on = phase.toInt() == i
             Box(Modifier.padding(horizontal = 2.dp).size(6.dp).clip(CircleShape).background(if (on) Saffron else TextMuted.copy(alpha = 0.4f)))
+        }
+    }
+}
+
+/**
+ * The card's lit edge. Listening: a comet of light runs round the border, longer the
+ * louder you speak, and the bottom edge fills out from the middle with your voice.
+ * Thinking: the border fills up, round and round. Found: it closes into a full ring.
+ * Something went wrong: a short, still red arc.
+ */
+@Composable
+private fun Modifier.voiceGlow(state: VoiceUi.State?): Modifier {
+    val t = rememberInfiniteTransition(label = "edge")
+    val spin by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = androidx.compose.animation.core.LinearEasing)), label = "spin")
+    val fill by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing)), label = "fill")
+    val level = (state as? VoiceUi.State.Listening)?.level ?: 0f
+    val voice by animateFloatAsState(level, tween(140), label = "voice")
+    val done by animateFloatAsState(if (state is VoiceUi.State.Found) 1f else 0f, tween(600), label = "done")
+    return this.drawWithContent {
+        drawContent()
+        if (state == null) return@drawWithContent
+        val r = 28.dp.toPx(); val sw = 3.dp.toPx()
+        val outline = androidx.compose.ui.graphics.Path().apply {
+            addRoundRect(androidx.compose.ui.geometry.RoundRect(sw / 2, sw / 2, size.width - sw / 2, size.height - sw / 2, androidx.compose.ui.geometry.CornerRadius(r)))
+        }
+        val pm = androidx.compose.ui.graphics.PathMeasure().apply { setPath(outline, false) }
+        val len = pm.length
+        val brush = androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Saffron, SaffronGold, Saffron))
+        fun arc(from: Float, frac: Float, color: androidx.compose.ui.graphics.Brush, alpha: Float = 1f) {
+            val start = ((from % 1f) + 1f) % 1f * len; val end = start + frac.coerceIn(0f, 1f) * len
+            val seg = androidx.compose.ui.graphics.Path()
+            if (end <= len) pm.getSegment(start, end, seg, true)
+            else { pm.getSegment(start, len, seg, true); pm.getSegment(0f, end - len, seg, true) }
+            drawPath(seg, color, alpha = alpha, style = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+        }
+        // Faint full border underneath, so the light has a track to run on.
+        drawPath(outline, Saffron.copy(alpha = 0.14f), style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
+        when (state) {
+            is VoiceUi.State.Listening -> {
+                arc(spin, 0.18f + voice * 0.35f, brush)
+                // The bottom edge fills out from the middle as you speak.
+                val half = size.width / 2 * (0.15f + voice * 0.85f)
+                drawLine(brush, androidx.compose.ui.geometry.Offset(size.width / 2 - half, size.height - sw / 2),
+                    androidx.compose.ui.geometry.Offset(size.width / 2 + half, size.height - sw / 2), sw * 1.6f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+            is VoiceUi.State.Thinking -> arc(spin * 0.5f, fill, brush)
+            is VoiceUi.State.Found -> arc(0f, 0.4f + 0.6f * done, brush)
+            is VoiceUi.State.Failed -> arc(0.6f, 0.2f, androidx.compose.ui.graphics.SolidColor(Color(0xFFE57373)))
         }
     }
 }

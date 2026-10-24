@@ -168,10 +168,13 @@ private val KanthaQuilt = PosterDesign("Nakshi kantha", "Bangladesh", Color(0xFF
                 style = Stroke(h * 0.006f, cap = StrokeCap.Round, pathEffect = dash(h * 0.014f, h * 0.012f)))
             r += h * 0.032f; k++
         }
+        // Eight stitched petals round the heart; the two either side of the top are sewn
+        // in red thread, a V with the heart.
         for (a in 0 until 8) rotate(a * 45f, c) {
-            drawOval(Color(0xFF2B4C8C), Offset(c.x - h * 0.016f, c.y - h * 0.085f), Size(h * 0.032f, h * 0.05f), style = Stroke(h * 0.005f, pathEffect = dash(h * 0.01f, h * 0.007f)))
+            val red = a == 1 || a == 7
+            drawOval(if (red) Color(0xFFC0392B) else Color(0xFF2B4C8C), Offset(c.x - h * 0.016f, c.y - h * 0.085f), Size(h * 0.032f, h * 0.05f), style = Stroke(h * 0.005f, pathEffect = dash(h * 0.01f, h * 0.007f)))
         }
-        petalV(c, h * 0.07f, Color(0xFFC0392B))
+        drawCircle(Color(0xFFC0392B), h * 0.012f, c)
     }
     panel(Color(0xFF6B1E2B), Edge.ARCH)
     hem(Color(0xFFC0392B).copy(alpha = 0.4f))
@@ -190,13 +193,13 @@ private val Rangoli = PosterDesign("Rangoli", "India", Color(0xFF3D140C)) {
             drawLine(chalk.copy(alpha = 0.8f), Offset(a + d, 0f), Offset(a + d - h, h), h * 0.005f)
             n++
         }
-        val apex = snapToGrid(vSpot(), d)
+        // The rice-flour dots where the lines cross: five of them, in a V, are marigold.
+        val v = gridV(d, levels = 2)
         val marigold = Color(0xFFFFA62B)
-        drawPath(Path().poly(listOf(Offset(apex.x - d * 2, apex.y - d * 2), apex, Offset(apex.x + d * 2, apex.y - d * 2)), closed = false), marigold,
-            style = Stroke(h * 0.016f, cap = StrokeCap.Round, join = StrokeJoin.Round))
         grid(d) { c, i, j ->
-            if ((i + j) % 2 == 0) drawCircle(chalk, d * 0.28f, c, style = Stroke(h * 0.004f))
-            drawCircle(chalk, h * 0.007f, c)
+            val isV = v.hit(c, d * 0.3f)
+            if ((i + j) % 2 == 0) drawCircle(if (isV) marigold else chalk, d * 0.28f, c, style = Stroke(h * 0.004f))
+            drawCircle(if (isV) marigold else chalk, if (isV) h * 0.011f else h * 0.007f, c)
         }
     }
     panel(Color(0xFF3D140C), Edge.STEP)
@@ -212,19 +215,23 @@ private val LotusMandala = PosterDesign("Lotus mandala", "India", Color(0xFF0624
     artArea {
         for (k in 4 downTo 1) {
             val r1 = h * 0.11f * k; val r0 = r1 - h * 0.13f; val n = 6 + k * 4; val wd = h * 0.03f + k * h * 0.006f
-            for (p in 0 until n) rotate(p * 360f / n + k * 7f, c) {
+            // The inner ring sits square to the top, so its petals either side of it, gilded,
+            // make a V with the heart.
+            val turn = if (k == 1) 0f else k * 7f
+            for (p in 0 until n) rotate(p * 360f / n + turn, c) {
                 val petal = Path().apply {
                     moveTo(c.x, c.y - r0)
                     quadraticBezierTo(c.x + wd, c.y - (r0 + r1) / 2, c.x, c.y - r1)
                     quadraticBezierTo(c.x - wd, c.y - (r0 + r1) / 2, c.x, c.y - r0)
                 }
-                drawPath(petal, pinks[k % pinks.size])
+                val gild = k == 1 && (p == 1 || p == n - 1)
+                drawPath(petal, if (gild) Color(0xFFE9B949) else pinks[k % pinks.size])
                 drawPath(petal, Color(0xFF0D3B2E), style = Stroke(h * 0.003f))
             }
         }
         drawCircle(Color(0xFF0D3B2E), h * 0.06f, c)
         drawCircle(Color(0xFFE9B949), h * 0.06f, c, style = Stroke(h * 0.005f))
-        petalV(c, h * 0.08f, Color(0xFFE9B949))
+        drawCircle(Color(0xFFE9B949), h * 0.016f, c)
     }
     panel(Color(0xFF06241B), Edge.SLANT)
     hem(Color(0xFFE9B949).copy(alpha = 0.45f))
@@ -393,7 +400,7 @@ private val Herringbone = PosterDesign("Herringbone parquet", "France", Color(0x
         while (x < w) {
             var y = -cw; var row = 0
             while (y < h) {
-                val wood = if (col == colV && row == ((spot.y + cw / 2) / step).toInt()) Color(0xFF8E2F1C) else oak[(row + col) % 3]
+                val wood = if (col == colV && row == ((spot.y + cw / 2) / step).toInt()) Color(0xFF7A4321) else oak[(row + col) % 3]
                 drawLine(wood, Offset(x, y), Offset(x + cw / 2, y + cw / 2), step * 0.62f)
                 drawLine(wood, Offset(x + cw, y), Offset(x + cw / 2, y + cw / 2), step * 0.62f)
                 y += step; row++
@@ -440,7 +447,7 @@ private val Tartan = PosterDesign("Tartan", "Scotland", Color(0xFF102A20)) {
         while (a < w) {
             val pts = line(Offset(a, h), Offset(a + h, 0f), 120)
             drawLine(Color.Black.copy(alpha = 0.12f), pts.first(), pts.last(), h * 0.003f)
-            traceV(pts, v, h * 0.012f, Color(0xFFF2C14E), h * 0.006f)
+            traceV(pts, v, h * 0.012f, Color(0xFFF2C14E).copy(alpha = 0.75f), h * 0.003f)
             a += h * 0.012f
         }
     }
@@ -471,9 +478,10 @@ private val Argyle = PosterDesign("Argyle", "Scotland", Color(0xFF1B2428)) {
                 j++
             }
         }
+        // The overcheck is knitted in pale yarn; on one diamond its two lower edges are in gold.
         best?.let { c ->
             drawPath(Path().poly(listOf(Offset(c.x - dw / 2, c.y), Offset(c.x, c.y + dh / 2), Offset(c.x + dw / 2, c.y)), closed = false), Color(0xFFE9C46A),
-                style = Stroke(h * 0.01f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                style = Stroke(h * 0.004f, pathEffect = dash(h * 0.012f, h * 0.01f)))
         }
     }
     panel(Color(0xFF1B2428), Edge.SLANT)
@@ -501,7 +509,7 @@ private val Chevron = PosterDesign("Chevron knit", "Italy", Color(0xFF14232A)) {
             }
             y += band; k++
         }
-        dip?.let { drawPath(Path().poly(it, closed = false), Color(0xFFFFF8EC), style = Stroke(band * 0.9f, join = StrokeJoin.Miter)) }
+        dip?.let { drawPath(Path().poly(it, closed = false), Color(0xFFFFF8EC).copy(alpha = 0.7f), style = Stroke(band, join = StrokeJoin.Miter)) }
     }
     panel(Color(0xFF14232A), Edge.WAVE)
     hem(Color(0xFFE9C46A).copy(alpha = 0.45f))
@@ -534,8 +542,9 @@ private val Asanoha = PosterDesign("Asanoha sashiko", "Japan", Color(0xFF102244)
         // From the lattice point nearest the V spot, two triangle edges up each side, in orange thread.
         val r = Math.round(vSpot().y / rh); val i = Math.round((vSpot().x - x0 - if (r % 2 == 1) a / 2 else 0f) / a)
         val apex = p(r, i)
+        // Sewn over the white, at the same stitch: just the lattice's own edges, in orange.
         drawPath(Path().poly(listOf(Offset(apex.x - a, apex.y - rh * 2), apex, Offset(apex.x + a, apex.y - rh * 2)), closed = false), Color(0xFFFF8A3D),
-            style = Stroke(h * 0.009f, cap = StrokeCap.Round, join = StrokeJoin.Round, pathEffect = dash(h * 0.02f, h * 0.008f)))
+            style = Stroke(h * 0.005f, cap = StrokeCap.Round, pathEffect = dash(h * 0.014f, h * 0.01f)))
     }
     panel(Color(0xFF102244), Edge.WAVE)
     hem(Color.White.copy(alpha = 0.35f))
@@ -590,6 +599,8 @@ private val Girih = PosterDesign("Girih", "Iran", Color(0xFF082436)) {
     drawRect(Color(0xFF0F3D5C))
     val ivory = Color(0xFFE8E2D0); val s = h * 0.14f
     artArea {
+        // Each star's heart is a turquoise inlay; five of them, in a V, are gold.
+        val v = gridV(s, levels = 2)
         grid(s) { c, _, _ ->
             val r = s * 0.36f
             for (rot in listOf(0.0, PI / 4)) {
@@ -604,11 +615,8 @@ private val Girih = PosterDesign("Girih", "Iran", Color(0xFF082436)) {
                 val a = Offset(c.x + dx * r * 1.414f, c.y + dy * r * 1.414f); val b = Offset(c.x + dx * (s - r * 1.414f), c.y + dy * (s - r * 1.414f))
                 drawLine(ivory, a, b, h * 0.004f)
             }
-            drawCircle(Color(0xFF2EA39A), s * 0.08f, c)
+            drawCircle(if (v.hit(c, s * 0.3f)) Color(0xFFE9B949) else Color(0xFF2EA39A), s * 0.08f, c)
         }
-        val c = snapToGrid(vSpot(), s); val d = s * 0.36f * 1.414f
-        drawPath(Path().poly(listOf(Offset(c.x - d, c.y), Offset(c.x, c.y + d), Offset(c.x + d, c.y)), closed = false), Color(0xFFE9B949),
-            style = Stroke(h * 0.01f, cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
     panel(Color(0xFF082436), Edge.ARCH)
     hem(ivory.copy(alpha = 0.4f))
@@ -644,7 +652,21 @@ private val Arabesque = PosterDesign("Arabesque", "Morocco", Color(0xFF0B1A33)) 
     val w = size.width; val h = size.height
     drawRect(Color(0xFF13294B))
     val gold = Color(0xFFD4A24C)
-    var best: Offset? = null
+    // The vine's crests: a V of them (one, and one up either side) bloom turquoise.
+    val crests = ArrayList<Offset>()
+    run {
+        var y0 = h * 0.08f; var row = 0
+        while (y0 < h + h * 0.1f) {
+            val ph = if (row % 2 == 0) 0f else PI.toFloat()
+            var t = 0.5f * PI.toFloat() - ph
+            while (t * h * 0.05f < w) { val cx = t * h * 0.05f; if (cx > w * 0.5f) crests += Offset(cx, y0 + h * 0.04f * sin(t + ph)); t += PI.toFloat() }
+            y0 += h * 0.16f; row++
+        }
+    }
+    val apex = crests.minByOrNull { (it - vSpot()).getDistance() }
+    val vCrests = if (apex == null) emptyList() else listOf(apex) + listOf(-1f, 1f).mapNotNull { side ->
+        crests.filter { it.y < apex.y - h * 0.08f && (it.x - apex.x) * side > 0 }.minByOrNull { (it - Offset(apex.x + side * h * 0.16f, apex.y - h * 0.16f)).getDistance() }
+    }
     artArea {
         var y0 = h * 0.08f; var row = 0
         while (y0 < h + h * 0.1f) {
@@ -659,16 +681,15 @@ private val Arabesque = PosterDesign("Arabesque", "Morocco", Color(0xFF0B1A33)) 
                 val cx = t * h * 0.05f
                 if (cx > w * 0.5f) {
                     val crest = Offset(cx, y0 + h * 0.04f * sin(t + ph))
-                    drawArc(gold, 200f, 260f, false, Offset(crest.x - h * 0.02f, crest.y - h * 0.045f), Size(h * 0.04f, h * 0.04f), style = Stroke(h * 0.005f))
-                    drawOval(gold.copy(alpha = 0.7f), Offset(crest.x + h * 0.012f, crest.y - h * 0.008f), Size(h * 0.03f, h * 0.014f))
-                    if (best.let { it == null || (crest - vSpot()).getDistance() < (it - vSpot()).getDistance() }) best = crest
+                    val turq = vCrests.any { (it - crest).getDistance() < h * 0.03f }
+                    drawArc(if (turq) Color(0xFF7FDBDA) else gold, 200f, 260f, false, Offset(crest.x - h * 0.02f, crest.y - h * 0.045f), Size(h * 0.04f, h * 0.04f), style = Stroke(h * 0.005f))
+                    drawOval(if (turq) Color(0xFF7FDBDA) else gold.copy(alpha = 0.7f), Offset(crest.x + h * 0.012f, crest.y - h * 0.008f), Size(h * 0.03f, h * 0.014f))
                 }
                 t += PI.toFloat()
             }
             y0 += h * 0.16f; row++
         }
     }
-    artArea { best?.let { petalV(Offset(it.x, it.y - h * 0.075f), h * 0.075f, Color(0xFF7FDBDA)) } }
     panel(Color(0xFF0B1A33), Edge.ARCH)
     hem(gold.copy(alpha = 0.45f))
 }
@@ -729,33 +750,32 @@ private val PapelPicado = PosterDesign("Papel picado", "Mexico", Color(0xFF1B3A4
     drawRect(sky)
     val papers = listOf(Color(0xFFFF5D8F), Color(0xFFFFA62B), Color(0xFFF7DC6F), Color(0xFF9B5DE5), Color(0xFF00BBF9))
     artArea {
-        val bw = h * 0.13f; val bh = h * 0.24f; val spot = vSpot()
-        var best: Offset? = null
-        val centres = ArrayList<Offset>()
+        val bw = h * 0.13f; val bh = h * 0.24f; val gapX = bw + h * 0.02f
+        // Every banner: its top-left corner and colour. Three are cut from white tissue
+        // instead, one and one up either side of it on the string above: a V of banners.
+        data class Banner(val x: Float, val y0: Float, val k: Int)
+        val banners = (0..2).flatMap { r ->
+            val y0 = h * 0.06f + r * h * 0.32f
+            generateSequence(w * 0.5f + h * 0.01f) { it + gapX }.takeWhile { it < w }.mapIndexed { n, x -> Banner(x, y0, r + n) }.toList()
+        }
+        val apex = banners.filter { it.y0 > h * 0.2f }.minByOrNull { (Offset(it.x + bw / 2, it.y0 + bh * 0.45f) - vSpot()).getDistance() }
+        val white = if (apex == null) emptySet() else banners.filter { b ->
+            b == apex || (kotlin.math.abs(b.y0 - (apex.y0 - h * 0.32f)) < 1f && kotlin.math.abs(kotlin.math.abs(b.x - apex.x) - gapX) < 1f)
+        }.toSet()
         for (r in 0..2) {
             val y0 = h * 0.06f + r * h * 0.32f
             drawLine(Color(0xFFF4F1EA), Offset(w * 0.5f, y0), Offset(w, y0), h * 0.004f)
-            var x = w * 0.5f + h * 0.01f; var k = r
-            while (x < w) {
-                val pts = arrayListOf(Offset(x, y0), Offset(x + bw, y0))
-                for (z in 6 downTo 0) pts += Offset(x + bw * z / 6, y0 + bh - if (z % 2 == 1) h * 0.02f else 0f)
-                drawPath(Path().poly(pts), papers[k % papers.size])
-                val c = Offset(x + bw / 2, y0 + bh * 0.45f)
-                centres += c
-                if (best.let { it == null || (c - spot).getDistance() < (it - spot).getDistance() }) best = c
-                for ((dx, dy) in listOf(-1f to -1f, 1f to -1f, -1f to 1f, 1f to 1f)) {
-                    val o = Offset(c.x + dx * bw * 0.28f, c.y + dy * bh * 0.28f); val d = h * 0.014f
-                    drawPath(Path().poly(listOf(Offset(o.x, o.y - d), Offset(o.x + d, o.y), Offset(o.x, o.y + d), Offset(o.x - d, o.y))), sky)
-                }
-                x += bw + h * 0.02f; k++
-            }
         }
-        for (c in centres) {
-            if (c == best) {
-                val s = bw * 0.3f
-                drawPath(Path().poly(listOf(Offset(c.x - s, c.y - s * 0.9f), Offset(c.x - s * 0.55f, c.y - s * 0.9f), Offset(c.x, c.y + s * 0.4f),
-                    Offset(c.x + s * 0.55f, c.y - s * 0.9f), Offset(c.x + s, c.y - s * 0.9f), Offset(c.x, c.y + s))), sky)
-            } else drawCircle(sky, bw * 0.17f, c)
+        for (b in banners) {
+            val pts = arrayListOf(Offset(b.x, b.y0), Offset(b.x + bw, b.y0))
+            for (z in 6 downTo 0) pts += Offset(b.x + bw * z / 6, b.y0 + bh - if (z % 2 == 1) h * 0.02f else 0f)
+            drawPath(Path().poly(pts), if (b in white) Color(0xFFF4F1EA) else papers[b.k % papers.size])
+            val c = Offset(b.x + bw / 2, b.y0 + bh * 0.45f)
+            for ((dx, dy) in listOf(-1f to -1f, 1f to -1f, -1f to 1f, 1f to 1f)) {
+                val o = Offset(c.x + dx * bw * 0.28f, c.y + dy * bh * 0.28f); val d = h * 0.014f
+                drawPath(Path().poly(listOf(Offset(o.x, o.y - d), Offset(o.x + d, o.y), Offset(o.x, o.y + d), Offset(o.x - d, o.y))), sky)
+            }
+            drawCircle(sky, bw * 0.17f, c)
         }
     }
     panel(Color(0xFF1B3A4B), Edge.WAVE)

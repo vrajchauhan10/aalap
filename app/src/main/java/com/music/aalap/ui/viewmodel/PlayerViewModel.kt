@@ -184,21 +184,30 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
     val canvasUrl: State<String?> get() = _canvasUrl
     @Volatile private var canvasRequestId: String = ""
 
-    fun loadCanvas(trackId: String) {
+    /**
+     * The player background video (Spotify's Canvas loop), when Aalap's "Song videos"
+     * setting allows it. Asked with your Spotify account and, if that gives none (Canvas
+     * turned off in your Spotify app), signed out, so Aalap's own setting decides.
+     */
+    fun loadCanvas(song: com.music.aalap.data.entity.SongsModel?) {
+        val key = song?.let { it.spotifyTrackId.ifBlank { it.title + "|" + it.singer } }.orEmpty()
         // Queue edits re-run this for the same track; clearing would rebuild the
         // video player and flash black for a second.
-        if (trackId == canvasRequestId && _canvasUrl.value != null) return
+        if (key == canvasRequestId && _canvasUrl.value != null) return
         _canvasUrl.value = null
-        canvasRequestId = trackId
-        if (trackId.isBlank()) return
+        canvasRequestId = key
+        if (song == null || key.isBlank()) return
         // Song videos can be turned off (or kept to Wi-Fi) in Profile → Playback.
         if (!com.music.aalap.data.preferences.songVideosAllowed(com.music.aalap.MyApplication.instance)) return
         viewModelScope.launch {
-            val url = withContext(Dispatchers.IO) { repository.provideCanvasUrl(trackId) }
+            val canvas = if (song.spotifyTrackId.isBlank()) null else withContext(Dispatchers.IO) { runCatching { repository.provideCanvasUrl(song.spotifyTrackId) }.getOrNull() }
             // Ignore a slow fetch for a track the user already skipped past.
-            if (canvasRequestId == trackId) _canvasUrl.value = url
+            if (canvasRequestId == key) _canvasUrl.value = canvas
         }
     }
+
+    /** The video couldn't play: back to the artwork for this song. */
+    fun videoFailed() { _canvasUrl.value = null }
 
     fun goToArtist(trackId: String, fallbackName: String, navigate: (route: String) -> Unit) {
         viewModelScope.launch {

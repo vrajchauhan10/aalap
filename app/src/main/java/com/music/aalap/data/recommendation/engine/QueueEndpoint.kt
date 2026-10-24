@@ -94,6 +94,20 @@ object QueueEndpoint {
             }
             return
         }
+        if (target.startsWith("/voiceui")) {
+            // Debug: shows the voice card in a state (s=listen&l=0.7, think, found, fail, off).
+            val st = target.substringAfter("s=", "off").substringBefore("&")
+            val l = target.substringAfter("l=", "0.5").toFloatOrNull() ?: 0.5f
+            com.music.aalap.di.VoiceUi.state.value = when (st) {
+                "listen" -> com.music.aalap.di.VoiceUi.State.Listening("play kesariya", l)
+                "think" -> com.music.aalap.di.VoiceUi.State.Thinking("kesariya")
+                "found" -> com.music.aalap.di.VoiceUi.State.Found("Kesariya", "Arijit Singh · Brahmastra", "")
+                "fail" -> com.music.aalap.di.VoiceUi.State.Failed("Didn't catch that. Tap the mic and try again.")
+                else -> null
+            }
+            socket.getOutputStream().apply { write("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".toByteArray()); flush() }
+            return
+        }
         if (target.startsWith("/voicetest?q=")) {
             // Debug: what a spoken request would play, without playing ("|" separates the recogniser's hearings).
             val words = URLDecoder.decode(target.substringAfter("q="), "UTF-8").split("|")

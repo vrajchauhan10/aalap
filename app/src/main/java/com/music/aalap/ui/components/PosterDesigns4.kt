@@ -92,16 +92,12 @@ private val Khatamband = PosterDesign("Khatamband", "India", Color(0xFF2E1F12)) 
     val groove = Color(0xFF4A3018)
     val s = h * 0.11f
     artArea {
-        val vCell = snapToGrid(vSpot(), s)
+        // The brass pins at each joint: five of them, in a V, are polished bright.
+        val v = gridV(s, levels = 2)
         cells(s) { c, _, _ ->
             rotate(45f, c) { drawRect(groove, Offset(c.x - s * 0.28f, c.y - s * 0.28f), Size(s * 0.56f, s * 0.56f), style = Stroke(h * 0.005f)) }
-            if ((c - vCell).getDistance() < s * 0.2f) {
-                val d = s * 0.28f * 1.414f
-                drawPath(Path().apply { moveTo(c.x - d, c.y); lineTo(c.x, c.y + d); lineTo(c.x + d, c.y) }, Color(0xFFF2D29B),
-                    style = Stroke(h * 0.01f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-            }
             drawRect(groove, Offset(c.x - s * 0.5f, c.y - s * 0.5f), Size(s, s), style = Stroke(h * 0.004f))
-            drawCircle(Color(0xFFE2B77E), h * 0.006f, c)
+            if (v.hit(c, s * 0.3f)) drawCircle(Color(0xFFFFE3A8), h * 0.012f, c) else drawCircle(Color(0xFFE2B77E), h * 0.006f, c)
         }
     }
     panel(Color(0xFF2E1F12), Edge.ARCH)
@@ -141,21 +137,19 @@ private val HarrisTweed = PosterDesign("Harris Tweed", "Scotland", Color(0xFF1F2
     val light = Color(0xFFC9C2A8); val dark = Color(0xFF2F382C)
     artArea {
         val col = h * 0.06f; val dash = h * 0.03f
+        // Flecks of orange yarn are spun into the light weft where it runs along a V.
+        val v = vArms(vSpot(), h * 0.1f, h * 0.22f); val fleck = Color(0xFFE08A3C)
         var x = w * 0.5f; var k = 0
         while (x < w + col) {
             var y = 0f
             while (y < h) {
                 val dir = if (k % 2 == 0) 1f else -1f
-                drawLine(light, Offset(x, y), Offset(x + col * dir * 0.8f, y + dash), h * 0.006f, cap = StrokeCap.Round)
+                val mid = Offset(x + col * dir * 0.4f, y + dash / 2)
+                drawLine(if (v.near(mid, col * 0.45f)) fleck else light, Offset(x, y), Offset(x + col * dir * 0.8f, y + dash), h * 0.006f, cap = StrokeCap.Round)
                 drawLine(dark, Offset(x, y + dash * 0.5f), Offset(x + col * dir * 0.8f, y + dash * 1.5f), h * 0.004f, cap = StrokeCap.Round)
                 y += dash
             }
             x += col; k++
-        }
-        // Six flecks of orange yarn, laid at the herringbone's own slant, meet in a V.
-        val apex = vSpot(); val fleck = Color(0xFFE08A3C)
-        for (n in 0..2) for (side in listOf(-1f, 1f)) {
-            drawLine(fleck, Offset(apex.x + side * col * 0.8f * (n + 1), apex.y - dash * 1.6f * (n + 1)), Offset(apex.x + side * col * 0.8f * n, apex.y - dash * 1.6f * n), h * 0.008f, cap = StrokeCap.Round)
         }
     }
     panel(Color(0xFF1F2A24), Edge.STRAIGHT)
@@ -279,14 +273,13 @@ private val CaneWeave = PosterDesign("Cane weave", "Indonesia", Color(0xFF2E2212
             drawLine(cane.copy(alpha = 0.75f), Offset(x + h, 0f), Offset(x, h), h * 0.005f)
             x += s
         }
-        // Diagonals run x = a + y and x = b - y; their crossing near the V spot.
-        val x0 = w * 0.5f - h; val spot = vSpot()
-        val a = x0 + kotlin.math.round((spot.x - spot.y - x0) / s) * s
-        val b = x0 + h + kotlin.math.round((spot.x + spot.y - x0 - h) / s) * s
-        val cy = (b - a) / 2; val cx = a + cy; val arm = s * 3
-        drawPath(Path().apply { moveTo(cx - arm, cy - arm); lineTo(cx, cy); lineTo(cx + arm, cy - arm) }, Color(0xFFB5542A),
-            style = Stroke(h * 0.009f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-        cells(s) { c, _, _ -> drawCircle(Color(0xFF3A2C18), s * 0.22f, Offset(c.x - s / 2, c.y - s / 2)) }
+        // The open holes of the weave; five of them, in a V, are lined with red-dyed cane.
+        val v = gridV(s, levels = 2)
+        cells(s) { c, _, _ ->
+            val hole = Offset(c.x - s / 2, c.y - s / 2)
+            drawCircle(Color(0xFF3A2C18), s * 0.22f, hole)
+            if (v.hit(c, s * 0.3f)) drawCircle(Color(0xFFB5542A), s * 0.22f, hole, style = Stroke(h * 0.007f))
+        }
     }
     panel(Color(0xFF2E2212), Edge.STRAIGHT)
     hem(cane.copy(alpha = 0.45f))

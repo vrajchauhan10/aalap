@@ -38,6 +38,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.animation.core.animateFloat
+import com.music.aalap.ui.components.drawMandala
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -61,83 +65,122 @@ import com.music.aalap.ui.theme.SurfaceHigh
 import com.music.aalap.ui.theme.TextMuted
 import com.music.aalap.ui.theme.TextPrimary
 
-/** First screen: the Aalap account (name + email). Next: connect your music. */
+/**
+ * First screen: the Aalap account (name + email; it stays on this phone). Next: connect
+ * your music. A mandala turns slowly behind the logo and the parts come in one by one.
+ */
 @Composable
 fun WelcomeScreen(navController: NavController) {
     val context = LocalContext.current
     var name by remember { mutableStateOf(com.music.aalap.data.preferences.getAalapName(context)) }
     var email by remember { mutableStateOf(com.music.aalap.data.preferences.getAalapEmail(context)) }
     var error by remember { mutableStateOf("") }
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Saffron.copy(alpha = 0.22f), AppBackground, AppBackground)))
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .imePadding()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 28.dp),
-    ) {
-        Spacer(Modifier.height(64.dp))
-        Image(painterResource(R.drawable.logo), contentDescription = "Aalap", modifier = Modifier.size(96.dp))
-        Spacer(Modifier.height(18.dp))
-        Text("Aalap", color = TextPrimary, fontSize = 40.sp, fontWeight = FontWeight.Bold)
-        Text("All your music. One app.", color = TextMuted, fontSize = 16.sp)
-        Spacer(Modifier.height(40.dp))
-
-        AalapField(name, "Your name", KeyboardType.Text) { name = it; error = "" }
-        Spacer(Modifier.height(12.dp))
-        AalapField(email, "Email", KeyboardType.Email) { email = it; error = "" }
-        if (error.isNotBlank()) {
-            Text(error, color = Color(0xFFE57373), fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+    val valid = name.isNotBlank() && android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
+    val submit = {
+        when {
+            name.isBlank() -> error = "Enter your name"
+            !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() -> error = "Enter a valid email"
+            else -> {
+                setAalapAccount(context, name, email)
+                navController.navigate(Routes.MusicSource.route) { popUpTo(Routes.Login.route) { inclusive = true } }
+            }
         }
-        Spacer(Modifier.height(22.dp))
-        Box(
-            contentAlignment = Alignment.Center,
+    }
+    // The parts arrive one after another.
+    var shown by remember { mutableIntStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { repeat(5) { kotlinx.coroutines.delay(110); shown++ } }
+    @Composable
+    fun Modifier.arrive(step: Int): Modifier {
+        val p by androidx.compose.animation.core.animateFloatAsState(if (shown > step) 1f else 0f, androidx.compose.animation.core.tween(520, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "arrive")
+        return this.alpha(p).graphicsLayer { translationY = (1 - p) * 24f * density }
+    }
+    val turn by androidx.compose.animation.core.rememberInfiniteTransition(label = "mandala")
+        .animateFloat(0f, 360f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(90_000, easing = androidx.compose.animation.core.LinearEasing)), label = "turn")
+
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Saffron.copy(alpha = 0.22f), AppBackground, AppBackground)))) {
+        androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height(420.dp)) {
+            val c = androidx.compose.ui.geometry.Offset(size.width / 2, size.height * 0.42f)
+            rotate(turn, c) {
+                drawMandala(Saffron.copy(alpha = 0.16f), c, size.width * 0.56f, 2.2f)
+            }
+        }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(50))
-                .background(Saffron)
-                .clickable {
-                    when {
-                        name.isBlank() -> error = "Enter your name"
-                        !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() -> error = "Enter a valid email"
-                        else -> {
-                            setAalapAccount(context, name, email)
-                            navController.navigate(Routes.MusicSource.route) {
-                                popUpTo(Routes.Login.route) { inclusive = true }
-                            }
-                        }
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 28.dp),
+        ) {
+            Spacer(Modifier.height(64.dp))
+            Image(painterResource(R.drawable.logo), contentDescription = "Aalap", modifier = Modifier.size(96.dp).arrive(0))
+            Spacer(Modifier.height(18.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.arrive(1)) {
+                Text("Aalap", color = TextPrimary, fontSize = 40.sp, fontWeight = FontWeight.Bold)
+                Text("All your music. One app.", color = TextMuted, fontSize = 16.sp)
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (f in listOf("Smart radio", "Blend with friends", "Ask Aalap")) {
+                        Text(f, color = TextPrimary, fontSize = 12.sp, modifier = Modifier.clip(RoundedCornerShape(50))
+                            .background(Surface.copy(alpha = 0.8f)).border(1.dp, Hairline, RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 6.dp))
                     }
                 }
-                .padding(vertical = 16.dp),
-        ) {
-            Text("Continue", color = OnSaffron, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(34.dp))
+
+            Column(Modifier.arrive(2)) {
+                AalapField(name, "Your name", KeyboardType.Text, ImeAction.Next) { name = it; error = "" }
+                Spacer(Modifier.height(12.dp))
+                AalapField(email, "Email", KeyboardType.Email, ImeAction.Done, onDone = { submit() }) { email = it; error = "" }
+                if (error.isNotBlank()) {
+                    Text(error, color = Color(0xFFE57373), fontSize = 13.sp, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                }
+            }
+            Spacer(Modifier.height(22.dp))
+            val glow by androidx.compose.animation.core.animateFloatAsState(if (valid) 1f else 0.55f, label = "ready")
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .arrive(3)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(50))
+                    .background(Brush.horizontalGradient(listOf(Saffron.copy(alpha = glow), com.music.aalap.ui.theme.SaffronGold.copy(alpha = glow))))
+                    .clickable { submit() }
+                    .padding(vertical = 16.dp),
+            ) {
+                Text("Continue", color = OnSaffron, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(16.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.arrive(4)) {
+                Text(
+                    "Next you'll connect your music once. Use the same Google account everywhere and it's a tap each.",
+                    color = TextMuted, fontSize = 12.sp, textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Your name and email stay on this phone. Blends with friends use a private, anonymous Aalap ID.",
+                    color = TextMuted.copy(alpha = 0.8f), fontSize = 11.sp, textAlign = TextAlign.Center,
+                )
+            }
+            Spacer(Modifier.height(28.dp))
+            // The maker's mark in the bottom-right corner.
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) { com.music.aalap.ui.components.Signature() }
+            Spacer(Modifier.height(16.dp))
         }
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "Next you'll connect your music once. Use the same Google account everywhere and it's a tap each.",
-            color = TextMuted, fontSize = 12.sp, textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(28.dp))
-        // The maker's mark in the bottom-right corner.
-        androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-            com.music.aalap.ui.components.Signature()
-        }
-        Spacer(Modifier.height(16.dp))
     }
 }
 
 @Composable
-private fun AalapField(value: String, label: String, type: KeyboardType, onChange: (String) -> Unit) {
+private fun AalapField(value: String, label: String, type: KeyboardType, ime: ImeAction, onDone: () -> Unit = {}, onChange: (String) -> Unit) {
     OutlinedTextField(
         value = value,
         onValueChange = onChange,
         singleLine = true,
         label = { Text(label) },
-        keyboardOptions = KeyboardOptions(keyboardType = type, imeAction = ImeAction.Next),
+        keyboardOptions = KeyboardOptions(keyboardType = type, imeAction = ime),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { onDone() }),
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth(),
         colors = OutlinedTextFieldDefaults.colors(

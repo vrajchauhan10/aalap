@@ -426,6 +426,16 @@ class PlaybackService : MediaLibraryService() {
     // ── Android Auto browse tree ──────────────────────────────────────────
 
     companion object {
+        /** Car and assistant apps that browse a music app's library. */
+        val TRUSTED_BROWSERS = setOf(
+            "com.google.android.projection.gearhead",  // Android Auto
+            "com.google.android.googlequicksearchbox",  // Google Assistant
+            "com.google.android.apps.bard",             // Gemini
+            "com.google.android.carassistant",
+            "com.google.android.wearable.app",
+            "com.samsung.android.bixby.agent",
+        )
+
         /** Re-sends the notification's extra buttons (after the setting changes). */
         @Volatile var refreshNotificationButtons: (() -> Unit)? = null
         @Volatile var debugCompatToken: android.support.v4.media.session.MediaSessionCompat.Token? = null
@@ -440,12 +450,24 @@ class PlaybackService : MediaLibraryService() {
 
     private inner class LibraryCallback : MediaLibrarySession.Callback {
 
+        /**
+         * Who may browse your library (Liked Songs, playlists, mixes) and like songs: Aalap,
+         * Android itself (notification, lock screen, Bluetooth: "trusted" controllers), and
+         * the car and assistant apps. Any other app can still play / pause / skip, as with
+         * any music app, but can't read your library.
+         */
+        private fun trusted(c: MediaSession.ControllerInfo) =
+            c.packageName == packageName || c.isTrusted || c.packageName in TRUSTED_BROWSERS
+
         // Allow controllers (the system notification) to send our Like / Shuffle commands.
         override fun onConnect(
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
         ): MediaSession.ConnectionResult {
             val base = super.onConnect(session, controller)
+            if (!trusted(controller)) return MediaSession.ConnectionResult.accept(
+                androidx.media3.session.SessionCommands.Builder().build(), base.availablePlayerCommands,
+            )
             val commands = base.availableSessionCommands.buildUpon()
                 .add(cmdLike)
                 .add(cmdShuffle)
@@ -472,7 +494,8 @@ class PlaybackService : MediaLibraryService() {
             browser: MediaSession.ControllerInfo,
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<MediaItem>> =
-            Futures.immediateFuture(LibraryResult.ofItem(folder(ROOT, "Aalap"), params))
+            if (!trusted(browser)) Futures.immediateFuture(LibraryResult.ofError(LibraryResult.RESULT_ERROR_PERMISSION_DENIED))
+            else Futures.immediateFuture(LibraryResult.ofItem(folder(ROOT, "Aalap"), params))
 
         override fun onGetChildren(
             session: MediaLibrarySession,
@@ -482,7 +505,8 @@ class PlaybackService : MediaLibraryService() {
             pageSize: Int,
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = future {
-            LibraryResult.ofItemList(ImmutableList.copyOf(childrenOf(parentId)), params)
+            if (!trusted(browser)) LibraryResult.ofError(LibraryResult.RESULT_ERROR_PERMISSION_DENIED)
+            else LibraryResult.ofItemList(ImmutableList.copyOf(childrenOf(parentId)), params)
         }
 
         override fun onGetItem(
@@ -490,7 +514,7 @@ class PlaybackService : MediaLibraryService() {
             browser: MediaSession.ControllerInfo,
             mediaId: String,
         ): ListenableFuture<LibraryResult<MediaItem>> = Futures.immediateFuture(
-            trackById[mediaId]?.let { LibraryResult.ofItem(playable(it), null) }
+            trackById[mediaId]?.takeIf { trusted(browser) }?.let { LibraryResult.ofItem(playable(it), null) }
                 ?: LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE),
         )
 

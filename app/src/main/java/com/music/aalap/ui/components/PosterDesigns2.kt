@@ -38,12 +38,13 @@ private val Shibori = PosterDesign("Shibori", "Japan", Color(0xFF0E1B33)) {
     artArea {
         val vCell = snapToGrid(vSpot(), h * 0.34f, shift = h * 0.17f)
         tiles(h * 0.34f, shift = h * 0.17f) { c, _, _ ->
-            if ((c - vCell).getDistance() < h * 0.05f) for (a in listOf(-35f, 35f)) rotate(a, c) {
-                drawLine(Color(0xFFFFB347), c, Offset(c.x, c.y - h * 0.16f), h * 0.012f, cap = StrokeCap.Round)
-            }
+            val isV = (c - vCell).getDistance() < h * 0.05f
             for (k in 1..4) drawCircle(Color.White.copy(alpha = 0.55f - k * 0.1f), h * 0.035f * k, c, style = Stroke(h * 0.012f))
+            // The binding lines of the dye: in one circle the two upper diagonals took the
+            // orange dye, so with the centre they make a V.
             for (a in 0 until 8) rotate(a * 45f, c) {
-                drawLine(Color.White.copy(alpha = 0.18f), c, Offset(c.x, c.y - h * 0.16f), h * 0.006f)
+                val vRay = isV && (a == 1 || a == 7)
+                drawLine(if (vRay) Color(0xFFFFB347).copy(alpha = 0.9f) else Color.White.copy(alpha = 0.18f), c, Offset(c.x, c.y - h * 0.16f), h * 0.006f)
             }
         }
     }
@@ -209,9 +210,15 @@ private val Mola = PosterDesign("Mola", "Panama", Color(0xFF1B1B3A)) {
         }
     }
     artArea {
-        val c = Offset(w * 0.8f, h * 0.5f); val r = h * 0.075f
-        drawPath(Path().apply { moveTo(c.x - r, c.y - r * 0.55f); lineTo(c.x, c.y + r * 0.55f); lineTo(c.x + r, c.y - r * 0.55f) },
-            Color(0xFFE63946), style = Stroke(h * 0.022f, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        // Molas are cut with little slits ("tas") down to the layer below; in the heart
+        // of the big motif a V of them shows the red base cloth.
+        val c = Offset(w * 0.8f, h * 0.5f); val st = h * 0.03f
+        val v = vArms(Offset(c.x, c.y + st * 1.5f), st * 2f, st * 3f)
+        for (iy in -2..2) for (ix in -3..3) {
+            val p = Offset(c.x + ix * st, c.y + iy * st)
+            val col = if (v.near(p, st * 0.35f)) Color(0xFFE63946) else Color(0xFF111111).copy(alpha = 0.55f)
+            drawRoundRect(col, Offset(p.x - st * 0.12f, p.y - st * 0.32f), Size(st * 0.24f, st * 0.64f), CornerRadius(st * 0.12f))
+        }
     }
     panel(Color(0xFF1B1B3A), Edge.STEP)
     hem(Color(0xFFFFD166).copy(alpha = 0.5f))
@@ -261,7 +268,14 @@ private val Azulejo = PosterDesign("Azulejo", "Portugal", Color(0xFF0D2C5C)) {
         tiles(t) { c, _, _ ->
             drawRect(blue.copy(alpha = 0.35f), Offset(c.x - t / 2, c.y - t / 2), Size(t, t), style = Stroke(h * 0.005f))
             for ((dx, dy) in listOf(0f to -1f, 1f to 0f, 0f to 1f, -1f to 0f)) drawCircle(blue, t * 0.17f, Offset(c.x + dx * t * 0.16f, c.y + dy * t * 0.16f), style = Stroke(h * 0.012f))
-            if ((c - snapToGrid(vSpot(), t)).getDistance() < t * 0.2f) petalV(c, t * 0.26f, Color(0xFFE0A526)) else drawCircle(blue, t * 0.08f, c)
+            // Little dots between the lobes; in one tile the centre and the upper ones are
+            // glazed gold, a V.
+            val isV = (c - snapToGrid(vSpot(), t)).getDistance() < t * 0.2f
+            val gold = Color(0xFFE0A526)
+            drawCircle(if (isV) gold else blue, t * 0.06f, c)
+            for ((dx, dy) in listOf(-1f to -1f, 1f to -1f, -1f to 1f, 1f to 1f)) for (rr in listOf(0.2f, 0.33f)) {
+                drawCircle(if (isV && dy < 0) gold else blue.copy(alpha = 0.7f), t * 0.028f, Offset(c.x + dx * t * rr, c.y + dy * t * rr))
+            }
             drawLine(blue.copy(alpha = 0.5f), Offset(c.x - t / 2, c.y - t / 2), Offset(c.x - t * 0.32f, c.y - t * 0.32f), h * 0.008f)
             drawLine(blue.copy(alpha = 0.5f), Offset(c.x + t / 2, c.y + t / 2), Offset(c.x + t * 0.32f, c.y + t * 0.32f), h * 0.008f)
         }
@@ -320,10 +334,14 @@ private val Kuba = PosterDesign("Kuba cloth", "Congo", Color(0xFF2B1D10)) {
         }
     }
     artArea {
-        vKuba?.let { c ->
-            val d = h * 0.11f * 2 / 2.4f * 1.414f
-            drawPath(Path().apply { moveTo(c.x - d, c.y); lineTo(c.x, c.y + d); lineTo(c.x + d, c.y) }, Color(0xFFA8442A),
-                style = Stroke(h * 0.014f, join = androidx.compose.ui.graphics.StrokeJoin.Miter))
+        // Every motif has a cut-pile knot at its heart; three of them, a motif and the two
+        // diagonally above it, are dyed red: a V.
+        vKuba?.let { apex ->
+            val step = h * 0.25f
+            val v = listOf(apex, Offset(apex.x - step, apex.y - step), Offset(apex.x + step, apex.y - step))
+            tiles(h * 0.25f) { c, _, _ ->
+                if (v.hit(c, step * 0.2f)) drawCircle(Color(0xFFA8442A), h * 0.022f, c) else drawCircle(ink, h * 0.012f, c)
+            }
         }
     }
     panel(Color(0xFF2B1D10), Edge.STEP)
@@ -349,11 +367,13 @@ private val Ndebele = PosterDesign("Ndebele", "South Africa", Color(0xFF111111))
             }
             drawLine(black, Offset(x, 0f), Offset(x, h), h * 0.02f)
         }
-        val k = ((vSpot().x - w * 0.5f) / cw).toInt().coerceIn(0, 3)
-        val nx = w * 0.5f + k * cw + cw * 0.5f; val ny = h * (0.12f + 2 * 0.22f) + h * 0.06f
-        val vp = Path().apply { moveTo(nx - cw * 0.17f, ny - h * 0.04f); lineTo(nx, ny + h * 0.035f); lineTo(nx + cw * 0.17f, ny - h * 0.04f) }
-        drawPath(vp, black, style = Stroke(h * 0.03f, join = androidx.compose.ui.graphics.StrokeJoin.Miter))
-        drawPath(vp, Color(0xFFE53935), style = Stroke(h * 0.016f, join = androidx.compose.ui.graphics.StrokeJoin.Miter))
+        // Three of the notches are painted black instead of white: one low in a band and
+        // one a step higher either side of it, a V.
+        val k = ((vSpot().x - w * 0.5f) / cw).toInt().coerceIn(1, 2)
+        for ((kk, s) in listOf(k to 2, k - 1 to 1, k + 1 to 1)) {
+            val x = w * 0.5f + kk * cw; val y = h * (0.12f + s * 0.22f)
+            drawRect(black, Offset(x + cw * 0.25f, y), Size(cw * 0.5f, h * 0.12f))
+        }
     }
     panel(Color(0xFF111111), Edge.STRAIGHT)
     hem(Color.White.copy(alpha = 0.4f))
@@ -371,8 +391,16 @@ private val PersianCarpet = PosterDesign("Persian carpet", "Iran", Color(0xFF142
         lozenge(h * 0.3f, h * 0.37f, navy)
         lozenge(h * 0.18f, h * 0.22f, Color(0xFF8B1E2D))
         lozenge(h * 0.08f, h * 0.1f, gold)
-        petalV(c, h * 0.1f, navy)
-        for (k in 0 until 8) rotate(k * 45f, c) { drawCircle(gold, h * 0.014f, Offset(c.x, c.y - h * 0.27f)) }
+        // A ring of twelve small gold buds; the two either side of the top are ivory, and
+        // with the gold heart they make a V.
+        for (k in 0 until 12) rotate(k * 30f, c) {
+            val bud = Path().apply {
+                moveTo(c.x, c.y - h * 0.3f)
+                quadraticBezierTo(c.x + h * 0.022f, c.y - h * 0.26f, c.x, c.y - h * 0.235f)
+                quadraticBezierTo(c.x - h * 0.022f, c.y - h * 0.26f, c.x, c.y - h * 0.3f)
+            }
+            drawPath(bud, if (k == 1 || k == 11) ivory else gold)
+        }
         drawLine(ivory, Offset(w - h * 0.06f, 0f), Offset(w - h * 0.06f, h), h * 0.02f)
         drawLine(gold, Offset(w - h * 0.1f, 0f), Offset(w - h * 0.1f, h), h * 0.008f, pathEffect = dashes(h * 0.02f, h * 0.02f))
     }

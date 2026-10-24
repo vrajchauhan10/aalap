@@ -2050,10 +2050,33 @@ object Spotify {
     fun isAuthenticated(): Boolean = accessToken != null
 
     /** The looping Canvas video URL for a track, or null when it has none. */
+    /**
+     * The song's video (Canvas). Spotify's web player asks GraphQL ("canvas"); the older
+     * canvaz-cache endpoint stopped returning videos. Asked with your token first; if that
+     * gives none (your Spotify account may have Canvas turned off), asked again signed out,
+     * so Aalap's own "Song videos" setting decides.
+     */
     suspend fun canvasUrl(trackId: String): String? {
-        val token = accessToken ?: return null
-        return SpotifyCanvas.canvasUrl(trackId, token)
+        if (trackId.isBlank()) return null
+        val vars = buildJsonObject { put("trackUri", "spotify:track:$trackId") }
+        fun pick(j: JsonObject?) = j?.obj("data")?.obj("trackUnion")?.obj("canvas")?.str("url")?.takeIf { it.isNotBlank() }
+        runCatching { pick(graphqlPost("canvas", vars)) }.onFailure { log("W", "canvas($trackId) gql: ${it.message}") }.getOrNull()
+            ?.let { log("D", "canvas($trackId) -> $it"); return it }
+        val anon = anonymousToken?.takeIf { System.currentTimeMillis() < anonymousUntil }
+            ?: SpotifyAuth.fetchAnonymousToken().getOrNull()?.also {
+                anonymousToken = it.accessToken
+                anonymousUntil = System.currentTimeMillis() + 30 * 60_000L
+            }?.accessToken
+        if (anon != null) {
+            runCatching { pick(executeGqlWithRetries("canvas", anon, buildGqlBody("canvas", SpotifyHashProvider.getHash("canvas"), vars)).json) }
+                .getOrNull()?.let { log("D", "canvas($trackId) signed out -> $it"); return it }
+        }
+        // Older endpoint, in case it comes back.
+        return accessToken?.let { SpotifyCanvas.canvasUrl(trackId, it) }
     }
+
+    @Volatile private var anonymousToken: String? = null
+    @Volatile private var anonymousUntil = 0L
 }
 
 @kotlinx.serialization.Serializable

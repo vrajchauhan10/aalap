@@ -104,6 +104,23 @@ object SpotifyAuth {
         token
     }.onFailure { nuanceCache = null } // the secret may have rotated; refetch next time
 
+    /**
+     * A signed-out web-player token (no cookie): what open.spotify.com uses before you
+     * log in. Used for things that shouldn't follow your account's own settings, such as
+     * song videos (Canvas) when your Spotify app has them turned off.
+     */
+    suspend fun fetchAnonymousToken(): Result<SpotifyInternalToken> = runCatching {
+        val nuance = cachedNuance() ?: fetchNuance().also {
+            nuanceCache = it
+            nuanceFetchedAtMs = System.currentTimeMillis()
+        }
+        val totp = generateTotp(nuance.s, fetchServerTime())
+        val url = "$TOKEN_URL?reason=init&productType=web-player&totp=$totp&totpServer=$totp&totpVer=${nuance.v}"
+        val token = json.decodeFromString<SpotifyInternalToken>(withContext(Dispatchers.IO) { httpGet(url, emptyMap()) })
+        if (token.accessToken.isBlank()) throw Spotify.SpotifyException(401, "No anonymous token")
+        token
+    }
+
     // The gist is the unauthenticated GitHub API (60 requests/hour), and the secret
     // rotates rarely, so it is reused across token refreshes.
     private const val NUANCE_TTL_MS = 6 * 60 * 60 * 1000L

@@ -35,7 +35,7 @@ internal object LosslessRegistry {
 
     /** Community (gated) download endpoint for a provider, e.g. tidal → .../api/dl. */
     fun communityDlUrl(provider: String): String? =
-        registry()?.optJSONObject(provider)?.optString("community")?.takeIf { it.isNotBlank() }
+        registry()?.optJSONObject(provider)?.optString("community")?.takeIf { it.startsWith("https://") }
 
     private const val GIST_URL =
         "https://gist.githubusercontent.com/BartolomeoRusso9/ef9fdbbc894818aea89d25a8d99f8c77/raw"
@@ -60,14 +60,15 @@ internal object LosslessRegistry {
     /** Current Amazon community endpoints (self-resolve by Spotify id). */
     fun amazonEndpoints(): List<String> {
         val fromReg = registry()?.optJSONObject("amazon")
-            ?.let { listOfNotNull(it.optString("antra").takeIf(String::isNotBlank)) }
+            ?.let { listOfNotNull(it.optString("antra").takeIf { u -> u.startsWith("https://") }) }
             .orEmpty()
         return (fromReg + DEFAULT_AMAZON).map { it.trimEnd('/') }.distinct()
     }
 
     private fun endpoints(provider: String, category: String, default: List<String>): List<String> {
         val fromReg = registry()?.optJSONObject(provider)?.optJSONArray(category)?.let { arr ->
-            (0 until arr.length()).mapNotNull { arr.optString(it).takeIf(String::isNotBlank) }
+            // Only secure (https) servers from the shared list are ever used.
+            (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { u -> u.startsWith("https://") } }
         }.orEmpty()
         return (fromReg + default).map { it.trimEnd('/') }.distinct()
     }

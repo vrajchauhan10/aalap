@@ -157,10 +157,17 @@ private val Mandala = PosterDesign("Marigold mandala", "India", Color(0xFFE0661B
     val w = size.width; val h = size.height
     drawRect(Color(0xFF2A1A55))
     val mc = Offset(w * 0.79f, h * 0.46f)
-    drawMandala(Color(0xFFFFC56B), mc, h * 0.37f, h * 0.008f, accent = Color(0xFFFF8A3D))
-    // The heart of the mandala: a V of two marigold petals instead of a plain dot.
-    drawCircle(Color(0xFF2A1A55), h * 0.37f * 0.15f, mc)
-    petalV(mc, h * 0.37f * 0.26f, Color(0xFFFFC56B))
+    val mr = h * 0.37f
+    // The V lives in the petals: the two outer petals either side of the top are filled
+    // with marigold, and with the heart they make a V. The rest are outlined as usual.
+    for (a in listOf(-30f, 30f)) rotate(a, mc) {
+        drawPath(Path().apply {
+            moveTo(mc.x, mc.y - mr * 0.82f)
+            cubicTo(mc.x + mr * 0.14f, mc.y - mr * 0.66f, mc.x + mr * 0.14f, mc.y - mr * 0.5f, mc.x, mc.y - mr * 0.42f)
+            cubicTo(mc.x - mr * 0.14f, mc.y - mr * 0.5f, mc.x - mr * 0.14f, mc.y - mr * 0.66f, mc.x, mc.y - mr * 0.82f)
+        }, Color(0xFFFF8A3D).copy(alpha = 0.85f))
+    }
+    drawMandala(Color(0xFFFFC56B), mc, mr, h * 0.008f, accent = Color(0xFFFF8A3D))
     panel(Color(0xFFE0661B), Edge.SLANT)
     val band = h * 0.92f
     drawLine(Color(0xFFFFC56B).copy(alpha = 0.7f), Offset(0f, band), Offset(w, band), strokeWidth = h * 0.007f)
@@ -236,10 +243,16 @@ private val Zellige = PosterDesign("Zellige", "Morocco", Color(0xFF0F4C4A)) {
             }
             y += s * 0.85f; j++
         }
-        // One star's heart holds a V of two gold petals instead of a dot.
-        stars.minByOrNull { (it - vSpot()).getDistance() }?.let { c ->
-            drawCircle(Color(0xFFF3E9D2), s * 0.15f, c)
-            petalV(c, s * 0.26f, Color(0xFFD9A030))
+        // Five stars, glazed gold, sit in a V: one, and two up each side of it.
+        stars.minByOrNull { (it - vSpot()).getDistance() }?.let { apex ->
+            val vStars = (0..2).flatMap { k -> listOf(-1f, 1f).map { side -> Offset(apex.x + side * s * 0.7f * k, apex.y - s * 0.85f * k) } }
+            for (c in stars) if (vStars.any { (it - c).getDistance() < s * 0.1f }) {
+                for (a in listOf(0f, 45f)) rotate(a, c) {
+                    drawRect(Color(0xFFE0B04A), topLeft = Offset(c.x - s * 0.28f, c.y - s * 0.28f), size = Size(s * 0.56f, s * 0.56f))
+                }
+                drawCircle(Color(0xFFF3E9D2), s * 0.14f, c)
+                drawCircle(Color(0xFF1E7A6E), s * 0.06f, c)
+            }
         }
     }
     panel(Color(0xFF0F4C4A), Edge.ARCH)
@@ -428,9 +441,19 @@ private val Madhubani = PosterDesign("Madhubani", "India", Color(0xFF7A1F16)) {
         drawCircle(black, h * 0.018f, Offset(c.x + h * 0.2f, c.y - h * 0.16f))
     }
     artArea {
+        // Madhubani fills its ground with fine dots; a V of them is painted red.
+        val v = vArms(Offset(c.x + h * 0.02f, c.y + h * 0.04f), h * 0.06f, h * 0.12f)
+        var yy = h * 0.04f
+        while (yy < h) {
+            var xx = w * 0.6f + h * 0.02f
+            while (xx < w) {
+                val d = Offset(xx, yy)
+                if (v.near(d, h * 0.012f)) drawCircle(red, h * 0.008f, d) else drawCircle(black.copy(alpha = 0.35f), h * 0.005f, d)
+                xx += h * 0.035f
+            }
+            yy += h * 0.035f
+        }
         fish(false); fish(true)
-        // Between the fish, two red leaves sprout in a V, outlined like everything else.
-        petalV(Offset(c.x - h * 0.01f, c.y), h * 0.11f, red)
         // Double-line border with a row of red dots between.
         val inset = h * 0.07f
         drawRect(black, topLeft = Offset(w * 0.6f, inset), size = Size(w * 0.4f - inset, h - inset * 2), style = Stroke(sw))
@@ -441,12 +464,12 @@ private val Madhubani = PosterDesign("Madhubani", "India", Color(0xFF7A1F16)) {
 }
 
 /**
- * All 80: bold crafts (here, PosterDesigns2 and PosterDesigns5) and fine micro patterns
+ * All 100: bold crafts (here, PosterDesigns2 and PosterDesigns5) and fine micro patterns
  * (PosterDesigns3, PosterDesigns4 and PosterDesigns5), spread evenly through the days.
  */
 val PosterDesigns: List<PosterDesign> = buildList {
     val bold = listOf(Mandala, Sashiko, Zellige, Kente, Warli, Ikat, Batik, Madhubani) + MoreDesigns + HeritageBoldDesigns
-    val micro = MicroDesigns + GeometricMicroDesigns + HeritageMicroDesigns
+    val micro = MicroDesigns + GeometricMicroDesigns + HeritageMicroDesigns + WorldMicroDesigns
     // Spread the two kinds evenly through the days.
     var b = 0; var m = 0
     while (b < bold.size || m < micro.size) {

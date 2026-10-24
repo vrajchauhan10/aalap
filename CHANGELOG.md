@@ -4,6 +4,40 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 5.3.0 — 25 Oct 2026 (build 55)
+- **Aaj ka Aalap posters: the maker's V is now part of each pattern**, never drawn on
+  top. In 28 designs that showed a plain V (a letter, a glyph, lines across the art) it
+  is now made from the design's own pieces in its own colours: two petals of a mandala,
+  five gold stars of the zellige, three white banners of the papel picado, brass pins in
+  the khatamband, dyed tufts in the Beni Ourain rug…
+- **20 new fine patterns from around the world** (100 in all): Sakura komon, Ichimatsu,
+  Uroko (Japan), Pois (France), Iznik tulips (Türkiye), Delft tiles (Netherlands),
+  Pysanky stars (Ukraine), Talavera (Mexico), Liberty florals (England), Selbu roses
+  (Norway), Xiangyun clouds (China), Calçada (Portugal), Roman mosaic (Italy), Tibeb
+  (Ethiopia), Suzani (Uzbekistan), Matyó roses (Hungary), Wycinanki (Poland), Dancheong
+  (Korea), Batik truntum (Indonesia), Adire (Nigeria). Each hides its V the same way.
+- **Voice card:** its edge lights up. While you speak a band of light runs round the card
+  (longer the louder you speak) and the bottom edge fills out from the middle with your
+  voice; while Aalap thinks the border fills round; when it finds the song the ring closes.
+- **Sign-in screen:** a slowly turning mandala, the parts arriving one by one, what Aalap
+  does at a glance, a note on privacy, and Continue lights up once the details are right
+  (the keyboard's Done also continues).
+- **Song videos:** Spotify changed where song videos come from; Aalap now asks the new
+  way, and asks again signed out when your Spotify account has videos turned off, so
+  Aalap's own "Song videos" setting decides. (Right now Spotify isn't sending videos to
+  any app outside its own, so most songs show the artwork; they come back by themselves
+  when Spotify sends them.) A video that fails no longer leaves a black screen.
+- **Security:**
+  - The hidden Spotify player could be inspected over USB in release builds, and it holds
+    your Spotify login; debugging is now only in test builds.
+  - Your YouTube login, the Blend sign-in and the in-app browser's cookies are no longer
+    included in phone backups or transfers (the YouTube login moved to its own file).
+  - Other apps can still play / pause / skip Aalap (as with any music app) but can no
+    longer read your library (Liked Songs, playlists, mixes); only Android itself and car
+    / assistant apps can.
+  - The shared list of FLAC servers is only used for secure (https) addresses.
+  - A Blend code can't be crafted to use huge amounts of memory.
+
 ## 5.2.0 — 25 Oct 2026 (build 54)
 - **Blends are shared between both phones** (free Firebase, no account to make: each
   phone signs in anonymously by itself). The same 30 songs on both phones, made fresh

@@ -76,7 +76,8 @@ private val Parang = PosterDesign("Batik parang", "Indonesia", Color(0xFF2A1A0E)
     val w = size.width; val h = size.height
     drawRect(Color(0xFF8A5A2B))
     val cream = Color(0xFFF2E3C6); val dark = Color(0xFF3B2412)
-    var vBlade: Offset? = null
+    // Along a V, the blades are dyed gold instead of cream.
+    val v = vArms(vSpot(), h * 0.12f, h * 0.26f)
     artArea {
         val gap = h * 0.13f
         var x = w * 0.5f - h
@@ -85,19 +86,11 @@ private val Parang = PosterDesign("Batik parang", "Indonesia", Color(0xFF2A1A0E)
             var t = 0f
             while (t < 1f) {
                 val c = Offset(x + h * t, h - h * t)
-                rotate(-45f, c) { drawOval(cream, Offset(c.x - h * 0.012f, c.y - h * 0.03f), Size(h * 0.024f, h * 0.06f)) }
-                if (vBlade.let { it == null || (c - vSpot()).getDistance() < (it - vSpot()).getDistance() }) vBlade = c
+                rotate(-45f, c) { drawOval(if (v.near(c, h * 0.035f)) Color(0xFFF2B33D) else cream, Offset(c.x - h * 0.012f, c.y - h * 0.03f), Size(h * 0.024f, h * 0.06f)) }
                 drawCircle(cream, h * 0.006f, Offset(c.x + gap * 0.4f, c.y + gap * 0.05f))
                 t += 0.07f
             }
             x += gap
-        }
-    }
-    artArea {
-        // That blade is joined by its mirror image: two gold blades leaning apart in a V.
-        vBlade?.let { c ->
-            drawCircle(dark, h * 0.045f, c)
-            petalV(c, h * 0.075f, Color(0xFFF2B33D))
         }
     }
     panel(Color(0xFF2A1A0E), Edge.SLANT)
@@ -210,15 +203,13 @@ private val BeniOurain = PosterDesign("Beni Ourain rug", "Morocco", Color(0xFF2B
             drawLine(ink, Offset(x + h * 0.6f, 0f), Offset(x, h), h * 0.0045f)
             x += s
         }
-        micro(s * 0.6f) { c, i, j -> if ((i + j) % 3 == 0) drawCircle(ink.copy(alpha = 0.5f), h * 0.006f, c) }
-        // Lines run x = a + 0.6y and x = b - 0.6y; pick a crossing near the V spot.
-        val x0 = w * 0.5f - h; val spot = vSpot()
-        val a = x0 + kotlin.math.round((spot.x - 0.6f * spot.y - x0) / s) * s
-        val b = x0 + h * 0.6f + kotlin.math.round((spot.x + 0.6f * spot.y - x0 - h * 0.6f) / s) * s
-        val cy = (b - a) / 1.2f; val cx = a + 0.6f * cy
-        val arm = h * 0.22f
-        drawPath(Path().apply { moveTo(cx - 0.6f * arm, cy - arm); lineTo(cx, cy); lineTo(cx + 0.6f * arm, cy - arm) }, Color(0xFFC0613A),
-            style = Stroke(h * 0.009f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        // The tufts between the lines: along a V (at the lattice's own slant) they're
+        // knotted in terracotta wool.
+        val v = vArms(vSpot(), h * 0.13f, h * 0.22f)
+        micro(s * 0.6f) { c, i, j ->
+            if (v.near(c, s * 0.3f)) drawCircle(Color(0xFFC0613A), h * 0.009f, c)
+            else if ((i + j) % 3 == 0) drawCircle(ink.copy(alpha = 0.5f), h * 0.006f, c)
+        }
     }
     panel(Color(0xFF2B2622), Edge.STRAIGHT)
     hem(Color(0xFFF2EDE3).copy(alpha = 0.4f))
@@ -265,8 +256,8 @@ private val Huipil = PosterDesign("Huipil", "Guatemala", Color(0xFF1F1147)) {
             y += row; k++
         }
         vDip?.let { (a, b, c) ->
-            drawPath(Path().apply { moveTo(a.x, a.y); lineTo(b.x, b.y); lineTo(c.x, c.y) }, Color.White,
-                style = Stroke(h * 0.013f, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            // One dip of one row woven in white yarn, at the row's own weight.
+            drawPath(Path().apply { moveTo(a.x, a.y); lineTo(b.x, b.y); lineTo(c.x, c.y) }, Color.White.copy(alpha = 0.92f), style = Stroke(h * 0.008f))
         }
     }
     panel(Color(0xFF1F1147), Edge.STEP)
@@ -380,21 +371,15 @@ private val Bojagi = PosterDesign("Bojagi", "Korea", Color(0xFF22313F)) {
     artArea {
         var y = 0f; var j = 0
         val spot = vSpot()
+        // Three panes are cut from a persimmon cloth: one, and one up-left and up-right of it.
+        val vPoints = listOf(spot, Offset(spot.x - h * 0.1f, spot.y - h * 0.13f), Offset(spot.x + h * 0.1f, spot.y - h * 0.13f))
         while (y < h) {
             val rowH = h * (0.08f + (j % 3) * 0.03f)
             var x = w * 0.5f; var i = 0
             while (x < w) {
                 val cw = h * (0.07f + ((i * 7 + j * 3) % 4) * 0.025f)
-                drawRect(panes[(i + j * 2) % panes.size], Offset(x, y), Size(cw, rowH))
-                if (spot.x in x..x + cw && spot.y in y..y + rowH) {
-                    val t = cw * 0.22f
-                    val chevron = Path().apply {
-                        moveTo(x, y); lineTo(x + cw / 2, y + rowH - t); lineTo(x + cw, y)
-                        lineTo(x + cw, y + t); lineTo(x + cw / 2, y + rowH); lineTo(x, y + t); close()
-                    }
-                    drawPath(chevron, Color(0xFFD9694A))
-                    drawPath(chevron, seam, style = Stroke(h * 0.004f))
-                }
+                val isV = vPoints.any { it.x in x..x + cw && it.y in y..y + rowH }
+                drawRect(if (isV) Color(0xFFE8896B) else panes[(i + j * 2) % panes.size], Offset(x, y), Size(cw, rowH))
                 drawRect(seam, Offset(x, y), Size(cw, rowH), style = Stroke(h * 0.004f))
                 x += cw; i++
             }
@@ -419,7 +404,8 @@ private val Lahariya = PosterDesign("Lahariya", "India", Color(0xFF4A1048)) {
             var t = 0f
             while (t <= 1f) { pts += Offset(x + h * t + sin(t * 40f) * h * 0.008f, h - h * t); t += 0.005f }
             drawPath(Path().apply { moveTo(pts[0].x, pts[0].y); pts.forEach { lineTo(it.x, it.y) } }, waves[k % waves.size].copy(alpha = 0.85f), style = Stroke(h * 0.012f, cap = StrokeCap.Round))
-            traceV(pts, v, h * 0.016f, Color.White, h * 0.014f)
+            // Where a wave crosses the V it took the deep plum dye instead.
+            traceV(pts, v, h * 0.016f, Color(0xFF4A1048), h * 0.012f)
             x += gap; k++
         }
     }
