@@ -19,8 +19,8 @@ android {
         targetSdk = 34
         // Must exceed every published build (1.6 shipped as versionCode 16).
         // 2.0.0 is the first Aalap release.
-        versionCode = 49
-        versionName = "4.2.0"
+        versionCode = 50
+        versionName = "4.3.0"
         // Optional Last.fm key for the similar-tracks source (empty = source off).
         buildConfigField("String", "LASTFM_API_KEY", "\"${(project.findProperty("lastfmApiKey") as String?).orEmpty()}\"")
 
@@ -130,6 +130,8 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.3.1")
     // media session + system media notification (lock screen / notification center)
     implementation("androidx.media3:media3-session:1.3.1")
+    // The old-style media session API Google Assistant talks to (debug voice test sends through it).
+    implementation("androidx.media:media:1.7.0")
 
     //Storage Access Framework folder enumeration (local music import)
     implementation("androidx.documentfile:documentfile:1.0.1")

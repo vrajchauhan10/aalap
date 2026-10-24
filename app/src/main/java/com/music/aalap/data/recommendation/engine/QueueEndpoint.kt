@@ -94,6 +94,25 @@ object QueueEndpoint {
             }
             return
         }
+        if (target.startsWith("/voicesession?q=")) {
+            // Debug: a voice request through the media session, as Google Assistant sends it
+            // with the screen off (MediaControllerCompat.transportControls.playFromSearch).
+            val q = URLDecoder.decode(target.substringAfter("q="), "UTF-8")
+            val token = com.music.aalap.ui.notification.PlaybackService.debugCompatToken
+            val msg = if (token == null) "no session yet" else {
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    android.support.v4.media.session.MediaControllerCompat(context, token).transportControls.playFromSearch(q, android.os.Bundle())
+                }
+                "sent"
+            }
+            Thread.sleep(12_000)
+            val bytes = JSONObject().put("request", q).put("result", msg).put("voice", com.music.aalap.di.VoicePlay.last).toString(2).toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
         if (target.startsWith("/vibe?ids=")) {
             // Debug: the feel, energy and language the engine sees for canonical ids (comma-separated).
             val ids = URLDecoder.decode(target.substringAfter("ids="), "UTF-8").split(",").filter { it.isNotBlank() }

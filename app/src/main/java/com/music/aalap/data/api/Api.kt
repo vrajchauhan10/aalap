@@ -407,6 +407,12 @@ class Api @Inject constructor(
         return Spotify.search(query, listOf("track"), limit = 1).getOrNull()?.tracks?.items?.firstOrNull()?.toCandidate()
     }
 
+    /** The top [limit] Spotify tracks for free text, in Spotify's order (voice requests). */
+    suspend fun searchCandidates(query: String, limit: Int = 10): List<com.music.aalap.data.recommendation.engine.Candidate> {
+        if (query.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
+        return Spotify.search(query, listOf("track"), limit = limit).getOrNull()?.tracks?.items.orEmpty().map { it.toCandidate() }
+    }
+
     /** Top tracks of [artistName]'s best Spotify match (the engine's last fallback). */
     suspend fun artistTopCandidates(artistName: String): List<com.music.aalap.data.recommendation.engine.Candidate> {
         if (artistName.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()

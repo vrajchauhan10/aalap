@@ -216,10 +216,20 @@ fun PlayerScreen(navController: NavController) {
     // even before the queue/current id line up).
     val currentIndex = queueSongs.indexOfFirst { it.id == playerViewModel.currentSongId.value }
         .let { if (it >= 0) it else 0 }
-    val artworkPagerState = rememberPagerState(
-        initialPage = currentIndex,
-        pageCount = { queueSongs.size.coerceAtLeast(1) },
-    )
+    // Not saved and restored: a restored page (after switching tabs, or Android rebuilding
+    // the app when you open it from the notification) pointed at an old song, and settling
+    // on it played that song. The pager always starts at the song that's playing.
+    val queueSize = androidx.compose.runtime.rememberUpdatedState(queueSongs.size)
+    val artworkPagerState = remember { LivePagerState(currentIndex) { queueSize.value.coerceAtLeast(1) } }
+    // Only a swipe of your finger changes the song; anything else that moves the pager
+    // (catching up with the song that's playing, the queue growing) never does.
+    val swipedByUser = remember { mutableStateOf(false) }
+    LaunchedEffect(artworkPagerState) {
+        artworkPagerState.interactionSource.interactions.collect {
+            if (it is androidx.compose.foundation.interaction.DragInteraction.Start) swipedByUser.value = true
+        }
+    }
+    val latestQueue = androidx.compose.runtime.rememberUpdatedState(queueSongs)
     // External track changes (auto-advance, prev/next buttons, queue edits) → snap the
     // pager to the new track. Guard on settled state so we don't fight an in-progress swipe.
     LaunchedEffect(currentIndex, queueSongs.size) {
@@ -240,13 +250,16 @@ fun PlayerScreen(navController: NavController) {
     }
     // User settled the pager on a different page → play that track. Compare against the
     // live current id (not currentIndex captured above) to avoid a replay feedback loop.
-    LaunchedEffect(artworkPagerState, queueSongs) {
+    LaunchedEffect(artworkPagerState) {
         snapshotFlow { artworkPagerState.settledPage }
             .distinctUntilChanged()
             .collect { page ->
-                queueSongs.getOrNull(page)?.let { target ->
+                if (!swipedByUser.value) return@collect
+                swipedByUser.value = false
+                val queue = latestQueue.value
+                queue.getOrNull(page)?.let { target ->
                     if (target.id != playerViewModel.currentSongId.value) {
-                        playerViewModel.playSongAt(queueSongs, page, context)
+                        playerViewModel.playSongAt(queue, page, context)
                         isLiked.value = isSongLiked(context, target.id.toString())
                     }
                 }
@@ -926,6 +939,12 @@ fun PlayerFull(
             contentDescription = "Next")
         RepeatButton(playerViewModel, context)
     }
+}
+
+/** A pager position that isn't saved and restored (see the artwork pager in the player). */
+@OptIn(ExperimentalFoundationApi::class)
+private class LivePagerState(page: Int, private val count: () -> Int) : androidx.compose.foundation.pager.PagerState(page, 0f) {
+    override val pageCount: Int get() = count()
 }
 
 /**

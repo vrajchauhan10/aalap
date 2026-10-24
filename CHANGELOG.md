@@ -4,6 +4,23 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 4.3.0 — 24 Oct 2026 (build 50)
+- **Play Aalap with your voice.** "Hey Google, play Kesariya on Aalap" (also Gemini and
+  Bixby, on the phone or in the car): Aalap opens on the player and plays it. It
+  understands songs ("Kesariya by Arijit Singh"), artists ("play Arijit Singh songs"),
+  "my liked songs", "Aaj ka Aalap", moods ("party songs", "some lofi", "bhajans",
+  "workout music") and "play music" (carries on). With the screen off it plays without
+  opening the app. When several songs share a name it picks the exact title, the artist
+  you said, or the one you already play. Also `aalap://play?q=…` for Routines and shortcuts.
+- **Opening the app from the notification no longer jumps back a song.** The player's
+  cover pager remembered an old page and, when the app came back, played that page's
+  song. It now always starts on the song that's playing, and only a swipe of your finger
+  changes the song. Tested: 10 reopenings with the song changing each time, no jumps
+  (the old version jumped back).
+- **Tapping Library (or any tab) no longer skips a song.** The full player also used to
+  open by itself when a song ended, which could jump songs; it doesn't any more.
+  Tested: 8 rounds of next song, open/close player, Library, Home: the song never changed.
+
 ## 4.2.0 — 24 Oct 2026 (build 49)
 - **Recommendations follow the feel of what you chose, not just your likes.** Every song
   now has a feel (energetic, party, happy, romantic, sad, chill, devotional, focus), a

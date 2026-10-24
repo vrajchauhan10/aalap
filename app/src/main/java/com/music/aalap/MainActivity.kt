@@ -25,6 +25,24 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    @javax.inject.Inject lateinit var currentSongState: com.music.aalap.di.CurrentSongState
+
+    /** A voice assistant or an aalap://play link asked for music. */
+    private fun handlePlayIntent(intent: android.content.Intent?) {
+        val req = com.music.aalap.di.VoicePlay.fromIntent(intent)
+            ?: intent?.data?.takeIf { it.scheme == "aalap" && it.host == "play" }?.let {
+                com.music.aalap.di.VoicePlay.Request(it.getQueryParameter("q").orEmpty())
+            }
+            ?: return
+        com.music.aalap.di.VoicePlay.handle(this, currentSongState, req, fromApp = true)
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handlePlayIntent(intent)
+    }
+
     override fun onResume() {
         super.onResume()
         // Back in the app: read the connection again (see OfflineState.recheck).
@@ -92,6 +110,8 @@ class MainActivity : ComponentActivity() {
         if (com.music.aalap.data.api.SpotifySession.spDc(this).isNotBlank()) {
             com.music.aalap.di.SpotifyWebPlayer.attach(this)
         }
+        // Opened by a voice request (not when Android rebuilds the screen: it was handled then).
+        if (savedInstanceState == null) handlePlayIntent(intent)
     }
 
     override fun onDestroy() {

@@ -49,6 +49,25 @@ object SmartPlay {
         }
     }
 
+    /** One song (a voice request, a search result): it plays, then recommendations that fit it. */
+    fun single(context: Context, state: CurrentSongState, song: SongsModel) {
+        val app = context.applicationContext
+        job?.cancel()
+        state.updateQueue(listOf(song))
+        state.updateSongState(song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
+        SongPlayer.playSong(song.url, app)
+        PlayContext.chose(song)
+        job = scope.launch {
+            runCatching {
+                Recommender.next(app, song, setOf(song.id), length = 6).collect { next ->
+                    val q = state.queue.value
+                    if (q.firstOrNull()?.id != song.id) throw CancellationException("queue replaced")
+                    if (q.none { it.id == next.id }) state.updateQueue(q + next)
+                }
+            }
+        }
+    }
+
     /** The whole list in order from [index] (a list's Play button). */
     fun playAll(context: Context, state: CurrentSongState, list: List<SongsModel>, name: String, index: Int = 0) {
         val song = list.getOrNull(index) ?: return

@@ -106,12 +106,9 @@ fun MiniPlayer(navController: NavHostController) {
                 songProgress = SongPlayer.getDuration().toFloat().let { dur ->
                     if (dur > 0f) (SongPlayer.getCurrentPosition().toFloat() / dur).coerceIn(0f, 1f) else 0f
                 }
-                delay(300L) // update every .00 second
-
-                if (songProgress > 0f && songProgress >= 1f && currentRoute != Routes.Player.route) {
-                    navController.navigate(Routes.Player.route)
-                    songPlayingState = false
-                }
+                // (The full player used to open by itself when a song ended; the end of a song
+                // is the playback service's job, and opening the player then could jump songs.)
+                delay(300L)
         }
     }
 

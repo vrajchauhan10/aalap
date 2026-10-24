@@ -101,6 +101,9 @@ class PlaybackService : MediaLibraryService() {
         }
 
         refreshNotificationButtons = { mediaSession?.setCustomLayout(customLayout()) }
+        // Debug builds: the session's old-style token, so the debug endpoint can send a
+        // voice request the way Google Assistant does (MediaControllerCompat.playFromSearch).
+        if (com.music.aalap.BuildConfig.DEBUG) debugCompatToken = mediaSession?.sessionCompatToken
 
         // Home-screen widgets mirror the current track, play state and like.
         serviceScope.launch {
@@ -249,6 +252,12 @@ class PlaybackService : MediaLibraryService() {
     /** Wrap an ExoPlayer so the media session routes next/previous to our in-app queue
      *  (the player only ever holds one resolved stream at a time). */
     private fun wrap(base: Player): ForwardingPlayer = object : ForwardingPlayer(base) {
+        // A voice or car request is played by Aalap's own engine; the session then hands
+        // the player an empty list, which must not stop the song that just started.
+        override fun setMediaItems(mediaItems: MutableList<MediaItem>) { if (mediaItems.isNotEmpty()) super.setMediaItems(mediaItems) }
+        override fun setMediaItems(mediaItems: MutableList<MediaItem>, resetPosition: Boolean) { if (mediaItems.isNotEmpty()) super.setMediaItems(mediaItems, resetPosition) }
+        override fun setMediaItems(mediaItems: MutableList<MediaItem>, startIndex: Int, startPositionMs: Long) { if (mediaItems.isNotEmpty()) super.setMediaItems(mediaItems, startIndex, startPositionMs) }
+
         override fun getAvailableCommands(): Player.Commands =
             super.getAvailableCommands().buildUpon()
                 .add(COMMAND_SEEK_TO_NEXT)
@@ -419,6 +428,7 @@ class PlaybackService : MediaLibraryService() {
     companion object {
         /** Re-sends the notification's extra buttons (after the setting changes). */
         @Volatile var refreshNotificationButtons: (() -> Unit)? = null
+        @Volatile var debugCompatToken: android.support.v4.media.session.MediaSessionCompat.Token? = null
         const val ROOT = "root"
         const val NODE_LIKED = "liked"
         const val NODE_DOWNLOADS = "downloads"
@@ -484,6 +494,24 @@ class PlaybackService : MediaLibraryService() {
                 ?: LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE),
         )
 
+        /**
+         * "Hey Google, play Kesariya on Aalap" with the screen off or in the car arrives as
+         * a media item carrying the spoken words (search query). Aalap plays it itself.
+         */
+        override fun onAddMediaItems(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: MutableList<MediaItem>,
+        ): ListenableFuture<MutableList<MediaItem>> {
+            val voice = mediaItems.firstOrNull { it.requestMetadata.searchQuery != null || (it.mediaId.isEmpty() && trackById[it.mediaId] == null) }
+            if (voice != null) {
+                val req = com.music.aalap.di.VoicePlay.fromExtras(voice.requestMetadata.searchQuery.orEmpty(), voice.requestMetadata.extras)
+                startWithNetwork { com.music.aalap.di.VoicePlay.handle(this@PlaybackService, currentSongState, req, fromApp = false) }
+                return Futures.immediateFuture(mutableListOf())
+            }
+            return super.onAddMediaItems(mediaSession, controller, mediaItems)
+        }
+
         // A browsed track was tapped in the car: queue the list it came from and
         // play through our own engine (streams are resolved lazily per track, so
         // we never hand the session a playlist of URIs).
@@ -495,6 +523,11 @@ class PlaybackService : MediaLibraryService() {
             startPositionMs: Long,
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
             val requested = mediaItems.getOrNull(startIndex) ?: mediaItems.firstOrNull()
+            if (requested != null && requested.requestMetadata.searchQuery != null) {
+                val req = com.music.aalap.di.VoicePlay.fromExtras(requested.requestMetadata.searchQuery.orEmpty(), requested.requestMetadata.extras)
+                startWithNetwork { com.music.aalap.di.VoicePlay.handle(this@PlaybackService, currentSongState, req, fromApp = false) }
+                return Futures.immediateFuture(MediaSession.MediaItemsWithStartPosition(emptyList(), C.INDEX_UNSET, C.TIME_UNSET))
+            }
             val song = requested?.let { trackById[it.mediaId] }
             if (song != null) {
                 val queue = queueByTrackId[requested.mediaId] ?: listOf(song)
