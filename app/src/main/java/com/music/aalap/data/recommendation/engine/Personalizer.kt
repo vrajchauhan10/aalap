@@ -73,9 +73,13 @@ object Personalizer {
             }
         }
         // Likes, follows and imported favourites lift artists even before they're played much.
+        // A like counts a third of what it used to and at most 3 per artist, so a big
+        // like list can't outweigh what you actually play.
+        val fromLikes = HashMap<String, Double>()
         liked.mapNotNull { songs[it] }.forEach { s ->
-            SongMatcher.artistKeys(s.artists).firstOrNull()?.let { artist[it] = (artist[it] ?: 0.0) + 1.5 }
+            SongMatcher.artistKeys(s.artists).firstOrNull()?.let { fromLikes[it] = minOf(3.0, (fromLikes[it] ?: 0.0) + 0.5) }
         }
+        fromLikes.forEach { (k, v) -> artist[k] = (artist[k] ?: 0.0) + v }
         val followed = followedArtistKeys(context)
         followed.forEach { artist[it] = (artist[it] ?: 0.0) + 2.0 }
         // Spotify's own view of your listening: your top artists there.
@@ -97,6 +101,37 @@ object Personalizer {
         }
         val langTop = lang.values.maxOrNull() ?: 0.0
         val recentCut = now - 3 * 3_600_000L
+
+        // Feels: which ones you finish and which you skip, overall and at this time of day.
+        val vibes = runCatching { VibeStore.vibes(context, plays.take(1500).mapNotNull { songs[it.songId] }.distinctBy { it.id }) }.getOrDefault(emptyMap())
+        val finishedFeel = HashMap<Feel, Double>()
+        val skippedFeel = HashMap<Feel, Double>()
+        val partFeel = HashMap<Feel, Double>()
+        var feelPlays = 0
+        for (p in plays.take(1500)) {
+            val v = vibes[p.songId]?.takeIf { it.known } ?: continue
+            val decay = Math.pow(0.5, (now - p.playedAt) / 86_400_000.0 / HALF_LIFE_DAYS)
+            feelPlays++
+            if (p.skipped) Vibe.addInto(skippedFeel, v.weights, decay * v.confidence)
+            else {
+                Vibe.addInto(finishedFeel, v.weights, decay * v.confidence)
+                if (dayPart(p.playedAt) == partNow) Vibe.addInto(partFeel, v.weights, decay * v.confidence)
+            }
+        }
+        val feelPref = if (feelPlays < 15) emptyMap() else Feel.entries.associateWith { f ->
+            val fin = finishedFeel[f] ?: 0.0; val sk = skippedFeel[f] ?: 0.0
+            // Finish rate, pulled toward 50% when there's little to go on.
+            (fin + 0.5) / (fin + 1.4 * sk + 1.0)
+        }.let { m -> val top = m.values.maxOrNull() ?: 1.0; m.mapValues { (it.value / top).coerceIn(0.0, 1.0) } }
+
+        // New vs known: how often you skip songs the first time you hear them, vs songs you know.
+        val firstHeard = HashSet<String>()
+        var newPlays = 0; var newSkips = 0; var knownPlays = 0; var knownSkips = 0
+        for (p in plays.asReversed()) {
+            if (firstHeard.add(p.songId)) { newPlays++; if (p.skipped) newSkips++ } else { knownPlays++; if (p.skipped) knownSkips++ }
+        }
+        val familiarTarget = if (newPlays < 10 || knownPlays < 10) 0.35 else
+            (0.35 + 0.8 * (newSkips.toDouble() / newPlays - knownSkips.toDouble() / knownPlays)).coerceIn(0.2, 0.6)
         val profile = TasteProfile(
             artistWeight = TasteProfile.normalise(artist),
             skipRate = artistPlays.filter { it.value >= 3 }.mapValues { (a, n) -> (artistSkips[a] ?: 0).toDouble() / n },
@@ -108,6 +143,10 @@ object Personalizer {
             playCount = plays.size,
             recentIds = (plays.take(30) + plays.filter { it.playedAt >= recentCut }).mapTo(HashSet()) { it.songId },
             recentSkips = plays.filter { it.skipped && now - it.playedAt < 14 * 86_400_000L }.mapTo(HashSet()) { it.songId },
+            feelPref = feelPref,
+            dayPartFeel = partFeel.values.sum().takeIf { it > 0 }?.let { t -> partFeel.mapValues { it.value / t } }.orEmpty(),
+            familiarTarget = familiarTarget,
+            heard = plays.filter { !it.skipped }.mapTo(HashSet()) { it.songId },
         )
         // Snapshot for the user_taste table (and the Profile "Your taste" card).
         runCatching {
@@ -136,8 +175,9 @@ object Personalizer {
     ): List<Scored> {
         val now = System.currentTimeMillis()
         val habits = seed?.let { s -> RecoDb.get(context).transitionsFrom(userId, s.id).associateBy { it.toId } }.orEmpty()
+        val vibes = runCatching { VibeStore.vibes(context, candidates.map { it.first }) }.getOrDefault(emptyMap())
         return candidates.map { (song, global) ->
-            val taste = profile.taste(song.info, song.id)
+            val taste = profile.taste(song.info, song.id, vibes[song.id])
             val habit = habits[song.id]?.let { TasteProfile.habit(it.count, it.lastAt, now) } ?: 0.0
             Scored(song, global, taste, habit, TasteProfile.final(global, taste, habit, profile.isNew), sourcesById[song.id].orEmpty())
         }

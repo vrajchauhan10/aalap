@@ -50,4 +50,9 @@ data class Scored(
     val habit: Double,       // 0..1
     val final: Double,
     val sources: Set<Source> = emptySet(),
+    val session: Double = 0.0, // what plays after the whole session, 0..1
+    val fit: Double = 0.0,     // fits the session's feel, energy, language and style, 0..1
+    val trend: Double = 0.0,   // 1 when on today's charts
+    val vibe: Vibe = Vibe.UNKNOWN,
+    val tags: Set<String> = emptySet(), // why it went up or down ("known", "likes-capped"…)
 )

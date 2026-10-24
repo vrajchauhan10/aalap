@@ -4,6 +4,31 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 4.2.0 — 24 Oct 2026 (build 49)
+- **Recommendations follow the feel of what you chose, not just your likes.** Every song
+  now has a feel (energetic, party, happy, romantic, sad, chill, devotional, focus), a
+  tempo, a language and a style (lofi, rap, sufi…), learned from its title, the mood
+  stations, its artist and what plays next to it. What comes next has to fit the song you
+  chose and the session so far: start with an energetic song and the queue stays
+  energetic. Tested on 14 songs across genres on the phone: songs that keep the feel
+  went from 37% to 85%; Millionaire is no longer followed by ten ballads.
+- **Your behaviour, trends and all-time favourites count, likes count less.** The score
+  mixes what the world plays next, what fits the session, the artists and feels you
+  actually finish (vs skip), what you play at this time of day, your own habits and
+  today's charts. Liked songs are capped at about a third of a queue (they were 35% on
+  the phone test, now 12%); about a third are songs you know, the rest new to you.
+- **Skips steer the queue.** Skip a song Aalap queued and the queued songs too much like
+  it (same artist, or same feel and tempo) are dropped and replaced.
+- **Tapping a song in Liked Songs or a playlist** plays that song, then a mix of
+  recommendations that fit it with songs from the list mixed in at random (about a
+  third), instead of the rest of the list in order. Also in Downloads and on artist
+  pages. The list's Play and Shuffle buttons still play the whole list; albums play in order.
+- **Loop modes.** Tap the loop button: Off → loop the playlist → loop this song. Press
+  and hold for all five: Off, this song once more, this song on repeat, this playlist
+  once more, this playlist on repeat. A badge shows ∞ or 1×. Looping a playlist starts
+  it over at the end instead of adding recommendations.
+- Test report: `docs/recommendation/Report-4.2.md`.
+
 ## 4.1.0 — 24 Oct 2026 (build 48)
 - **Aalap now has its own app ID, `com.music.aalap`.** Phones see it as a new app: it
   installs next to the earlier build instead of updating it, and starts fresh (sign in

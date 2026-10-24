@@ -252,17 +252,7 @@ fun LikedSongsScreen(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
                             ) {
-                                albumViewModel.updateQueue(likedSongs)
-                                SongPlayer.playSong(likedSongs[song].url, context)
-                                albumViewModel.updateSongState(
-                                    likedSongs[song].coverUri,
-                                    likedSongs[song].title,
-                                    likedSongs[song].singer,
-                                    true,
-                                    likedSongs[song].id,
-                                    song,
-                                    "Liked Songs"
-                                )
+                                albumViewModel.playFromList(likedSongs[song], likedSongs, "Liked Songs", context)
                             }
                     ) {
 

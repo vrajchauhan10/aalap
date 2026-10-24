@@ -27,24 +27,39 @@ class TasteProfile(
     val playCount: Int,
     val recentIds: Set<String>,
     val recentSkips: Set<String>,
+    /** 0..1 per feel: the feels you finish (vs skip). Empty until there's enough history. */
+    val feelPref: Map<Feel, Double> = emptyMap(),
+    /** The feels you play at this time of day, as raw shares (a gentle start for a new session). */
+    val dayPartFeel: Map<Feel, Double> = emptyMap(),
+    /** Share of known songs to aim for in a queue, from how you treat new vs known songs. */
+    val familiarTarget: Double = 0.35,
+    /** Songs you've finished at least once. */
+    val heard: Set<String> = emptySet(),
 ) {
     /** "For new users with no history, use globalScore only." */
     val isNew: Boolean get() = playCount < 3
 
-    /** 0..1: how well [c] (canonical id [id]) fits this listener. */
-    fun taste(c: Candidate, id: String?): Double {
+    /**
+     * 0..1: how well [c] (canonical id [id]) fits this listener. Mostly what you
+     * actually finish (artists, feels, languages, time of day); a like is one signal
+     * among many, so likes alone can't decide what plays.
+     */
+    fun taste(c: Candidate, id: String?, vibe: Vibe? = null): Double {
         val keys = SongMatcher.artistKeys(c.artists)
         if (keys.isEmpty()) return 0.0
         val artist = keys.mapIndexed { i, k -> (artistWeight[k] ?: 0.0) * (if (i == 0) 1.0 else 0.7) }.max()
         val parts = mutableListOf(
-            0.35 to artist,
-            0.15 to (if (id != null && id in liked) 1.0 else 0.0),
-            0.10 to (if (keys.any { it in followed }) 1.0 else 0.0),
-            0.10 to (id?.let { songAffinity[it] } ?: 0.0),
+            0.32 to artist,
+            0.06 to (if (id != null && id in liked) 1.0 else 0.0),
+            0.08 to (if (keys.any { it in followed }) 1.0 else 0.0),
+            0.12 to (id?.let { songAffinity[it] } ?: 0.0),
         )
+        if (vibe != null && vibe.known && feelPref.isNotEmpty()) {
+            parts += 0.16 to vibe.weights.entries.sumOf { (f, w) -> w * (feelPref[f] ?: 0.5) }
+        }
         val lang = c.language.lowercase()
-        if (language.isNotEmpty() && lang.isNotBlank()) parts += 0.15 to (language[lang] ?: 0.0)
-        keys.mapNotNull { dayPart[it] }.maxOrNull()?.let { parts += 0.15 to it }
+        if (language.isNotEmpty() && lang.isNotBlank()) parts += 0.14 to (language[lang] ?: 0.0)
+        keys.mapNotNull { dayPart[it] }.maxOrNull()?.let { parts += 0.12 to it }
         val base = parts.sumOf { it.first * it.second } / parts.sumOf { it.first }
         val penalty = 1.0 - 0.6 * (skipRate[keys.first()] ?: 0.0)
         return (base * penalty).coerceIn(0.0, 1.0)

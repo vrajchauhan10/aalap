@@ -313,19 +313,7 @@ fun LikedSongsScreen(navController: NavController) {
                                                     playing -> likedSongsViewModel.setPlaying(false)
                                                     songs.any { it.id == likedSongsViewModel.currentSongId.value } ->
                                                         likedSongsViewModel.setPlaying(true)
-                                                    else -> {
-                                                        likedSongsViewModel.updateQueue(songs)
-                                                        SongPlayer.playSong(songs[0].url, context)
-                                                        likedSongsViewModel.updateSongState(
-                                                            songs[0].coverUri,
-                                                            songs[0].title,
-                                                            songs[0].singer,
-                                                            true,
-                                                            songs[0].id,
-                                                            0,
-                                                            "Liked Songs"
-                                                        )
-                                                    }
+                                                    else -> likedSongsViewModel.playAll(songs, "Liked Songs", context)
                                                 }
                                             }
                                     ) {
@@ -376,19 +364,7 @@ fun LikedSongsScreen(navController: NavController) {
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
                                     onLongClick = { menuSong = song },
-                                    onClick = {
-                                        likedSongsViewModel.updateQueue(songs)
-                                        SongPlayer.playSong(song.url, context)
-                                        likedSongsViewModel.updateSongState(
-                                            song.coverUri,
-                                            song.title,
-                                            song.singer,
-                                            true,
-                                            song.id,
-                                            index,
-                                            "Liked Songs"
-                                        )
-                                    },
+                                    onClick = { likedSongsViewModel.playFromList(song, songs, "Liked Songs", context) },
                                 )
                         ) {
                             GlideImage(

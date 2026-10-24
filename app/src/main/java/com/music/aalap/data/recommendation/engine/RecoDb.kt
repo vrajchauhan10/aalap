@@ -16,6 +16,8 @@ import org.json.JSONArray
  *  - transitions:  how often this user played song B within 30 min after song A
  *  - user_taste:   snapshot of the learned taste (artist weights) and liked songs
  *  - play_history: every play, with whether it was skipped
+ *  - song_tags:    what a song is known to be: a feel from a mood playlist it's on
+ *                  (src "mood"), or on today's charts (tag TREND, src "chart")
  *
  * All access goes through this class; every method is safe off the main thread.
  */
@@ -24,7 +26,7 @@ class RecoDb private constructor(context: Context) :
 
     companion object {
         private const val NAME = "aalap_reco.db"
-        private const val VERSION = 1
+        private const val VERSION = 2
 
         @Volatile private var instance: RecoDb? = null
         fun get(context: Context): RecoDb =
@@ -68,6 +70,11 @@ class RecoDb private constructor(context: Context) :
                 played_at INTEGER NOT NULL, skipped INTEGER NOT NULL DEFAULT 0,
                 listened_ms INTEGER NOT NULL DEFAULT 0)""",
             "CREATE INDEX IF NOT EXISTS play_user_time ON play_history(user_id, played_at)",
+            """CREATE TABLE IF NOT EXISTS song_tags(
+                song_id TEXT NOT NULL, tag TEXT NOT NULL, src TEXT NOT NULL,
+                weight REAL NOT NULL DEFAULT 1, at INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(song_id, tag, src))""",
+            "CREATE INDEX IF NOT EXISTS song_tags_tag ON song_tags(tag, at)",
         )
     }
 
@@ -203,6 +210,54 @@ class RecoDb private constructor(context: Context) :
         }
         writableDatabase.insertWithOnConflict("songs", null, v, SQLiteDatabase.CONFLICT_REPLACE)
     }
+
+    /** Songs whose main artist is [artistKey] (for the artist's usual feel and language). */
+    fun songsByArtist(artistKey: String, limit: Int = 120): List<Song> =
+        if (artistKey.isBlank()) emptyList() else query("SELECT * FROM songs WHERE artist_key = ? LIMIT $limit", artistKey)
+
+    // ── song_tags ───────────────────────────────────────────────────────────
+
+    data class Tag(val tag: String, val src: String, val weight: Double, val at: Long)
+
+    /** Tags [ids] with [tag] from [src] (re-tagging keeps the higher weight and the new time). */
+    @Synchronized
+    fun putTags(ids: Collection<String>, tag: String, src: String, weight: Double, at: Long = System.currentTimeMillis()) {
+        if (ids.isEmpty()) return
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val st = db.compileStatement("UPDATE song_tags SET weight = MAX(weight, ?), at = ? WHERE song_id = ? AND tag = ? AND src = ?")
+            ids.forEach { id ->
+                st.clearBindings()
+                st.bindDouble(1, weight); st.bindLong(2, at); st.bindString(3, id); st.bindString(4, tag); st.bindString(5, src)
+                if (st.executeUpdateDelete() == 0) db.insert("song_tags", null, ContentValues().apply {
+                    put("song_id", id); put("tag", tag); put("src", src); put("weight", weight); put("at", at)
+                })
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    fun tags(ids: Collection<String>): Map<String, List<Tag>> {
+        if (ids.isEmpty()) return emptyMap()
+        val out = HashMap<String, MutableList<Tag>>()
+        ids.chunked(400).forEach { chunk ->
+            readableDatabase.rawQuery(
+                "SELECT song_id, tag, src, weight, at FROM song_tags WHERE song_id IN (${chunk.joinToString(",") { "?" }})",
+                chunk.toTypedArray(),
+            ).use { c -> while (c.moveToNext()) out.getOrPut(c.getString(0)) { ArrayList() } += Tag(c.getString(1), c.getString(2), c.getDouble(3), c.getLong(4)) }
+        }
+        return out
+    }
+
+    fun idsWithTag(tag: String, sinceMs: Long, limit: Int = 500): List<String> =
+        readableDatabase.rawQuery("SELECT song_id FROM song_tags WHERE tag = ? AND at >= ? ORDER BY at DESC LIMIT $limit", arrayOf(tag, sinceMs.toString()))
+            .use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }
+
+    fun tagCount(src: String): Int =
+        readableDatabase.rawQuery("SELECT COUNT(DISTINCT song_id) FROM song_tags WHERE src = ?", arrayOf(src)).use { if (it.moveToFirst()) it.getInt(0) else 0 }
 
     // ── source_cache ────────────────────────────────────────────────────────
 

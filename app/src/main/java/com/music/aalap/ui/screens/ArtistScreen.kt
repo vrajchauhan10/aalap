@@ -139,10 +139,8 @@ private fun ArtistOverviewContent(
     fun playTrackAt(index: Int) {
         if (index !in tracks.indices) return
         val songs = tracks.map { it.song }
-        artistViewModel.updateQueue(songs)
-        val s = songs[index]
-        SongPlayer.playSong(s.url, context)
-        artistViewModel.updateSongState(s.coverUri, s.title, s.singer, true, s.id, index)
+        // That song, then a mix that fits it, with more of this artist now and then.
+        artistViewModel.playFromList(songs[index], songs, overview.name, context)
     }
 
     LazyColumn(
@@ -284,7 +282,7 @@ private fun ArtistOverviewContent(
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                            ) { if (tracks.isNotEmpty()) playTrackAt(tracks.indices.random()) },
+                            ) { if (tracks.isNotEmpty()) artistViewModel.playAll(tracks.map { it.song }.shuffled(), overview.name, context) },
                     )
                     Spacer(Modifier.width(20.dp))
                     Box(modifier = Modifier
@@ -294,7 +292,7 @@ private fun ArtistOverviewContent(
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                        ) { playTrackAt(0) },
+                        ) { if (tracks.isNotEmpty()) artistViewModel.playAll(tracks.map { it.song }, overview.name, context) },
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(

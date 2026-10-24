@@ -94,6 +94,41 @@ object QueueEndpoint {
             }
             return
         }
+        if (target.startsWith("/vibe?ids=")) {
+            // Debug: the feel, energy and language the engine sees for canonical ids (comma-separated).
+            val ids = URLDecoder.decode(target.substringAfter("ids="), "UTF-8").split(",").filter { it.isNotBlank() }
+            QueueEngine.ensureImported(context)
+            VibeStore.learnInBackground(context)
+            val songs = RecoDb.get(context).songs(ids)
+            val vibes = VibeStore.vibes(context, songs.values)
+            val out = JSONObject()
+            ids.forEach { id ->
+                val s = songs[id] ?: return@forEach
+                val v = vibes[id] ?: Vibe.UNKNOWN
+                out.put(id, JSONObject().put("title", s.title).put("artist", s.artists).put("feel", v.toString())
+                    .put("dominant", v.dominant?.label ?: "unknown").put("energy", v.energy).put("language", VibeStore.language(context, s))
+                    .put("why", VibeStore.explain(context, s))
+                    .put("liked", id in Personalizer.profile(context).liked))
+            }
+            val bytes = out.toString(2).toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
+        if (target.startsWith("/learn")) {
+            // Debug: build the mood stations and charts now (labels songs' feels and trending).
+            val c = context.applicationContext
+            c.getSharedPreferences("vibe_store", Context.MODE_PRIVATE).edit().clear().apply()
+            VibeStore.learnInBackground(c)
+            val bytes = "{\"started\": true, \"mood_tagged\": ${RecoDb.get(c).tagCount("mood")}, \"chart_tagged\": ${RecoDb.get(c).tagCount("chart")}}".toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
         if (target.startsWith("/pl?id=")) {
             val id = target.substringAfter("id=")
             val n = runBlocking {
@@ -200,7 +235,13 @@ object QueueEndpoint {
             else -> db.song(seedParam) ?: error("unknown canonical id $seedParam")
         }
         val items = JSONArray()
-        QueueEngine.chain(context, userId, seed, length, emptySet()) { item ->
+        // The seed is the song you chose; from=liked acts as if you tapped it inside Liked Songs.
+        val seedModel = SongBridge.toSongsModel(seed)
+        if (params["from"] == "liked") {
+            val liked = com.music.aalap.data.preferences.LikedLibrary.all(context)
+            com.music.aalap.data.recommendation.PlayContext.choseFromList(seedModel, liked, "Liked Songs")
+        } else com.music.aalap.data.recommendation.PlayContext.chose(seedModel)
+        QueueEngine.chain(context, userId, seed, length, setOf(seedModel.id)) { item ->
             val s = item.scored
             items.put(JSONObject().apply {
                 put("position", items.length() + 1)
@@ -208,15 +249,23 @@ object QueueEndpoint {
                 put("title", s.song.title)
                 put("artist", s.song.artists)
                 put("via", item.via)
+                put("liked", s.song.id in Personalizer.profile(context, userId).liked)
                 put("sources", JSONArray(s.sources.map { it.name }))
                 put("global_score", s.global); put("taste_score", s.taste)
                 put("habit_score", s.habit); put("final_score", s.final)
+                put("session_score", s.session); put("fit_score", s.fit); put("trending", s.trend > 0)
+                put("feel", s.vibe.toString()); put("dominant", s.vibe.dominant?.label ?: "unknown"); put("energy", s.vibe.energy)
+                put("language", VibeStore.language(context, s.song))
+                put("tags", JSONArray(s.tags.toList()))
                 put("ids", JSONObject().put("isrc", s.song.info.isrc).put("yt", s.song.info.ytId)
                     .put("spotify", s.song.info.spotifyId).put("jiosaavn", s.song.info.saavnId))
             })
         }
+        val sv = VibeStore.vibe(context, seed)
         return JSONObject().apply {
-            put("seed", JSONObject().put("canonical_id", seed.id).put("title", seed.title).put("artist", seed.artists))
+            put("seed", JSONObject().put("canonical_id", seed.id).put("title", seed.title).put("artist", seed.artists)
+                .put("feel", sv.toString()).put("dominant", sv.dominant?.label ?: "unknown").put("energy", sv.energy)
+                .put("language", VibeStore.language(context, seed)))
             put("user_id", userId)
             put("queue", items)
             put("took_ms", System.currentTimeMillis() - started)

@@ -117,6 +117,8 @@ object Discover {
                     .firstOrNull()?.data
             }.getOrNull().orEmpty().take(40)
         }.distinctBy { it.spotifyTrackId.ifBlank { it.title + it.singer } }
+        // The station's songs teach the engine what this mood sounds like.
+        com.music.aalap.data.recommendation.engine.VibeStore.tagMood(context, tracks, mood.name)
         // Same engine as everywhere else: a fresh order each window, then ranked for your taste.
         val shuffled = tracks.shuffled(java.util.Random(salt(context, 100 + mood.ordinal)))
         val result = com.music.aalap.data.recommendation.Recommender.rerank(context, shuffled, familiar = 0.3f).take(60)

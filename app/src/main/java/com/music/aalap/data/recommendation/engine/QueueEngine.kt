@@ -142,7 +142,7 @@ object QueueEngine {
             if (ranked.isEmpty()) RecoTrace.log("    (no source answered in time)")
             RecoTrace.log("  FUSION (rank fusion: a song high on several lists rises; top 8 of ${fused.size}):")
             fused.take(8).forEachIndexed { i, f ->
-                RecoTrace.log("    ${i + 1}. ${all[f.id]?.title ?: f.id}  rrf=%.4f  from %s".format(f.score, f.sources.joinToString("+")))
+                RecoTrace.log("    ${i + 1}. ${all[f.id]?.title ?: f.id}  " + "rrf=%.4f  from %s".format(f.score, f.sources.joinToString("+")))
             }
         }
         // The listener's own habits after this seed join the pool even if no source suggested them.
@@ -156,7 +156,7 @@ object QueueEngine {
         if (RecoTrace.on) {
             RecoTrace.log("  PERSONAL (final = 0.6·global + 0.2·your taste + 0.2·your habit; top 8):")
             scored.take(8).forEachIndexed { i, s ->
-                RecoTrace.log("    ${i + 1}. ${s.song.title} — ${s.song.artists.substringBefore(",")}  global %.2f  taste %.2f  habit %.2f  → %.3f".format(s.global, s.taste, s.habit, s.final))
+                RecoTrace.log("    ${i + 1}. ${s.song.title} — ${s.song.artists.substringBefore(",")}  " + "global %.2f  taste %.2f  habit %.2f  → %.3f".format(s.global, s.taste, s.habit, s.final))
             }
         }
         return scored
@@ -182,7 +182,53 @@ object QueueEngine {
 
     /** The same queue as app songs, for the player. */
     fun queueSongs(context: Context, seed: SongsModel, length: Int = DEFAULT_LENGTH, excludeAppIds: Set<Int> = emptySet()): Flow<SongsModel> =
-        buildQueue(context, seed, length, excludeAppIds).map { SongBridge.toSongsModel(it.scored.song) }
+        buildQueue(context, seed, length, excludeAppIds + seed.id).map {
+            SongBridge.toSongsModel(it.scored.song).also { m -> com.music.aalap.data.recommendation.PlayContext.markAuto(m.id) }
+        }
+
+    /**
+     * The listening session right now: the song you chose ([anchor], counts most), then
+     * what you played in the last stretch of listening (finished songs count, skipped
+     * ones count against their feel), newest first.
+     */
+    private fun buildSession(context: Context, userId: String, seed: Song, anchor: Song?): MutableList<SessionSong> {
+        val db = RecoDb.get(context)
+        val now = System.currentTimeMillis()
+        val plays = db.plays(userId, sinceMs = now - 3 * 3_600_000L, limit = 15)
+        val stretch = ArrayList<RecoDb.Play>()
+        var last = now
+        for (p in plays) { if (last - p.playedAt > 30 * 60_000L) break; stretch += p; last = p.playedAt }
+        val songs = db.songs(stretch.map { it.songId } + listOfNotNull(anchor?.id, seed.id))
+        val vibes = VibeStore.vibes(context, songs.values)
+        val out = ArrayList<SessionSong>()
+        fun add(song: Song, w: Double) = out.add(SessionSong(song.id, song.artists, vibes[song.id] ?: Vibe.UNKNOWN, VibeStore.language(context, song), w))
+        anchor?.let { add(it, 1.2) }
+        stretch.forEachIndexed { i, p ->
+            if (p.songId == anchor?.id) return@forEachIndexed
+            val s = songs[p.songId] ?: return@forEachIndexed
+            val base = Math.pow(0.85, i.toDouble())
+            // The newest play is still going (not finished or skipped yet).
+            add(s, if (i == 0 && !p.skipped) 0.8 else if (p.skipped) -0.9 * base else 0.8 * base)
+        }
+        if (out.none { it.id == seed.id }) songs[seed.id]?.let { add(it, if (anchor == null) 1.0 else 0.6) }
+        return out
+    }
+
+    /** 0..1 per song: how high it comes after the session's songs together (cached lists only, no waiting). */
+    private fun sessionRanks(context: Context, seeds: List<Pair<String, Double>>): Map<String, Double> {
+        val db = RecoDb.get(context)
+        val total = HashMap<String, Double>()
+        var weights = 0.0
+        for ((id, w) in seeds) {
+            val ranked = Source.entries.mapNotNull { src -> db.cachedList(id, src, CACHE_TTL_MS)?.takeIf { it.isNotEmpty() }?.let { src to it } }.toMap()
+            if (ranked.isEmpty()) continue
+            val fused = Fusion.fuse(ranked)
+            val top = fused.firstOrNull()?.score?.takeIf { it > 0 } ?: continue
+            fused.forEach { total[it.id] = (total[it.id] ?: 0.0) + w * it.score / top }
+            weights += w
+        }
+        return if (weights == 0.0) emptyMap() else total.mapValues { it.value / weights }
+    }
 
     suspend fun chain(
         context: Context,
@@ -193,31 +239,115 @@ object QueueEngine {
         onPick: suspend (QueueItem) -> Unit,
     ) {
         val profile = Personalizer.profile(context, userId)
+        VibeStore.learnInBackground(context)
+        val db = RecoDb.get(context)
+        val now = System.currentTimeMillis()
         val excluded = HashSet<String>(profile.recentIds + profile.recentSkips)
         excluded += seed.id
+
+        // The song you chose, while it's still this queue's (you haven't started something else).
+        val play = com.music.aalap.data.recommendation.PlayContext.current
+        val anchorModel = play.anchor?.takeIf { it.id in excludeAppIds && now - play.at < 4 * 3_600_000L }
+        val anchor = anchorModel?.let { db.resolve(SongBridge.toCandidate(it)) }
+        val pool = if (anchorModel != null) play.pool.filter { it.id !in excludeAppIds } else emptyList()
+        val poolSongs = if (pool.isEmpty()) emptyList() else db.resolveAll(pool.map(SongBridge::toCandidate))
+        val poolIds = poolSongs.mapTo(HashSet()) { it.id }
+
+        val sessionSongs = buildSession(context, userId, seed, anchor)
+        val trending = VibeStore.trendingIds(context)
+        val favouriteIds = profile.songAffinity.entries.sortedByDescending { it.value }.take(40).map { it.key }
+        var state = PickState(recentArtists = sessionSongs.mapNotNull { SongMatcher.artistKeys(it.artists).firstOrNull() })
+        val targets = Targets(
+            familiar = if (profile.isNew) 0.0 else profile.familiarTarget,
+            maxLiked = 0.35,
+            fromList = if (poolSongs.isNotEmpty()) 0.35 else 0.0,
+        )
         RecoTrace.log("━━━━ UP NEXT after '${seed.title}' — ${seed.artists} ━━━━")
-        RecoTrace.log("  skipping ${profile.recentIds.size} songs you played lately and ${profile.recentSkips.size} you skipped; $length songs to choose")
+        RecoTrace.log("  session: ${sessionSongs.size} songs, feel ${Session(sessionSongs, profile.dayPartFeel).vibe}; " +
+            "aim ${"%.0f".format(targets.familiar * 100)}% known songs" + (if (poolSongs.isNotEmpty()) ", ${"%.0f".format(targets.fromList * 100)}% from '${play.poolName}'" else ""))
         val rnd = Random()
         var cur = seed
         for (step in 0 until length) {
             RecoTrace.log("\n── Pick #${step + 1}: what comes after '${cur.title}'? ──")
-            val scored = if (step == 0) scoredAfter(context, userId, cur, SOURCE_TIMEOUT_MS, FIRST_PICK_GRACE_MS)
-                else scoredAfter(context, userId, cur, BACKGROUND_TIMEOUT_MS)
-                .filter { SongBridge.appId(it.song) !in excludeAppIds }
-            val pick = Diversifier.pick(scored, cur.artists, excluded, rnd)
-                ?.let { QueueItem(it, if (it.global == 0.0 && it.habit > 0) "habit" else "fusion") }
-                ?: fallback(context, userId, cur, excluded, excludeAppIds, rnd)
+            var ranked = ranked(context, cur, if (step == 0) SOURCE_TIMEOUT_MS else BACKGROUND_TIMEOUT_MS)
+            if (ranked.isEmpty() && step == 0) ranked = ranked(context, cur, FIRST_PICK_GRACE_MS)
+            val fused = Fusion.fuse(ranked).take(CANDIDATE_POOL)
+            val top = fused.firstOrNull()?.score?.takeIf { it > 0 } ?: 1.0
+            val habits = db.transitionsFrom(userId, cur.id).associateBy { it.toId }
+
+            // What plays after the session as a whole: the song you chose and the last two picks.
+            val sessionSeeds = buildList {
+                anchor?.let { add(it.id to 1.0) }
+                sessionSongs.filter { it.weight > 0 && it.id != anchor?.id }.takeLast(2).forEach { add(it.id to 0.5) }
+                if (isEmpty()) add(cur.id to 1.0)
+            }
+            val sessionRank = sessionRanks(context, sessionSeeds)
+
+            // Candidates: what the world plays next, your habits, and (only if they fit)
+            // the playlist you started from, your all-time favourites and today's trending songs.
+            val globalOf = fused.associate { it.id to it.score / top }
+            val sourcesOf = fused.associate { it.id to it.sources }
+            val extraPool = poolSongs.filter { it.id !in excluded }.shuffled(rnd).take(30)
+            val extraIds = favouriteIds + trending.shuffled(rnd).take(25)
+            // What plays after the session as a whole stays in the running at every step, so one
+            // off pick can't drag the queue somewhere else (all candidates would follow it).
+            val sessionIds = sessionRank.entries.sortedByDescending { it.value }.take(30).map { it.key }
+            val songs = HashMap(db.songs(globalOf.keys + habits.keys + extraIds + sessionIds))
+            extraPool.forEach { songs[it.id] = it }
+            val vibes = VibeStore.vibes(context, songs.values)
+            val session = Session(sessionSongs, profile.dayPartFeel)
+            val features = songs.values.mapNotNull { s ->
+                if (s.id in excluded || SongBridge.appId(s) in excludeAppIds) return@mapNotNull null
+                val v = vibes[s.id] ?: Vibe.UNKNOWN
+                val global = globalOf[s.id] ?: 0.0
+                val habit = habits[s.id]?.let { TasteProfile.habit(it.count, it.lastAt, now) } ?: 0.0
+                val fromList = s.id in poolIds
+                val lang = VibeStore.language(context, s)
+                // Songs nobody suggested after this one only join if they fit the session (feel and language).
+                if (global == 0.0 && habit == 0.0 && (sessionRank[s.id] ?: 0.0) < 0.3 &&
+                    (session.vibeScore(v) < (if (fromList) 0.5 else 0.62) || session.languageScore(lang) < 0.5)) return@mapNotNull null
+                Features(
+                    song = s, global = global, session = sessionRank[s.id] ?: 0.0, vibe = v,
+                    language = lang, taste = profile.taste(s.info, s.id, v), habit = habit,
+                    trend = s.id in trending, familiar = s.id in profile.heard, liked = s.id in profile.liked,
+                    fromList = fromList, sources = sourcesOf[s.id].orEmpty(),
+                )
+            }
+            if (RecoTrace.on) {
+                RecoTrace.log("  ${fused.size} songs the world plays next, ${habits.size} habits, ${features.size} candidates in all")
+                features.map { QueuePicker.score(it, session, profile.isNew, state, targets) }.sortedByDescending { it.final }.take(8).forEachIndexed { i, sc ->
+                    RecoTrace.log("    ${i + 1}. ${sc.song.title} — ${sc.song.artists.substringBefore(",")}  " +
+                        "world %.2f  session %.2f  fit %.2f  taste %.2f  habit %.2f%s → %.3f".format(
+                            sc.global, sc.session, sc.fit, sc.taste, sc.habit, if (sc.trend > 0) "  trending" else "", sc.final) +
+                        "  ${sc.vibe}  ${sc.tags.joinToString(" ")}")
+                }
+            }
+            val picked = QueuePicker.pick(features, session, profile.isNew, state, targets, cur.artists, excluded, rnd)
+            val pick = picked?.let {
+                val f = features.first { f -> f.song.id == it.song.id }
+                state = state.after(f)
+                QueueItem(it, when {
+                    f.fromList && f.global == 0.0 -> "your list"
+                    it.global == 0.0 && it.session > 0 -> "session"
+                    it.global == 0.0 && it.habit > 0 -> "habit"
+                    it.global == 0.0 && f.trend -> "trending"
+                    it.global == 0.0 -> "your favourites"
+                    else -> "fusion"
+                })
+            } ?: fallback(context, userId, cur, excluded, excludeAppIds, rnd)
             if (pick == null) {
                 Log.w(TAG, "no next song after '${cur.title}'")
                 return
             }
-            RecoTrace.log("  ✔ PICKED #${step + 1}: '${pick.scored.song.title}' — ${pick.scored.song.artists.substringBefore(",")}  (via ${pick.via}, score %.3f)".format(pick.scored.final) +
-                "\n    why: chosen at random among the top ${Diversifier.TOP_N} by score (higher score = likelier), " +
-                "skipping songs by the same artist as '${cur.title}' and anything played recently")
+            RecoTrace.log("  ✔ PICKED #${step + 1}: '${pick.scored.song.title}' — ${pick.scored.song.artists.substringBefore(",")}  " +
+                "(via ${pick.via}, score %.3f, ".format(pick.scored.final) + "${pick.scored.vibe})")
             Log.d(TAG, "#${step + 1} '${pick.scored.song.title}' via ${pick.via} " +
-                "(global %.2f taste %.2f habit %.2f → %.3f, %s)".format(pick.scored.global, pick.scored.taste, pick.scored.habit, pick.scored.final, pick.scored.sources))
+                "(world %.2f session %.2f fit %.2f taste %.2f habit %.2f → %.3f, ".format(
+                    pick.scored.global, pick.scored.session, pick.scored.fit, pick.scored.taste, pick.scored.habit, pick.scored.final) + "${pick.scored.vibe})")
             onPick(pick)
             excluded += pick.scored.song.id
+            val pv = pick.scored.vibe.takeIf { it.known } ?: VibeStore.vibe(context, pick.scored.song)
+            sessionSongs += SessionSong(pick.scored.song.id, pick.scored.song.artists, pv, VibeStore.language(context, pick.scored.song), 0.25)
             cur = pick.scored.song
             prefetch(context, cur) // next seed's sources load while this song is queued
         }
@@ -251,19 +381,56 @@ object QueueEngine {
 
     // ── recording what the listener does ───────────────────────────────────
 
-    /** A song started playing: log it (skips, habits), refresh the taste and warm its "next" lists. */
-    fun onPlay(context: Context, song: SongsModel, at: Long = System.currentTimeMillis()) {
+    /**
+     * A song started playing: log it (skips, habits), refresh the taste and warm its
+     * "next" lists. If the song before it was one the engine queued and you skipped it,
+     * [onSkippedAuto] gets the upcoming queued songs that are too much like it (same
+     * artist, or the same feel and tempo), so the queue can drop them and rethink.
+     */
+    fun onPlay(
+        context: Context,
+        song: SongsModel,
+        at: Long = System.currentTimeMillis(),
+        upcoming: List<SongsModel> = emptyList(),
+        onSkippedAuto: ((Set<Int>) -> Unit)? = null,
+    ) {
         if (song.title.isBlank()) return
         scope.launch {
             runCatching {
                 ensureImported(context)
                 val db = RecoDb.get(context)
+                val userId = RecoDb.userId(context)
                 val s = db.resolve(SongBridge.toCandidate(song))
-                db.recordPlay(RecoDb.userId(context), s.id, at)
+                db.recordPlay(userId, s.id, at)
                 Personalizer.invalidate()
                 prefetch(context, s)
+                val prev = db.plays(userId, limit = 2).getOrNull(1)
+                if (prev != null && prev.skipped && onSkippedAuto != null) {
+                    val skipped = db.song(prev.songId) ?: return@runCatching
+                    if (!com.music.aalap.data.recommendation.PlayContext.isAuto(SongBridge.appId(skipped))) return@runCatching
+                    val drop = tooLike(context, skipped, upcoming.filter { com.music.aalap.data.recommendation.PlayContext.isAuto(it.id) })
+                    if (drop.isNotEmpty()) {
+                        Log.d(TAG, "skipped '${skipped.title}': dropping ${drop.size} similar queued songs")
+                        onSkippedAuto(drop)
+                    }
+                }
             }.onFailure { Log.w(TAG, "onPlay failed: $it") }
         }
+    }
+
+    /** Of [upcoming], the songs too much like [skipped] (same main artist, or same feel and tempo); at most 3. */
+    fun tooLike(context: Context, skipped: Song, upcoming: List<SongsModel>): Set<Int> {
+        if (upcoming.isEmpty()) return emptySet()
+        val db = RecoDb.get(context)
+        val sv = VibeStore.vibe(context, skipped)
+        val artist = SongMatcher.artistKeys(skipped.artists).firstOrNull()
+        val songs = upcoming.map { it to db.resolve(SongBridge.toCandidate(it)) }
+        val vibes = VibeStore.vibes(context, songs.map { it.second })
+        return songs.filter { (_, s) ->
+            val v = vibes[s.id] ?: Vibe.UNKNOWN
+            SongMatcher.artistKeys(s.artists).firstOrNull() == artist ||
+                (sv.known && v.known && v.similarity(sv) >= 0.85 && kotlin.math.abs(v.energy - sv.energy) <= 0.12)
+        }.take(3).mapTo(HashSet()) { it.first.id }
     }
 
     /** Liked songs from the library, so the taste knows them even before they're played. */
@@ -303,7 +470,8 @@ object QueueEngine {
                 prefs.edit().putBoolean("history_imported", true).apply()
                 imported.set(true)
             }.onFailure { Log.w(TAG, "history import failed (retries next time): $it") }
-            runCatching { RecoDb.get(context).pruneCache(CACHE_TTL_MS) }
+            // Lists stay two weeks (they also say what each song sounds like); fetching still refreshes after 24 h.
+            runCatching { RecoDb.get(context).pruneCache(14 * CACHE_TTL_MS) }
         } else {
             imported.set(true)
         }

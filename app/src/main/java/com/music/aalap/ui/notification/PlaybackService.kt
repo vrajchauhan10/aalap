@@ -332,6 +332,15 @@ class PlaybackService : MediaLibraryService() {
         }, 700)
     }
 
+    private fun playIndex(index: Int) {
+        val song = currentSongState.queue.value.getOrNull(index) ?: return
+        currentSongState.updateSongState(
+            song.coverUri, song.title, song.singer, true,
+            song.id, index, currentSongState.album.value
+        )
+        SongPlayer.playSong(song.url, applicationContext)
+    }
+
     /** Advance the in-app queue one step in the given direction and start it. */
     private fun advance(forward: Boolean) {
         val queue = currentSongState.queue.value
@@ -359,16 +368,13 @@ class PlaybackService : MediaLibraryService() {
      * stop instead of wrapping around, which replayed the same song on a single.
      */
     private fun onTrackEnded() {
-        if (currentSongState.repeat.value) {
-            SongPlayer.seekTo(0)
-            SongPlayer.play()
-            return
-        }
         val queue = currentSongState.queue.value
         val cur = queue.indexOfFirst { it.id == currentSongState.songId.value }
-        if (cur in 0 until queue.size - 1) {
-            advance(forward = true)
-            return
+        // The loop button decides first: this song again, the next one, or the queue from the top.
+        when (val next = currentSongState.nextAfterEnd()) {
+            null -> {}
+            cur -> { SongPlayer.seekTo(0); SongPlayer.play(); return }
+            else -> { playIndex(next); return }
         }
         serviceScope.launch {
             val seed = queue.lastOrNull()

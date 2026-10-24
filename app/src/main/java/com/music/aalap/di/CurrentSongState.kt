@@ -7,6 +7,38 @@ import com.music.aalap.data.entity.SongsModel
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * The loop button. Tap cycles Off → loop the queue → loop this song; press and hold
+ * for the "once" versions.
+ */
+enum class RepeatMode(val label: String) {
+    OFF("Loop off"),
+    /** The whole queue (playlist, album…) over and over: back to the first song at the end, no recommendations. */
+    LIST("Looping the playlist"),
+    /** The queue one more time, then recommendations carry on as usual. */
+    LIST_ONCE("Playing the playlist once more"),
+    /** This song over and over. */
+    SONG("Looping this song"),
+    /** This song one more time, then the queue carries on. */
+    SONG_ONCE("Playing this song once more");
+
+    companion object {
+        /**
+         * The song at [cur] of a queue of [size] ended under [mode]: which index plays next
+         * (null = carry on into recommendations) and the mode afterwards ("once" is used up).
+         */
+        fun afterEnd(mode: RepeatMode, cur: Int, size: Int): Pair<Int?, RepeatMode> = when {
+            size == 0 -> null to mode
+            mode == SONG -> cur to SONG
+            mode == SONG_ONCE -> cur to OFF
+            cur in 0 until size - 1 -> cur + 1 to mode
+            mode == LIST -> 0 to LIST
+            mode == LIST_ONCE -> 0 to OFF
+            else -> null to mode
+        }
+    }
+}
+
 @Singleton
 class CurrentSongState @Inject constructor() {
     private val _title: MutableState<String> = mutableStateOf("")
@@ -67,7 +99,9 @@ class CurrentSongState @Inject constructor() {
     }
 
     val shuffle = mutableStateOf(false)
+    /** True while the current song is set to repeat ([RepeatMode.SONG] or [RepeatMode.SONG_ONCE]). */
     val repeat = mutableStateOf(false)
+    val repeatMode = mutableStateOf(RepeatMode.OFF)
     val likeState = mutableStateOf(false)
 
     // Original queue order, kept while shuffle is on so turning it off restores
@@ -122,7 +156,26 @@ class CurrentSongState @Inject constructor() {
         return _queue.value.firstOrNull()
     }
     fun updateRepeatState(newRepeatState : Boolean){
-        repeat.value = newRepeatState
+        updateRepeatMode(if (newRepeatState) RepeatMode.SONG else RepeatMode.OFF)
+    }
+
+    fun updateRepeatMode(mode: RepeatMode) {
+        repeatMode.value = mode
+        repeat.value = mode == RepeatMode.SONG || mode == RepeatMode.SONG_ONCE
+    }
+
+    /** Whether the queue goes back to its first song at the end (instead of recommendations). */
+    val loopsQueue: Boolean get() = repeatMode.value == RepeatMode.LIST || repeatMode.value == RepeatMode.LIST_ONCE
+
+    /**
+     * The current song ended. Returns what to do: repeat it, play [index], or null for
+     * "go on to recommendations". Uses up a "once" loop.
+     */
+    fun nextAfterEnd(): Int? {
+        val q = _queue.value
+        val (next, mode) = RepeatMode.afterEnd(repeatMode.value, q.indexOfFirst { it.id == _songId.value }, q.size)
+        if (mode != repeatMode.value) updateRepeatMode(mode)
+        return next
     }
 
     /** Sync the play/pause state without touching the rest of the now-playing
@@ -178,7 +231,16 @@ class CurrentSongState @Inject constructor() {
             val track = _queue.value.firstOrNull { it.id == songId }
             if (!skippedOffline && track != null && songId != lastLoggedSongId) {
                 lastLoggedSongId = songId
-                com.music.aalap.data.recommendation.engine.QueueEngine.onPlay(com.music.aalap.MyApplication.instance, track)
+                val q = _queue.value
+                val upcoming = q.drop(q.indexOfFirst { it.id == songId } + 1)
+                com.music.aalap.data.recommendation.engine.QueueEngine.onPlay(com.music.aalap.MyApplication.instance, track, upcoming = upcoming) { drop ->
+                    // You skipped a song the engine queued: drop the queued ones too much like it.
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        val now = _queue.value
+                        val cur = now.indexOfFirst { it.id == _songId.value }
+                        if (cur >= 0) _queue.value = now.filterIndexed { i, s -> i <= cur || s.id !in drop }
+                    }
+                }
             }
             if (!skippedOffline) com.music.aalap.data.preferences.addListeningHistory(
                 com.music.aalap.MyApplication.instance,

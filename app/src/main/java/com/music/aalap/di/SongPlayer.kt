@@ -1745,7 +1745,8 @@ object SongPlayer {
         val next = withContext(Dispatchers.Main) {
             val q = state.queue.value
             val cur = q.indexOfFirst { it.id == state.songId.value }
-            q.getOrNull(cur + 1)?.takeIf { cur >= 0 }
+            // Looping the playlist forever: after the last song comes the first.
+            (q.getOrNull(cur + 1) ?: q.firstOrNull()?.takeIf { state.repeatMode.value == RepeatMode.LIST && q.size > 1 })?.takeIf { cur >= 0 }
         }
         val wanted = next?.url?.takeIf { crossfadeMs <= 0 && !state.repeat.value && !webPlaybackActive() }
         val queued = preloadedNext

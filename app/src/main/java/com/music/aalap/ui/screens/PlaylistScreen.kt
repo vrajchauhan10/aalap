@@ -376,19 +376,7 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                                                     playing -> playlistViewModel.setPlaying(false)
                                                     songs.any { it.id == playlistViewModel.currentSongId.value } ->
                                                         playlistViewModel.setPlaying(true)
-                                                    else -> {
-                                                        playlistViewModel.updateQueue(displaySongs)
-                                                        SongPlayer.playSong(displaySongs[0].url, context)
-                                                        playlistViewModel.updateSongState(
-                                                            displaySongs[0].coverUri,
-                                                            displaySongs[0].title,
-                                                            displaySongs[0].singer,
-                                                            true,
-                                                            displaySongs[0].id,
-                                                            0,
-                                                            playlist.name
-                                                        )
-                                                    }
+                                                    else -> playlistViewModel.playAll(displaySongs, playlist.name, context)
                                                 }
                                             }
                                     ) {
@@ -437,19 +425,7 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
                                     onLongClick = { menuSong = song },
-                                    onClick = {
-                                        playlistViewModel.updateQueue(displaySongs)
-                                        SongPlayer.playSong(song.url, context)
-                                        playlistViewModel.updateSongState(
-                                            song.coverUri,
-                                            song.title,
-                                            song.singer,
-                                            true,
-                                            song.id,
-                                            index,
-                                            playlist.name
-                                        )
-                                    },
+                                    onClick = { playlistViewModel.playFromList(song, displaySongs, playlist.name, context) },
                                 )
                         ) {
                             GlideImage(

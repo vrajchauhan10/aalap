@@ -33,6 +33,10 @@ class AlbumViewModel @Inject constructor(private val repository: AppRepository, 
 
     fun updateQueue(songs: List<SongsModel>) = currentSongState.updateQueue(songs)
 
+    /** A song tapped in a list: it plays, then a mix of recommendations and the list (see [com.music.aalap.di.SmartPlay]). */
+    fun playFromList(song: SongsModel, list: List<SongsModel>, name: String, context: android.content.Context) =
+        com.music.aalap.di.SmartPlay.fromList(context, currentSongState, song, list, name)
+
     fun startShuffled(songs: List<SongsModel>) = currentSongState.startShuffled(songs)
 
     /** Pause/resume global playback (the header play button stays visible while playing). */

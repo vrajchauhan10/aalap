@@ -303,14 +303,7 @@ fun DownloadsScreen(navController: NavController) {
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null,
                                     onLongClick = { menuSong = song },
-                                    onClick = {
-                                        playerViewModel.updateQueue(songs)
-                                        SongPlayer.playSong(song.url, context)
-                                        playerViewModel.updateSongState(
-                                            song.coverUri, song.title, song.singer,
-                                            true, song.id, index, "Downloaded"
-                                        )
-                                    },
+                                    onClick = { playerViewModel.playFromList(song, songs, "Downloaded", context) },
                                 )
                         ) {
                             GlideImage(

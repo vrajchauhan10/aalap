@@ -93,6 +93,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -920,30 +924,72 @@ fun PlayerFull(
             tint = Color.White,
             painter = painterResource(id = R.drawable.ic_player_skip),
             contentDescription = "Next")
-        Icon(
+        RepeatButton(playerViewModel, context)
+    }
+}
+
+/**
+ * The loop button. Tap: Off → loop the playlist → loop this song → Off. Press and hold
+ * for every option, including "once more" (the song or the playlist one more time,
+ * then the music carries on). A small badge shows ∞ or 1×.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun RepeatButton(playerViewModel: PlayerViewModel, context: Context) {
+    val mode = playerViewModel.repeatMode.value
+    var menu by remember { mutableStateOf(false) }
+    fun set(m: com.music.aalap.di.RepeatMode) {
+        playerViewModel.updateRepeatMode(m)
+        android.widget.Toast.makeText(context, m.label, android.widget.Toast.LENGTH_SHORT).show()
+    }
+    val active = mode != com.music.aalap.di.RepeatMode.OFF
+    Box {
+        Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(20.dp)
-                .clickable(
+                .size(36.dp)
+                .combinedClickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
-                    if (repeat) {
-                        playerViewModel.updateRepeatState(false)
-                    } else {
-                        playerViewModel.updateRepeatState(true)
-                    }
-
-
-                }
-            ,
-            tint = if (repeat){
-                Color(AppPalette.toArgb())
+                    indication = null,
+                    onLongClick = { menu = true },
+                    onClick = {
+                        set(when (mode) {
+                            com.music.aalap.di.RepeatMode.OFF -> com.music.aalap.di.RepeatMode.LIST
+                            com.music.aalap.di.RepeatMode.LIST, com.music.aalap.di.RepeatMode.LIST_ONCE -> com.music.aalap.di.RepeatMode.SONG
+                            else -> com.music.aalap.di.RepeatMode.OFF
+                        })
+                    },
+                )
+                .semantics { contentDescription = "Loop: ${mode.label}. Press and hold for more" },
+        ) {
+            Icon(
+                modifier = Modifier.size(20.dp),
+                tint = if (active) Color(AppPalette.toArgb()) else Color.White,
+                painter = painterResource(
+                    id = if (mode == com.music.aalap.di.RepeatMode.SONG || mode == com.music.aalap.di.RepeatMode.SONG_ONCE) R.drawable.ic_repeat_one else R.drawable.ic_repeat,
+                ),
+                contentDescription = null,
+            )
+            if (active) Text(
+                if (mode == com.music.aalap.di.RepeatMode.SONG_ONCE || mode == com.music.aalap.di.RepeatMode.LIST_ONCE) "1×" else "∞",
+                color = Color(AppPalette.toArgb()), fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.BottomEnd),
+            )
+        }
+        androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            listOf(
+                com.music.aalap.di.RepeatMode.OFF to "Off",
+                com.music.aalap.di.RepeatMode.SONG_ONCE to "This song once more",
+                com.music.aalap.di.RepeatMode.SONG to "This song, on repeat",
+                com.music.aalap.di.RepeatMode.LIST_ONCE to "This playlist once more",
+                com.music.aalap.di.RepeatMode.LIST to "This playlist, on repeat",
+            ).forEach { (m, label) ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(label, fontWeight = if (m == mode) FontWeight.Bold else FontWeight.Normal) },
+                    onClick = { menu = false; set(m) },
+                )
             }
-            else{
-                Color.White
-            },
-            painter = painterResource(id = R.drawable.ic_repeat),
-            contentDescription = "Repeat")
+        }
     }
 }
 

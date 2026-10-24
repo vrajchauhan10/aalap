@@ -38,6 +38,14 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
 
     fun updateQueue(songs: List<SongsModel>) = currentSongState.updateQueue(songs)
 
+    /** A song tapped in a list: it plays, then a mix of recommendations and the list (see [com.music.aalap.di.SmartPlay]). */
+    fun playFromList(song: SongsModel, list: List<SongsModel>, name: String, context: android.content.Context) =
+        com.music.aalap.di.SmartPlay.fromList(context, currentSongState, song, list, name)
+
+    /** The whole list in order (a list's Play button). */
+    fun playAll(list: List<SongsModel>, name: String, context: android.content.Context, index: Int = 0) =
+        com.music.aalap.di.SmartPlay.playAll(context, currentSongState, list, name, index)
+
     /** Insert a track right after the one currently playing ("Play next"). */
     fun playNext(song: SongsModel) {
         val q = currentSongState.queue.value.toMutableList()
@@ -106,6 +114,8 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
 
     private fun maybeExtendRadio(queueSongs: List<SongsModel>, cur: Int) {
         if (!autoplayRadioEnabled || radioLoading) return
+        // Looping the queue: it starts over at the end, nothing gets added.
+        if (currentSongState.loopsQueue) return
         // Only start fetching when we're within one track of the end.
         if (cur < queueSongs.size - 2) return
         // The chain continues from the last song in the queue; each song is appended as soon as it's picked.
@@ -134,6 +144,14 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
         val cur = currentPositionIn(queueSongs)
         // Top up the queue with Spotify recommendations as we approach the end.
         maybeExtendRadio(queueSongs, cur)
+        if (cur >= queueSongs.size - 1 && currentSongState.loopsQueue) {
+            // Loop the playlist: back to its first song ("once" turns itself off after this lap).
+            if (currentSongState.repeatMode.value == com.music.aalap.di.RepeatMode.LIST_ONCE) currentSongState.updateRepeatMode(com.music.aalap.di.RepeatMode.OFF)
+            val first = queueSongs[0]
+            updateSongState(first.coverUri, first.title, first.singer, true, first.id, 0, first.album)
+            SongPlayer.playSong(first.url, context)
+            return
+        }
         if (cur >= queueSongs.size - 1 && autoplayRadioEnabled) {
             // End of the queue (e.g. a single). Don't loop back to the start —
             // wait for the radio fetch kicked off above to append tracks and
@@ -242,6 +260,7 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
      * engine), instead of playing the list it was tapped from in order.
      */
     fun playWithRadio(song: SongsModel, context: Context) {
+        com.music.aalap.data.recommendation.PlayContext.chose(song)
         updateQueue(listOf(song))
         updateSongState(song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
         SongPlayer.playSong(song.url, context)
@@ -307,6 +326,9 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
     fun updateRepeatState(repeatState : Boolean){
         currentSongState.updateRepeatState(repeatState)
     }
+
+    val repeatMode = currentSongState.repeatMode
+    fun updateRepeatMode(mode: com.music.aalap.di.RepeatMode) = currentSongState.updateRepeatMode(mode)
     fun updateLikeState(likeState : Boolean){
         currentSongState.updateLikeState(likeState)
     }
