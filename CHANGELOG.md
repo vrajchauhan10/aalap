@@ -4,6 +4,30 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 5.1.0 — 25 Oct 2026 (build 53)
+- **Voice, rebuilt.** The mic now listens inside Aalap: a card shows the words as you
+  speak, then "Finding the best match…" for a moment, then the song it's playing. It
+  understands film names ("Saiyaara Ek Tha Tiger" plays the 2012 song; just "Saiyaara"
+  plays the most played one), prefers the original over remixes, lofi and covers, and
+  checks the recogniser's other hearings too.
+- **The mic never disturbs other apps.** During a call, a WhatsApp voice note or any
+  other recording, Aalap won't open the mic and says why. It lets go of the mic the
+  moment you stop speaking, on cancel, after 12 s at most, or when you leave Aalap.
+  Android asks once for microphone permission.
+- **"Aaj ka Aalap" by voice works however it's heard** ("aaj ka alap", "aj ka aalaap",
+  "today's aalap"…), while "Aaj Ki Raat" still plays the song.
+- **Blend, redesigned.** Its own screen (Home → Blend, or Settings → Share):
+  - copy or share your taste code; a friend's code fills in by itself when you open Blend
+    after copying it, or when their message is shared to Aalap;
+  - a match score with its own animation for each level: Opposites attract, Common
+    ground, Great match, Music twins, Soulmates;
+  - Save Blend, Play, and Share score (a picture card with your score, which also carries
+    your code so friends can blend back);
+  - saved Blends get a fresh mix every day, and a newer code from the same friend
+    updates your Blend with them.
+- **Aaj ka Aalap posters:** a new poster every time you open Aalap. All 80 designs show
+  before any repeats, and a poster never comes back within 50 opens.
+
 ## 5.0.0 — 24 Oct 2026 (build 52)
 - **Aalap listens to the music.** While a song plays, Aalap measures its tempo and
   energy on the phone (nothing is uploaded) and remembers them. Recommendations use the

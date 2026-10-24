@@ -12,6 +12,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -49,6 +51,8 @@ object VoicePlay {
         val album: String = "",
         val genre: String = "",
         val playlist: String = "",
+        /** Other ways the recogniser heard it, best first (the in-app mic). */
+        val alternatives: List<String> = emptyList(),
     )
 
     /** A "play from search" intent's request (null if it isn't one). */
@@ -116,7 +120,7 @@ object VoicePlay {
         }
         if (q in GENERIC) return Plan.Resume
         if (Regex("""^(my )?(liked|favou?rite|loved)( songs?| music| tracks?)?$|^my (likes|favou?rites)$""").matches(q)) return Plan.Liked
-        if (Regex("""^(aaj ka aalap|aaj ka alaap|today'?s (playlist|mix|songs)|my daily (mix|playlist)|daily mix)$""").matches(q)) return Plan.Today
+        if (isToday(q)) return Plan.Today
         if (Regex("""^(my mix|your mix|a mix for me|something i like|my taste|songs i like)$""").matches(q)) return Plan.YourMix
         // A mood: only when the words are just the mood ("party songs", "some sad music"),
         // so a song called "Love Me Like You Do" still plays that song.
@@ -128,38 +132,104 @@ object VoicePlay {
         return Plan.Song(q)
     }
 
-    // ── doing it ────────────────────────────────────────────────────────────
+    /**
+     * "Aaj ka Aalap", however it was heard: "aaj ka alap", "aj ka aalaap", "aaj ke aalap",
+     * "today's aalap", "today's playlist"… but not "Aaj Ki Raat". Compares the sound
+     * (doubled letters squashed) allowing two small differences.
+     */
+    fun isToday(q: String): Boolean {
+        if (Regex("""^(today'?s (playlist|mix|songs|aalap|alap|alaap)|my daily (mix|playlist)|daily mix|aalap (of|for) (the day|today)|aaj ka playlist|aaj ki playlist)$""").matches(q)) return true
+        val joined = squash(q.replace(Regex("[^a-z]"), ""))
+        if (joined.length !in 5..10) return false
+        return dist(joined, "ajkalap") <= 2 && Regex("l[ae]*p|l[ae]*b").containsMatchIn(joined.takeLast(4))
+    }
+
+    /** Doubled letters as one ("aalaap" → "alap"; "aa" → "a"). */
+    private fun squash(s: String): String = s.replace(Regex("(.)\\1+"), "$1").replace("aa", "a")
+
+    private fun dist(a: String, b: String): Int {
+        var prev = IntArray(b.length + 1) { it }
+        for (i in 1..a.length) {
+            val cur = IntArray(b.length + 1); cur[0] = i
+            for (j in 1..b.length) cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
+            prev = cur
+        }
+        return prev[b.length]
+    }
 
     /**
-     * Carries out [req]. [fromApp]: the request opened the app, so it shows the player.
+     * The plan for what was said, looking at the recogniser's other hearings too: if
+     * one of them is clearly a named list ("Aaj ka Aalap", Liked Songs), that wins over
+     * a song search for the first hearing.
+     */
+    fun planAll(req: Request): Plan {
+        val first = plan(req)
+        if (first !is Plan.Song) return first
+        for (alt in req.alternatives.take(4)) {
+            val p = plan(req.copy(query = alt, alternatives = emptyList()))
+            if (p == Plan.Today || p == Plan.Liked) return p
+        }
+        return first
+    }
+
+    // ── doing it ────────────────────────────────────────────────────────────
+
+    /** What was played, for the voice overlay. */
+    data class Played(val title: String, val subtitle: String, val cover: String = "")
+
+    /**
+     * Carries out [req]. [fromApp]: the request came from inside the app (the mic, a
+     * link): the voice overlay shows Aalap thinking for a moment, then what it found,
+     * and the player opens.
      */
     fun handle(context: Context, state: CurrentSongState, req: Request, fromApp: Boolean) {
         val app = context.applicationContext
-        val plan = plan(req)
-        Log.d(TAG, "'${req.query}' (focus ${req.focus}) → $plan")
+        val plan = planAll(req)
+        Log.d(TAG, "'${req.query}' (focus ${req.focus}, alts ${req.alternatives}) → $plan")
         last = "'${req.query}' → $plan"
+        val heard = clean(req.query).ifBlank { req.query }
+        if (fromApp) VoiceUi.state.value = VoiceUi.State.Thinking(heard)
+        val started = System.currentTimeMillis()
+        // Take a moment, so it's clear Aalap looked (and the "thinking" step is seen).
+        val ready: suspend () -> Unit = {
+            if (fromApp) kotlinx.coroutines.delay((1_100 - (System.currentTimeMillis() - started)).coerceAtLeast(0))
+        }
         scope.launch {
-            val ok = runCatching { run(app, state, plan) }.onFailure { Log.w(TAG, "failed: $it") }.getOrDefault(null)
+            val ok = runCatching { run(app, state, plan, req, ready) }.onFailure { Log.w(TAG, "failed: $it") }.getOrDefault(null)
             withContext(Dispatchers.Main) {
                 if (ok != null) {
-                    last = "'${req.query}' → $plan → $ok"
-                    if (fromApp) _showPlayer.tryEmit(Unit)
+                    last = "'${req.query}' → $plan → ${ok.title} — ${ok.subtitle}"
+                    if (fromApp) {
+                        VoiceUi.state.value = VoiceUi.State.Found(ok.title, ok.subtitle, ok.cover)
+                        _showPlayer.tryEmit(Unit)
+                    }
                 } else {
                     last = "'${req.query}' → $plan → nothing found"
-                    android.widget.Toast.makeText(app, "Couldn't find \"${clean(req.query).ifBlank { req.query }}\" on Aalap", android.widget.Toast.LENGTH_SHORT).show()
+                    if (fromApp) VoiceUi.state.value = VoiceUi.State.Failed("Couldn't find \"$heard\". Try saying the song and the singer.")
+                    else android.widget.Toast.makeText(app, "Couldn't find \"$heard\" on Aalap", android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
         }
     }
 
+    /** Works out [plan] without playing it (debug: what a request would play). */
+    suspend fun dryRun(context: Context, req: Request): String {
+        val plan = planAll(req)
+        if (plan !is Plan.Song) return "$plan"
+        val results = search(context, plan.query, req.alternatives)
+        val ranked = rank(plan.query, results, known(context))
+        return "$plan\n" + ranked.take(8).joinToString("\n") { (c, sc) -> "%.2f  %s — %s  [%s]".format(sc, c.title, c.artists, c.album) }
+    }
+
     /** Plays [plan]; returns what's playing (null if nothing was found). */
-    private suspend fun run(context: Context, state: CurrentSongState, plan: Plan): String? {
+    private suspend fun run(context: Context, state: CurrentSongState, plan: Plan, req: Request, ready: suspend () -> Unit): Played? {
         val api = com.music.aalap.data.api.Api(context)
         return when (plan) {
             is Plan.Song -> {
-                val song = findSong(context, plan.query) ?: return null
+                val song = findSong(context, plan.query, req.alternatives) ?: return null
+                ready()
                 withContext(Dispatchers.Main) { SmartPlay.single(context, state, song) }
-                "${song.title} — ${song.singer}"
+                Played(song.title, listOf(song.singer.substringBefore(",").trim(), song.album).filter { it.isNotBlank() }.distinct().joinToString(" · "), song.coverUri)
             }
             is Plan.Artist -> {
                 var top = api.artistTopCandidates(plan.name)
@@ -170,31 +240,35 @@ object VoicePlay {
                 }
                 val db = com.music.aalap.data.recommendation.engine.RecoDb.get(context)
                 val songs = db.resolveAll(top).map(com.music.aalap.data.recommendation.engine.SongBridge::toSongsModel)
-                if (songs.isEmpty()) return findSong(context, plan.query())?.let { s ->
-                    withContext(Dispatchers.Main) { SmartPlay.single(context, state, s) }; "${s.title} — ${s.singer}"
+                if (songs.isEmpty()) return findSong(context, plan.query(), req.alternatives)?.let { s ->
+                    ready(); withContext(Dispatchers.Main) { SmartPlay.single(context, state, s) }; Played(s.title, s.singer.substringBefore(","), s.coverUri)
                 }
                 val first = songs.take(5).random()
+                ready()
                 withContext(Dispatchers.Main) { SmartPlay.fromList(context, state, first, songs, plan.name) }
-                "${plan.name}: ${first.title}"
+                Played(first.title, "${plan.name.split(" ").joinToString(" ") { w -> w.replaceFirstChar { it.uppercase() } }} mix", first.coverUri)
             }
             Plan.Liked -> {
                 val liked = com.music.aalap.data.preferences.LikedLibrary.all(context).shuffled()
                 if (liked.isEmpty()) return null
+                ready()
                 withContext(Dispatchers.Main) { SmartPlay.playAll(context, state, liked, "Liked Songs") }
-                "Liked Songs (${liked.size})"
+                Played("Liked Songs", "${liked.size} songs, shuffled", liked.first().coverUri)
             }
             Plan.Today -> {
                 val list = com.music.aalap.data.recommendation.HomeMixes.todayPlaylist(context).map { it.song }
                 if (list.isEmpty()) return null
+                ready()
                 withContext(Dispatchers.Main) { SmartPlay.playAll(context, state, list, "Aaj ka Aalap") }
-                "Aaj ka Aalap (${list.size})"
+                Played("Aaj ka Aalap", "Today's ${list.size} songs", list.first().coverUri)
             }
-            Plan.YourMix -> playYourMix(context, state)
+            Plan.YourMix -> { ready(); playYourMix(context, state)?.let { Played(it, "Made from your taste") } }
             is Plan.Mood -> {
                 val list = com.music.aalap.data.recommendation.AalapRadio.moodRadio(context, plan.mood)
                 if (list.isEmpty()) return null
+                ready()
                 withContext(Dispatchers.Main) { SmartPlay.playAll(context, state, list, plan.mood.label) }
-                "${plan.mood.label} station"
+                Played("${plan.mood.label} station", "${list.size} songs", list.first().coverUri)
             }
             Plan.Resume -> withContext(Dispatchers.Main) {
                 when {
@@ -210,7 +284,7 @@ object VoicePlay {
                         SmartPlay.single(context, state, s); s.title
                     }
                 } ?: withContext(Dispatchers.IO) { playYourMix(context, state) }
-            }
+            }?.let { Played(it, "Carrying on") }
         }
     }
 
@@ -232,25 +306,32 @@ object VoicePlay {
 
     private fun norm(s: String) = s.lowercase().replace(Regex("""\(.*?\)|\[.*?\]|-.*$"""), " ").replace(Regex("[^\\p{L}\\p{N} ]"), " ").replace(Regex("\\s+"), " ").trim()
 
+    private val VERSION = Regex("""\b(remix|lofi|lo fi|slowed|reverb|sped up|speed up|cover|karaoke|instrumental|unplugged|reprise|mashup|8d|live|female version|male version|lyrical|version)\b""")
+    private val SMALL = setOf("the", "and", "song", "songs", "from", "by", "tha", "thi", "the", "hai", "movie", "film")
+
     /**
-     * Of Spotify's results for the spoken words, the one meant: an exact title beats a
-     * similar one ("Kesariya" over "Kesariyo Rang"), a named artist must match, and your
-     * own songs (played or liked) win ties. Spotify's order breaks the rest.
+     * Of the search results for the spoken words, the one meant, best first with scores:
+     *  - an exact title beats a similar one ("Kesariya" over "Kesariyo Rang");
+     *  - a named artist must match, and a film or album you name counts
+     *    ("Saiyaara Ek Tha Tiger" is the 2012 song, not the 2025 film's);
+     *  - the original beats a remix, lofi, cover… unless you asked for one;
+     *  - your own songs (played or liked) win ties; then the search's own order,
+     *    which puts the most played version first.
      */
-    fun bestMatch(query: String, results: List<com.music.aalap.data.recommendation.engine.Candidate>, known: Set<String> = emptySet()): com.music.aalap.data.recommendation.engine.Candidate? {
+    fun rank(query: String, results: List<com.music.aalap.data.recommendation.engine.Candidate>, known: Set<String> = emptySet()): List<Pair<com.music.aalap.data.recommendation.engine.Candidate, Double>> {
         val q = norm(query)
-        // Spotify always returns something; a result must share a word with what was said
-        // (spelling may differ a little: "kesriya" ~ "kesariya"), or nothing was found.
-        val words = q.split(" ").filter { it.length >= 3 && it !in setOf("the", "and", "song", "songs", "from", "by") }
+        // A result must share a word with what was said (spelling may differ a little:
+        // "kesriya" ~ "kesariya"), or nothing was found.
+        val words = q.split(" ").filter { it.length >= 3 && it !in SMALL }
+        val askedVersion = VERSION.containsMatchIn(q)
         fun related(c: com.music.aalap.data.recommendation.engine.Candidate): Boolean {
             if (words.isEmpty()) return true
             val theirs = norm(c.title + " " + c.artists.replace(",", " ")).split(" ").filter { it.length >= 3 }
             return words.any { w -> theirs.any { t -> close(w, t) } }
         }
-        val relevant = results.filter(::related)
-        if (relevant.isEmpty()) return null
-        return relevant.withIndex().maxByOrNull { (i, c) ->
+        return results.withIndex().filter { related(it.value) }.map { (i, c) ->
             val title = norm(c.title)
+            val fullTitle = c.title.lowercase()
             val artists = c.artists.split(",").map { norm(it) }.filter { it.isNotBlank() }
             val namedArtist = artists.any { it.isNotBlank() && q.contains(it) }
             val rest = artists.fold(q) { acc, a -> acc.replace(a, " ") }.replace(Regex("""\b(by|from|of|song)\b"""), " ").replace(Regex("\\s+"), " ").trim()
@@ -262,19 +343,28 @@ object VoicePlay {
                 else -> 0.0
             }
             if (namedArtist) score += 2.0
-            // Each word you said that's in the title or the artists (small spelling differences allowed).
+            // Each word you said that's in the title, the artists or the film / album.
             val titleWords = title.split(" ").filter { it.length >= 3 }
             val artistWords = artists.flatMap { it.split(" ") }.filter { it.length >= 3 }
+            val albumWords = norm(c.album + " " + fullTitle.substringAfter("(", "").substringAfter("from", "")).split(" ").filter { it.length >= 2 && it !in SMALL }
+            var albumHits = 0
             words.forEach { w ->
                 when {
                     titleWords.any { close(w, it) } -> score += 1.2
                     artistWords.any { close(w, it) } -> score += 1.0
+                    albumWords.any { close(w, it) } -> { score += 1.4; albumHits++ }
                 }
             }
+            // Short words of a film name ("ek", "tha") count once the film is clearly named.
+            if (albumHits > 0) q.split(" ").filter { it.length == 2 }.forEach { w -> if (albumWords.any { it == w }) score += 0.4 }
+            if (!askedVersion && VERSION.containsMatchIn(fullTitle)) score -= 1.8
             if (known.contains(title + "|" + artists.firstOrNull().orEmpty())) score += 1.0
-            score - i * 0.15
-        }?.value
+            c to score - i * 0.15
+        }.sortedByDescending { it.second }
     }
+
+    fun bestMatch(query: String, results: List<com.music.aalap.data.recommendation.engine.Candidate>, known: Set<String> = emptySet()) =
+        rank(query, results, known).firstOrNull()?.first
 
     /** Same word, allowing a small spelling difference (transliterations vary). */
     private fun close(a: String, b: String): Boolean {
@@ -291,21 +381,29 @@ object VoicePlay {
         return prev[b.length] <= allowed
     }
 
-    /** The best song for spoken words: Spotify search; offline, your downloads. */
-    private suspend fun findSong(context: Context, query: String): SongsModel? {
+    /** Search results for the words and the recogniser's next hearing, merged (first search's order first). */
+    private suspend fun search(context: Context, query: String, alternatives: List<String>): List<com.music.aalap.data.recommendation.engine.Candidate> = kotlinx.coroutines.coroutineScope {
+        val api = com.music.aalap.data.api.Api(context)
+        val alt = alternatives.map { plan(Request(it)) }.filterIsInstance<Plan.Song>().map { it.query }.firstOrNull { it != query }
+        suspend fun once() = listOfNotNull(query, alt).map { q -> async { api.searchCandidates(q, 10) } }.awaitAll()
+        var lists = once()
+        // Right after Aalap starts the search sign-in may not be ready yet: refresh it once and retry.
+        if (lists.all { it.isEmpty() }) {
+            kotlinx.coroutines.delay(1_200)
+            runCatching { com.music.aalap.data.api.SpotifyTokenProvider.ensureToken(context, force = true) }
+            lists = once()
+        }
+        lists.flatten().distinctBy { it.spotifyId.ifBlank { it.title + it.artists } }
+    }
+
+    /** The best song for spoken words: search; offline, your downloads. */
+    private suspend fun findSong(context: Context, query: String, alternatives: List<String> = emptyList()): SongsModel? {
         if (query.isBlank()) return null
         if (com.music.aalap.data.preferences.OfflineState.isOffline) {
             val q = query.lowercase()
             return com.music.aalap.data.preferences.getDownloadedSongs(context).firstOrNull { q.contains(it.title.lowercase()) || it.title.lowercase().contains(q) }
         }
-        var results = com.music.aalap.data.api.Api(context).searchCandidates(query, 10)
-        // Right after Aalap starts the search sign-in may not be ready yet: refresh it once and retry.
-        if (results.isEmpty()) {
-            kotlinx.coroutines.delay(1_200)
-            runCatching { com.music.aalap.data.api.SpotifyTokenProvider.ensureToken(context, force = true) }
-            results = com.music.aalap.data.api.Api(context).searchCandidates(query, 10)
-        }
-        val c = bestMatch(query, results, known(context)) ?: return null
+        val c = bestMatch(query, search(context, query, alternatives), known(context)) ?: return null
         val song = com.music.aalap.data.recommendation.engine.RecoDb.get(context).resolve(c)
         return com.music.aalap.data.recommendation.engine.SongBridge.toSongsModel(song)
     }

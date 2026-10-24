@@ -146,6 +146,48 @@ object ShareCards {
         return bmp
     }
 
+    /** Colour of a Blend score's band (cool for opposites, warm and gold for soulmates). */
+    fun blendColor(score: Int): Int = when {
+        score < 30 -> 0xFF1F5C7A.toInt()
+        score < 50 -> 0xFF4B3A8C.toInt()
+        score < 70 -> 0xFF9C2F5A.toInt()
+        score < 85 -> 0xFFB8461B.toInt()
+        else -> 0xFFC98A0E.toInt()
+    }
+
+    /** The Blend result: both names, the score, its name, and the artists you share. */
+    fun blendCard(ctx: Context, me: String, friend: String, score: Int, band: String, blurb: String, shared: List<String>, songs: List<String>): Bitmap {
+        val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
+        Canvas(bmp).apply {
+            background(blendColor(score))
+            // Two overlapping circles, closer the better you match.
+            val gap = 260f * (1f - score / 100f)
+            val cy = 470f; val r = 190f
+            val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+            ring.color = 0x66FF8A3D; drawCircle(W / 2f - 95f - gap / 2, cy, r, ring)
+            ring.color = 0x66FFC56B; drawCircle(W / 2f + 95f + gap / 2, cy, r, ring)
+            val initials = text(ctx, 120f, 0xFFFFFFFF.toInt(), true).apply { textAlign = Paint.Align.CENTER }
+            drawText(me.take(1).uppercase(), W / 2f - 150f - gap / 2, cy + 42f, initials)
+            drawText(friend.take(1).uppercase(), W / 2f + 150f + gap / 2, cy + 42f, initials)
+            var y = 760f
+            y += block("OUR AALAP BLEND", text(ctx, 40f, GOLD, true), 110f, y, W - 220)
+            y += block("$me + $friend", text(ctx, 62f, 0xFFFFFFFF.toInt(), true), 110f, y + 10f, W - 220, maxLines = 1) + 10f
+            y += block("$score%", text(ctx, 230f, 0xFFFFFFFF.toInt(), true), 100f, y, W - 200, maxLines = 1) - 20f
+            y += block(band, text(ctx, 72f, GOLD, true), 110f, y, W - 220, maxLines = 1)
+            y += block(blurb, text(ctx, 40f, MUTED, false), 110f, y + 6f, W - 220, maxLines = 2) + 40f
+            if (shared.isNotEmpty()) {
+                y += block("WE BOTH LOVE", text(ctx, 36f, SAFFRON, true), 110f, y, W - 220)
+                y += block(shared.take(4).joinToString(" · "), text(ctx, 44f, 0xFFFFFFFF.toInt(), false), 110f, y + 6f, W - 220, maxLines = 2) + 30f
+            }
+            if (songs.isNotEmpty() && y < H - 420f) {
+                y += block("ON OUR BLEND", text(ctx, 36f, SAFFRON, true), 110f, y, W - 220)
+                songs.take(3).forEach { y += block(it, text(ctx, 40f, 0xFFFFFFFF.toInt(), false), 110f, y + 6f, W - 220, maxLines = 1) + 4f }
+            }
+            footer(ctx)
+        }
+        return bmp
+    }
+
     /** Saves [bitmap] to the share cache and opens the Android share sheet. */
     fun share(ctx: Context, bitmap: Bitmap, name: String, message: String, link: String? = null) {
         val dir = java.io.File(ctx.cacheDir, "share").apply { mkdirs() }

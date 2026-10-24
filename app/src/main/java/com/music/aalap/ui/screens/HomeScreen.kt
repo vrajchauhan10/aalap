@@ -357,6 +357,9 @@ private fun HomeHeaderRow(navController: NavController) {
         HomeChip(androidx.compose.ui.graphics.vector.rememberVectorPainter(androidx.compose.material.icons.Icons.Default.DateRange), "History") {
             navController.navigate(Routes.History.route)
         }
+        HomeChip(androidx.compose.ui.res.painterResource(R.drawable.ic_blend), "Blend") {
+            com.music.aalap.ui.components.BlendUi.open()
+        }
         HomeChip(androidx.compose.ui.res.painterResource(R.drawable.ic_library_big), "Local files") {
             navController.navigate(Routes.LocalFiles.route)
         }

@@ -6,9 +6,15 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- The mic button: Aalap listens once, only while you ask for a song. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!-- Exporting downloads to public Music/ on API <=28 (MediaStore needs none on 29+). -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28"/>
+
+    <queries>
+        <intent><action android:name="android.speech.RecognitionService"/></intent>
+    </queries>
 
     <application
         android:name=".MyApplication"
@@ -46,6 +52,12 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="aalap" android:host="play" />
+            </intent-filter>
+            <!-- A friend's Blend code: Share → Aalap. -->
+            <intent-filter android:label="Blend on Aalap">
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain"/>
             </intent-filter>
         </activity>
 

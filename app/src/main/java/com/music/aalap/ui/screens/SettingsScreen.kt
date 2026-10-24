@@ -197,7 +197,7 @@ fun SettingsScreen(navController: NavController) {
 
             SectionTitle("Share")
             ShareAalapRow()
-            com.music.aalap.ui.components.BlendSettings(navController)
+            com.music.aalap.ui.components.BlendSettings()
 
             SectionTitle("Offline")
             val offline = com.music.aalap.data.preferences.OfflineState

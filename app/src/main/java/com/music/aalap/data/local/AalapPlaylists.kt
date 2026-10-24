@@ -85,6 +85,10 @@ object AalapPlaylists {
     fun remove(c: Context, id: String, songId: Int) =
         save(c, all(c).map { if (it.id == id) it.copy(songs = it.songs.filterNot { s -> s.id == songId }) else it })
 
+    /** Replaces a playlist's songs (and name), e.g. a Blend's daily refresh. */
+    fun replaceSongs(c: Context, id: String, songs: List<SongsModel>, name: String? = null) =
+        save(c, all(c).map { if (it.id == id) it.copy(songs = songs.distinctBy { s -> s.id }, name = name ?: it.name) else it })
+
     fun toggle(c: Context, id: String, song: SongsModel) = if (contains(c, id, song)) remove(c, id, song.id) else add(c, id, song)
 
     fun asLibraryEntries(c: Context): List<LibraryEntry> = all(c).map { p ->

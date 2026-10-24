@@ -4,6 +4,7 @@ import com.music.aalap.data.api.Mood
 import com.music.aalap.di.VoicePlay
 import com.music.aalap.di.VoicePlay.Plan
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** How spoken requests ("play … on Aalap") are understood. */
@@ -68,5 +69,27 @@ class VoicePlayTest {
         assertEquals(Plan.Artist("arijit singh"), plan("arijit singh ke gaane"))
         assertEquals(Plan.Artist("Shreya Ghoshal"), plan("Shreya Ghoshal", focus = "vnd.android.cursor.item/artist", artist = "Shreya Ghoshal"))
         assertEquals(Plan.Song("Kesariya Arijit Singh"), plan("kesariya", focus = "vnd.android.cursor.item/audio", title = "Kesariya", artist = "Arijit Singh"))
+    }
+
+    @Test fun aajKaAalapHoweverHeard() {
+        for (q in listOf("aaj ka aalap", "aaj ka alap", "aj ka aalaap", "aaj ke aalap", "Aaj Ka Aalaap", "aaj kaa aalap on aalap", "today's aalap", "aaj kal aalap"))
+            assertEquals(q, Plan.Today, plan(q))
+        for (q in listOf("aaj ki raat", "aaj kal", "aaj se teri", "aap ka aana"))
+            assertTrue(q, plan(q) is Plan.Song)
+        // The recogniser's other hearing names it: that wins.
+        assertEquals(Plan.Today, VoicePlay.planAll(VoicePlay.Request("aaj ki raat", alternatives = listOf("aaj ka aalap"))))
+    }
+
+    @Test fun filmNamePicksTheRightSong() {
+        val results = listOf(
+            com.music.aalap.data.recommendation.engine.Candidate(title = "Saiyaara", artists = "Tanishk Bagchi, Faheem Abdullah, Arslan Nizami", album = "Saiyaara"),
+            com.music.aalap.data.recommendation.engine.Candidate(title = "Saiyaara - Lofi", artists = "Someone", album = "Lofi Hits"),
+            com.music.aalap.data.recommendation.engine.Candidate(title = "Saiyaara", artists = "Mohit Chauhan, Tarannum Malik", album = "Ek Tha Tiger"),
+        )
+        assertEquals("Ek Tha Tiger", VoicePlay.bestMatch("sayaara ek tha tiger", results)?.album)
+        assertEquals("Ek Tha Tiger", VoicePlay.bestMatch("saiyaara ek the tiger", results)?.album)
+        // Just the title: the most played (search's first) one.
+        assertEquals("Saiyaara", VoicePlay.bestMatch("saiyaara", results)?.album)
+        assertEquals("Lofi Hits", VoicePlay.bestMatch("saiyaara lofi", results)?.album)
     }
 }

@@ -94,6 +94,17 @@ object QueueEndpoint {
             }
             return
         }
+        if (target.startsWith("/voicetest?q=")) {
+            // Debug: what a spoken request would play, without playing ("|" separates the recogniser's hearings).
+            val words = URLDecoder.decode(target.substringAfter("q="), "UTF-8").split("|")
+            val out = runBlocking { com.music.aalap.di.VoicePlay.dryRun(context, com.music.aalap.di.VoicePlay.Request(words.first(), alternatives = words.drop(1))) }
+            val bytes = out.toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
         if (target.startsWith("/voicesession?q=")) {
             // Debug: a voice request through the media session, as Google Assistant sends it
             // with the screen off (MediaControllerCompat.transportControls.playFromSearch).
@@ -144,11 +155,12 @@ object QueueEndpoint {
                 val friend = com.music.aalap.data.recommendation.Blend.TasteCard("Test friend", listOf("Diljit Dosanjh", "Karan Aujla", "AP Dhillon", "Badshah"),
                     mapOf("PARTY" to 1.0, "ENERGETIC" to 0.9), listOf("Punjabi"),
                     listOf(Triple("Lover", "Diljit Dosanjh", ""), Triple("Softly", "Karan Aujla", ""), Triple("Brown Munde", "AP Dhillon", ""), Triple("Proper Patola", "Diljit Dosanjh, Badshah", ""), Triple("Naah", "Harrdy Sandhu", "")))
-                val (id, n) = runBlocking { com.music.aalap.data.recommendation.Blend.make(c, friend) }
-                val songs = com.music.aalap.data.local.AalapPlaylists.get(c, id)?.songs.orEmpty()
+                val made = runBlocking { com.music.aalap.data.recommendation.Blend.make(c, friend) }
+                val songs = made.songs
                 out.put("my_code_chars", code.length).put("my_artists", JSONArray(mine.artists.take(6))).put("my_songs", mine.songs.size)
-                    .put("blend_songs", n).put("blend", JSONArray(songs.map { "${it.title} — ${it.singer.substringBefore(",")}" }))
-                com.music.aalap.data.local.AalapPlaylists.delete(c, id) // test only: don't leave it in the library
+                    .put("score", made.match.score).put("band", com.music.aalap.data.recommendation.Blend.band(made.match.score).first)
+                    .put("shared_artists", JSONArray(made.match.sharedArtists))
+                    .put("blend_songs", songs.size).put("blend", JSONArray(songs.map { "${it.title} — ${it.singer.substringBefore(",")}" }))
             }
             out.put("dial", com.music.aalap.data.preferences.RecoPrefs.discovery(c).name)
                 .put("langs", JSONObject(com.music.aalap.data.preferences.RecoPrefs.languageLevels(c) as Map<*, *>))

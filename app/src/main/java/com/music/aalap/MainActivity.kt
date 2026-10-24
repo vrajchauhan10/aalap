@@ -30,27 +30,76 @@ class MainActivity : ComponentActivity() {
 
     @javax.inject.Inject lateinit var currentSongState: com.music.aalap.di.CurrentSongState
 
-    /** The phone's speech recogniser, for the voice button; what you say goes to VoicePlay. */
+    /** The phone's speech recogniser, for the voice button (fallback when it can't run inside Aalap). */
     private val speech = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
-        val words = res.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-        if (res.resultCode == RESULT_OK && !words.isNullOrBlank()) {
-            com.music.aalap.di.VoicePlay.handle(this, currentSongState, com.music.aalap.di.VoicePlay.Request(words), fromApp = true)
-        }
+        val words = res.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS).orEmpty()
+        if (res.resultCode == RESULT_OK && words.isNotEmpty()) heard(words)
+    }
+
+    /** Listens inside Aalap and never takes the mic from another app (see VoiceListener). */
+    private val voice by lazy { com.music.aalap.di.VoiceListener(this) { heard(it) } }
+
+    private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) voice.start()
+        else com.music.aalap.di.VoiceUi.state.value = com.music.aalap.di.VoiceUi.State.Failed("Aalap needs the microphone permission to hear your request.")
+    }
+
+    private fun heard(words: List<String>) {
+        com.music.aalap.di.VoicePlay.handle(
+            this, currentSongState,
+            com.music.aalap.di.VoicePlay.Request(words.first(), alternatives = words.drop(1)), fromApp = true,
+        )
     }
 
     private fun listen() {
+        if (voice.listening) { voice.cancel(); return }
+        if (voice.available) {
+            if (voice.micBusy()) { voice.start(); return } // explains that the mic is busy
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) voice.start()
+            else micPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        if (voice.micBusy()) { voice.start(); return }
         val i = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
             .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Play a song, an artist or a mood")
             .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
+            .putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 5)
         runCatching { speech.launch(i) }.onFailure {
             android.widget.Toast.makeText(this, "This phone has no speech recognition", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        com.music.aalap.ui.components.PosterRotation.onAppStart(this)
+        // Saved Blends get today's fresh mix (once a day, in the background).
+        if (blendRefreshedDay != java.time.LocalDate.now().toEpochDay() && !com.music.aalap.data.preferences.OfflineState.isOffline) {
+            blendRefreshedDay = java.time.LocalDate.now().toEpochDay()
+            val app = applicationContext
+            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { com.music.aalap.data.recommendation.Blend.refreshDaily(app) } }
+        }
+    }
+
+    private var blendRefreshedDay = -1L
+
+    override fun onStop() {
+        super.onStop()
+        com.music.aalap.ui.components.PosterRotation.onAppStop()
+        // Leaving the screen frees the mic at once.
+        voice.cancel()
+    }
+
     /** A voice assistant or an aalap://play link asked for music. */
     private fun handlePlayIntent(intent: android.content.Intent?) {
         if (intent?.action == com.music.aalap.di.VoiceAsk.ACTION) { listen(); return }
+        // A friend's Blend message shared to Aalap.
+        if (intent?.action == android.content.Intent.ACTION_SEND) {
+            val text = intent.getStringExtra(android.content.Intent.EXTRA_TEXT).orEmpty()
+            if (text.contains(com.music.aalap.data.recommendation.Blend.PREFIX)) com.music.aalap.ui.components.BlendUi.open(text)
+            else android.widget.Toast.makeText(this, "That isn't an Aalap Blend code", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
         val req = com.music.aalap.di.VoicePlay.fromIntent(intent)
             ?: intent?.data?.takeIf { it.scheme == "aalap" && it.host == "play" }?.let {
                 com.music.aalap.di.VoicePlay.Request(it.getQueryParameter("q").orEmpty())
@@ -121,8 +170,11 @@ class MainActivity : ComponentActivity() {
         setContent {
 
             AalapTheme {
-                // A surface container using the 'background' color from the theme
+                androidx.compose.foundation.layout.Box {
                     App()
+                    com.music.aalap.ui.components.BlendHost(currentSongState)
+                    com.music.aalap.ui.components.VoiceOverlay(onCancel = { voice.cancel(); com.music.aalap.di.VoiceUi.state.value = null }, onRetry = { listen() })
+                }
             }
         }
 

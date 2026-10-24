@@ -96,13 +96,9 @@ fun TodayPlaylistSection(songs: List<HomeMixes.TodaySong>, action: String = "Ope
             }
         }
     }
-    // A design picked with the shuffle button stays for the rest of that day.
-    val posterPrefs = remember { context.getSharedPreferences("home_mixes", android.content.Context.MODE_PRIVATE) }
-    var shuffled by remember(day) {
-        mutableStateOf(posterPrefs.getString("poster.shuffle", null)?.split(":")
-            ?.takeIf { it.size == 2 && it[0] == day.toString() }?.get(1)?.toIntOrNull())
-    }
-    val design = shuffled?.takeIf { PosterDesignOverride.intValue < 0 }?.let { PosterDesigns.getOrNull(it) } ?: posterFor(day)
+    // A new poster each time you open Aalap, all of them before any repeats (PosterRotation).
+    val rotated = PosterRotation.current.intValue
+    val design = rotated.takeIf { PosterDesignOverride.intValue < 0 }?.let { PosterDesigns.getOrNull(it) } ?: posterFor(day)
 
     Column(Modifier.padding(top = 14.dp)) {
         Box(
@@ -113,20 +109,17 @@ fun TodayPlaylistSection(songs: List<HomeMixes.TodaySong>, action: String = "Ope
                 .clip(RoundedCornerShape(24.dp))
                 .clickable(onClick = onOpen), // opens the full list of today's 30
         ) {
-            // Today's handmade design (a new craft every day, from midnight).
+            // The handmade design (a new one each time you open Aalap).
             androidx.compose.animation.Crossfade(design, Modifier.matchParentSize(), animationSpec = androidx.compose.animation.core.tween(450), label = "poster") { d ->
                 Canvas(Modifier.fillMaxSize()) { d.paint(this) }
             }
-            // Shuffle: another design (never the same one twice in a row).
+            // Shuffle: the next design in the round (none repeats until all have shown).
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.align(Alignment.TopEnd).padding(10.dp).size(32.dp)
                     .clip(CircleShape).background(Color(0xCC100B1C))
                     .clickable {
-                        val current = PosterDesigns.indexOf(design)
-                        val next = (PosterDesigns.indices - current).random()
-                        shuffled = next
-                        posterPrefs.edit().putString("poster.shuffle", "$day:$next").apply()
+                        PosterRotation.shuffle(context)
                     },
             ) {
                 androidx.compose.material3.Icon(
