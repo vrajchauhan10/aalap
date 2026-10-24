@@ -73,15 +73,9 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         com.music.aalap.ui.components.PosterRotation.onAppStart(this)
-        // Saved Blends get today's fresh mix (once a day, in the background).
-        if (blendRefreshedDay != java.time.LocalDate.now().toEpochDay() && !com.music.aalap.data.preferences.OfflineState.isOffline) {
-            blendRefreshedDay = java.time.LocalDate.now().toEpochDay()
-            val app = applicationContext
-            lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { com.music.aalap.data.recommendation.Blend.refreshDaily(app) } }
-        }
+        // Blends: follow the shared ones, and today's fresh 30 if no phone has made them yet.
+        com.music.aalap.data.recommendation.BlendSync.start(this)
     }
-
-    private var blendRefreshedDay = -1L
 
     override fun onStop() {
         super.onStop()

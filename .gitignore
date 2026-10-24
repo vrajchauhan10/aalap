@@ -24,3 +24,6 @@ keystore.properties
 
 # Built app files handed out for testing
 dist/
+
+# Firebase config for Blend sync (kept off GitHub)
+app/google-services.json

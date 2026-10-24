@@ -231,6 +231,8 @@ class CurrentSongState @Inject constructor() {
             val track = _queue.value.firstOrNull { it.id == songId }
             // The audio that plays from now on belongs to this song (tempo and energy measuring).
             if (track != null) com.music.aalap.audio.AudioAnalysis.newSong(track)
+            // A Blend song heard for 30 s raises the Blend's score on both phones.
+            if (track != null) com.music.aalap.data.recommendation.BlendSync.onSongStarted(com.music.aalap.MyApplication.instance, track)
             if (!skippedOffline && track != null && songId != lastLoggedSongId) {
                 lastLoggedSongId = songId
                 val q = _queue.value

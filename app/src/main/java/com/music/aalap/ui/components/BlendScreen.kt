@@ -92,6 +92,8 @@ import kotlin.math.sin
 /** Opens the Blend screen from anywhere (Home, Settings, a code shared to Aalap). */
 object BlendUi {
     val shown = MutableStateFlow(false)
+    /** The Blend open in detail (its pair id), or null. */
+    val detail = MutableStateFlow<String?>(null)
     /** A friend's message handed to Aalap (share sheet), to fill in. */
     val incoming = MutableStateFlow<String?>(null)
 
@@ -109,10 +111,12 @@ private fun clipboardText(context: Context): String = runCatching {
 @Composable
 fun BlendHost(state: CurrentSongState) {
     val shown by BlendUi.shown.collectAsState()
+    val detail by BlendUi.detail.collectAsState()
     if (shown) Dialog(
         onDismissRequest = { BlendUi.shown.value = false },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) { BlendScreen(state) { BlendUi.shown.value = false } }
+    detail?.let { id -> BlendDetail(id, state) { BlendUi.detail.value = null } }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -120,7 +124,12 @@ fun BlendHost(state: CurrentSongState) {
 private fun BlendScreen(state: CurrentSongState, onClose: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val me by produceState<Blend.TasteCard?>(null) { value = withContext(Dispatchers.IO) { runCatching { Blend.myCard(context) }.getOrNull() } }
+    // Your code carries your shared Blend id, so wait for the sign-in (a few seconds at most).
+    val sync by com.music.aalap.data.recommendation.BlendSync.status.collectAsState()
+    val me by produceState<Blend.TasteCard?>(null, sync) {
+        if (sync == "connecting") { kotlinx.coroutines.delay(6_000) }
+        value = withContext(Dispatchers.IO) { runCatching { Blend.myCard(context) }.getOrNull() }
+    }
     val incoming by BlendUi.incoming.collectAsState()
     var code by remember { mutableStateOf("") }
     // A friend's code from the share sheet, or already copied: filled in for you.
@@ -135,11 +144,9 @@ private fun BlendScreen(state: CurrentSongState, onClose: () -> Unit) {
     val ownCode = remember(code) { Blend.decode(code)?.let { it.id.isNotBlank() && it.id == Blend.myId(context) } == true }
     var making by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<Blend.Made?>(null) }
-    val changed by Blend.changed.collectAsState()
-    val plVersion by com.music.aalap.data.local.AalapPlaylists.version.collectAsState()
-    val saved = remember(changed, plVersion) { Blend.saved(context) }
+    val saved by com.music.aalap.data.recommendation.BlendSync.blends.collectAsState()
 
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF3A1A3E), AppBackground, AppBackground)))) {
+    PullToClose(onClose, Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF3A1A3E), AppBackground, AppBackground)))) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().navigationBarsPadding().padding(horizontal = 20.dp),
         ) {
@@ -217,11 +224,11 @@ private fun BlendScreen(state: CurrentSongState, onClose: () -> Unit) {
             // Saved Blends
             if (saved.isNotEmpty()) {
                 Text("Your Blends", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 22.dp, bottom = 4.dp))
-                Text("A fresh mix every day from both your tastes. Send your taste again now and then so theirs stays fresh too.",
+                Text("Also in Library → Blends. A fresh 30 every day, the same on both phones; listening to them raises your score.",
                     color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
-                saved.forEach { s -> SavedBlendRow(s, state) }
+                saved.forEach { s -> BlendCardRow(s) { BlendUi.detail.value = s.pairId } }
             }
-            Spacer(Modifier.height(40.dp))
+            Box(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 24.dp), contentAlignment = Alignment.CenterEnd) { Signature(size = 12f) }
         }
 
         if (making) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
@@ -233,33 +240,6 @@ private fun BlendScreen(state: CurrentSongState, onClose: () -> Unit) {
     }
 
     result?.let { made -> ScoreReveal(made, me?.name ?: "You", state) { result = null } }
-}
-
-@Composable
-private fun SavedBlendRow(s: Blend.Saved, state: CurrentSongState) {
-    val context = LocalContext.current
-    val pl = remember(s) { com.music.aalap.data.local.AalapPlaylists.get(context, s.playlistId) }
-    val today = s.day >= java.time.LocalDate.now().toEpochDay()
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(18.dp)).background(Surface).padding(14.dp),
-    ) {
-        Box(Modifier.size(52.dp).clip(CircleShape).background(Color(com.music.aalap.ui.share.ShareCards.blendColor(s.score))), contentAlignment = Alignment.Center) {
-            Text("${s.score}%", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text("You + ${s.friend.name}", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text("${Blend.band(s.score).first} · ${pl?.songs?.size ?: 0} songs · ${if (today) "fresh today" else "refreshes when Aalap opens"}",
-                color = TextMuted, fontSize = 12.sp)
-        }
-        Icon(painterResource(R.drawable.ic_widget_play), contentDescription = "Play", tint = Saffron,
-            modifier = Modifier.size(40.dp).clip(CircleShape).clickable {
-                val songs = pl?.songs.orEmpty()
-                if (songs.isNotEmpty()) { com.music.aalap.di.SmartPlay.playAll(context, state, songs, Blend.playlistName(s.friend)); BlendUi.shown.value = false }
-            }.padding(8.dp))
-        Text("✕", color = TextMuted, fontSize = 16.sp, modifier = Modifier.clip(CircleShape).clickable { Blend.remove(context, s) }.padding(10.dp))
-    }
 }
 
 /**
@@ -309,13 +289,21 @@ private fun ScoreReveal(made: Blend.Made, myName: String, state: CurrentSongStat
                     }
                     Text("${made.songs.size} songs: yours, theirs and new ones for you both", color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 14.dp))
                     Spacer(Modifier.height(18.dp))
-                    Pill(if (savedId != null) "Saved to your Library ✓" else "Save Blend", primary = true, enabled = savedId == null, modifier = Modifier.fillMaxWidth()) {
-                        savedId = Blend.save(context, made)
+                    val scope = rememberCoroutineScope()
+                    var saving by remember { mutableStateOf(false) }
+                    Pill(when { savedId != null -> "Saved to Library → Blends ✓"; saving -> "Saving…"; else -> "Save Blend" },
+                        primary = true, enabled = savedId == null && !saving, modifier = Modifier.fillMaxWidth()) {
+                        saving = true
+                        scope.launch {
+                            savedId = withContext(Dispatchers.IO) { runCatching { com.music.aalap.data.recommendation.BlendSync.create(context, made) }.onFailure { android.util.Log.w("Blend", "save: $it") }.getOrNull() }
+                            saving = false
+                            if (savedId == null) android.widget.Toast.makeText(context, "Couldn't save the Blend, check the internet and try again", android.widget.Toast.LENGTH_SHORT).show()
+                        }
                     }
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Pill("Play", primary = false, modifier = Modifier.weight(1f)) {
-                            com.music.aalap.di.SmartPlay.playAll(context, state, made.songs, Blend.playlistName(made.friend))
+                            com.music.aalap.di.SmartPlay.playAll(context, state, made.songs, "Blend · You + ${made.friend.name}")
                             onDismiss(); BlendUi.shown.value = false
                         }
                         Pill("Share score", primary = false, modifier = Modifier.weight(1f)) {

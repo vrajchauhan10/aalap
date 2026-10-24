@@ -132,11 +132,6 @@ object Blend {
         )
     }
 
-    /** This phone's Blend id (random, made once). */
-    fun myId(context: Context): String {
-        val p = context.getSharedPreferences("blend", Context.MODE_PRIVATE)
-        return p.getString("me", null) ?: java.util.UUID.randomUUID().toString().take(12).also { p.edit().putString("me", it).apply() }
-    }
 
     /** The message to share: a line of explanation, then the code. */
     fun shareText(context: Context, card: TasteCard = myCard(context)): String =
@@ -145,7 +140,8 @@ object Blend {
 
     // ── the Blend ───────────────────────────────────────────────────────────
 
-    data class Made(val friend: TasteCard, val match: Match, val songs: List<SongsModel>)
+    /** [by]: who each song is from, by position: "me", "them" or "new" (for you both). */
+    data class Made(val friend: TasteCard, val match: Match, val songs: List<SongsModel>, val by: List<String> = emptyList())
 
     /** Builds the Blend with [friend] (not saved: see [save]). */
     suspend fun make(context: Context, friend: TasteCard, size: Int = 30): Made = coroutineScope {
@@ -190,63 +186,16 @@ object Blend {
             theirPicks.getOrNull(i)?.let { mixed += it }
             fresh.getOrNull(i)?.let { mixed += it }
         }
-        val songs: List<SongsModel> = Diversifier.spreadArtists(mixed.distinctBy { it.id }) { it.artists }.map(SongBridge::toSongsModel)
-        Made(friend, match(myCard(context), friend), songs)
+        val spread = Diversifier.spreadArtists(mixed.distinctBy { it.id }) { it.artists }
+        val mineIds = myPicks.mapTo(HashSet()) { it.id }; val theirIds = theirPicks.mapTo(HashSet()) { it.id }
+        Made(friend, match(myCard(context), friend), spread.map(SongBridge::toSongsModel),
+            spread.map { if (it.id in mineIds) "me" else if (it.id in theirIds) "them" else "new" })
     }
 
-    // ── saved Blends ────────────────────────────────────────────────────────
-
-    data class Saved(val friend: TasteCard, val playlistId: String, val score: Int, val day: Long)
-
-    private fun store(c: Context) = c.getSharedPreferences("blend", Context.MODE_PRIVATE)
-
-    fun saved(context: Context): List<Saved> = runCatching {
-        val a = JSONArray(store(context).getString("saved", "[]"))
-        (0 until a.length()).mapNotNull { i ->
-            val o = a.getJSONObject(i)
-            decode(o.getString("code"))?.let { Saved(it, o.getString("pl"), o.optInt("score"), o.optLong("day")) }
-        }.filter { com.music.aalap.data.local.AalapPlaylists.get(context, it.playlistId) != null } // removed from the library = gone
-    }.getOrDefault(emptyList())
-
-    @Synchronized
-    private fun write(context: Context, list: List<Saved>) {
-        val a = JSONArray()
-        list.forEach { a.put(JSONObject().put("code", encode(it.friend)).put("pl", it.playlistId).put("score", it.score).put("day", it.day)) }
-        store(context).edit().putString("saved", a.toString()).apply()
-        _changed.value++
-    }
-
-    private val _changed = kotlinx.coroutines.flow.MutableStateFlow(0)
-    val changed: kotlinx.coroutines.flow.StateFlow<Int> = _changed
-
-    fun playlistName(friend: TasteCard) = "Blend · You + ${friend.name}"
-
-    /** The saved Blend with this friend, if any (same phone id, or same name for old codes). */
-    fun savedWith(context: Context, friend: TasteCard): Saved? =
-        saved(context).firstOrNull { (friend.id.isNotBlank() && it.friend.id == friend.id) || (friend.id.isBlank() && it.friend.name == friend.name) }
-
-    /** Saves [made] to your library (updating your Blend with the same friend); returns the playlist id. */
-    fun save(context: Context, made: Made): String {
-        val old = savedWith(context, made.friend)
-        val id = old?.playlistId ?: com.music.aalap.data.local.AalapPlaylists.create(context, playlistName(made.friend))
-        com.music.aalap.data.local.AalapPlaylists.replaceSongs(context, id, made.songs, playlistName(made.friend))
-        write(context, saved(context).filterNot { it.playlistId == id } + Saved(made.friend, id, made.match.score, java.time.LocalDate.now().toEpochDay()))
-        return id
-    }
-
-    fun remove(context: Context, saved: Saved) {
-        write(context, saved(context).filterNot { it.playlistId == saved.playlistId })
-        com.music.aalap.data.local.AalapPlaylists.delete(context, saved.playlistId)
-    }
-
-    /** Once a day (when Aalap opens): each saved Blend gets a fresh mix from both tastes as they are now. */
-    suspend fun refreshDaily(context: Context) {
-        val today = java.time.LocalDate.now().toEpochDay()
-        for (s in saved(context).filter { it.day < today }) {
-            runCatching {
-                val made = make(context, s.friend)
-                if (made.songs.size >= 10) save(context, made)
-            }
-        }
+    /** This phone's Blend id: the Blend sync sign-in when it's set up, else a random id made once. */
+    fun myId(context: Context): String {
+        BlendSync.uid?.let { return it }
+        val p = context.getSharedPreferences("blend", Context.MODE_PRIVATE)
+        return p.getString("me", null) ?: java.util.UUID.randomUUID().toString().take(12).also { p.edit().putString("me", it).apply() }
     }
 }

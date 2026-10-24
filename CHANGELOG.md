@@ -4,6 +4,28 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 5.2.0 — 25 Oct 2026 (build 54)
+- **Blends are shared between both phones** (free Firebase, no account to make: each
+  phone signs in anonymously by itself). The same 30 songs on both phones, made fresh
+  every day by whichever phone opens Aalap first. A friend who makes a Blend from your
+  code finds it in their Library, and it shows up in yours by itself.
+- **Listening raises your Blend score, on both phones.** Each Blend song either of you
+  hears for 30 s adds a point; a song you've both heard adds two more; points last 7
+  days. Your friend's listening arrives when Aalap opens and every minute while a Blend
+  is on screen.
+- **Library → Blends:** a new tab next to Playlists, Albums and Artists (and "Your
+  Blends" under All). A Blend's page shows the score ring, taste match plus what
+  listening added, the score day by day, this week's songs (you, your friend, both),
+  how many more to reach the next level, and today's 30 marked Yours / theirs / New with
+  who has heard each.
+- Blends no longer appear in Playlists (Playlists are only the ones you make); the old
+  automatic Blend copies were removed.
+- Blend screens close with a pull down, and carry the "crafted by V" mark.
+- Only the two people in a Blend can read or change it (Firestore security rules).
+  Tested with a second phone simulated against the real database: same songs on both,
+  listening counted both ways, daily refresh, a friend's Blend appearing by itself, and
+  a stranger refused.
+
 ## 5.1.0 — 25 Oct 2026 (build 53)
 - **Voice, rebuilt.** The mic now listens inside Aalap: a card shows the words as you
   speak, then "Finding the best match…" for a moment, then the song it's playing. It

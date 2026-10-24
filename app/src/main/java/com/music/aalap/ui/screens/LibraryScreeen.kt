@@ -119,6 +119,9 @@ fun LibraryScreen(navController: NavController) {
     val followedArtists by libraryViewModel.followedArtists.collectAsState()
     val favouriteAlbums by libraryViewModel.favouriteAlbums.collectAsState()
     var filter by remember { mutableStateOf(LibraryFilter.ALL) }
+    val blends by com.music.aalap.data.recommendation.BlendSync.blends.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(Unit) { com.music.aalap.data.recommendation.BlendSync.pull(context) }
+    val blendPlaylists = remember(blends) { blends.map { it.playlistId }.toSet() }
     val allEntries = (entries as? Response.Success)?.data.orEmpty()
     // Liked Songs and Downloads get their own tiles, so they're not repeated in the list.
     // Playlists made in Aalap come first, then the ones from Spotify.
@@ -305,13 +308,16 @@ fun LibraryScreen(navController: NavController) {
                             LibraryFilter.ALL -> true
                             LibraryFilter.PLAYLISTS -> it.isPlaylist
                             LibraryFilter.ALBUMS -> !it.isPlaylist
-                            LibraryFilter.ARTISTS -> false
+                            LibraryFilter.ARTISTS, LibraryFilter.BLENDS -> false
                         } }
+                        // A Blend's playlist shows as the Blend (under Blends), not twice.
+                        .filter { it.spotifyId !in blendPlaylists }
                         .filter { q.isBlank() || it.name.contains(q, true) || it.subtitle.contains(q, true) }
                     val shownArtists = if (shownFilter == LibraryFilter.ALL || shownFilter == LibraryFilter.ARTISTS)
                         followedArtists.filter { q.isBlank() || it.name.contains(q, true) } else emptyList()
-                    LibraryContent(
+                    if (shownFilter == LibraryFilter.BLENDS) BlendLibrary(blends) else LibraryContent(
                         navController = navController,
+                        blends = if (shownFilter == LibraryFilter.ALL && q.isBlank()) blends else emptyList(),
                         showTiles = shownFilter == LibraryFilter.ALL && q.isBlank(),
                         entries = shownEntries,
                         artists = shownArtists,
@@ -335,7 +341,7 @@ fun LibraryScreen(navController: NavController) {
 }
 
 private enum class LibraryFilter(val label: String) {
-    ALL("All"), PLAYLISTS("Playlists"), ALBUMS("Albums"), ARTISTS("Artists"),
+    ALL("All"), BLENDS("Blends"), PLAYLISTS("Playlists"), ALBUMS("Albums"), ARTISTS("Artists"),
 }
 
 @Composable
@@ -457,6 +463,7 @@ private fun LibraryContent(
     favouriteAlbumsAsGrid: Boolean = false,
     onSeeAll: (LibraryFilter) -> Unit = {},
     emptyText: String = "Nothing matches that.",
+    blends: List<com.music.aalap.data.recommendation.BlendSync.Shared> = emptyList(),
 ) {
     // Long-press a playlist to remove it (Aalap playlists are deleted; Spotify ones hidden in Aalap only).
     var removing by remember { mutableStateOf<LibraryEntry?>(null) }
@@ -479,6 +486,14 @@ private fun LibraryContent(
             item(span = full) { OfflineBanner() }
         }
         if (showTiles) item(span = full) { LibraryTiles(navController) }
+        if (blends.isNotEmpty()) {
+            item(span = full) { LibrarySectionTitle("Your Blends") }
+            items(blends.size, span = { full() }) { i ->
+                Box(Modifier.padding(horizontal = 16.dp)) {
+                    com.music.aalap.ui.components.BlendCardRow(blends[i]) { com.music.aalap.ui.components.BlendUi.detail.value = blends[i].pairId }
+                }
+            }
+        }
 
         // Albums by the artists you follow and play most. Grid view: square tiles like the
         // rest of the library; list view: a row on All, list rows under Albums.
@@ -891,4 +906,27 @@ private fun AccountRow(label: String, tint: Color = com.music.aalap.ui.theme.Tex
             .clickable { onClick() }
             .padding(20.dp, 16.dp)
     )
+}
+
+/** Library → Blends: your Blends (score, today's state), and a way to make a new one. */
+@Composable
+private fun BlendLibrary(blends: List<com.music.aalap.data.recommendation.BlendSync.Shared>) {
+    androidx.compose.foundation.lazy.LazyColumn(
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 200.dp),
+        modifier = Modifier.fillMaxSize().background(com.music.aalap.ui.theme.AppBackground),
+    ) {
+        items(blends.size) { i ->
+            com.music.aalap.ui.components.BlendCardRow(blends[i]) { com.music.aalap.ui.components.BlendUi.detail.value = blends[i].pairId }
+        }
+        item {
+            Column(
+                Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(20.dp))
+                    .background(com.music.aalap.ui.theme.SurfaceHigh).clickable { com.music.aalap.ui.components.BlendUi.open() }.padding(18.dp),
+            ) {
+                Text(if (blends.isEmpty()) "Make your first Blend" else "New Blend", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("Swap taste codes with a friend: the same 30 songs on both phones, fresh every day, and a score you raise by listening.",
+                    color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
+            }
+        }
+    }
 }

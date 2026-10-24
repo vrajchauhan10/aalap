@@ -24,9 +24,25 @@ android {
         targetSdk = 34
         // Must exceed every published build (1.6 shipped as versionCode 16).
         // 2.0.0 is the first Aalap release.
-        versionCode = 53
-        versionName = "5.1.0"
+        versionCode = 54
+        versionName = "5.2.0"
         // Optional Last.fm key for the similar-tracks source (empty = source off).
+        // Blend sync (Firebase, free plan): read from app/google-services.json when it's there;
+        // without it Blends still work, on each phone on its own.
+        val firebase = file("google-services.json").takeIf { it.exists() }?.let { f ->
+            @Suppress("UNCHECKED_CAST")
+            val json = groovy.json.JsonSlurper().parse(f) as Map<String, Any?>
+            val project = (json["project_info"] as Map<String, Any?>)["project_id"] as String
+            val client = (json["client"] as List<Map<String, Any?>>).first {
+                ((it["client_info"] as Map<String, Any?>)["android_client_info"] as Map<String, Any?>)["package_name"] == "com.music.aalap"
+            }
+            val appId = (client["client_info"] as Map<String, Any?>)["mobilesdk_app_id"] as String
+            val key = ((client["api_key"] as List<Map<String, Any?>>).first())["current_key"] as String
+            Triple(project, appId, key)
+        }
+        buildConfigField("String", "FIREBASE_PROJECT", "\"${firebase?.first.orEmpty()}\"")
+        buildConfigField("String", "FIREBASE_APP_ID", "\"${firebase?.second.orEmpty()}\"")
+        buildConfigField("String", "FIREBASE_API_KEY", "\"${firebase?.third.orEmpty()}\"")
         buildConfigField("String", "LASTFM_API_KEY", "\"${(project.findProperty("lastfmApiKey") as String?).orEmpty()}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -116,6 +132,7 @@ dependencies {
     //coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.7.3")
+
     // Android AppFunctions: Aalap's actions for Gemini and other assistants (Android 16+).
     implementation("androidx.appfunctions:appfunctions:1.0.0-alpha08")
     implementation("androidx.appfunctions:appfunctions-service:1.0.0-alpha08")

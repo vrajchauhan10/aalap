@@ -162,6 +162,33 @@ object QueueEndpoint {
                     .put("shared_artists", JSONArray(made.match.sharedArtists))
                     .put("blend_songs", songs.size).put("blend", JSONArray(songs.map { "${it.title} — ${it.singer.substringBefore(",")}" }))
             }
+            p["deletepl"]?.let { name ->
+                val gone = com.music.aalap.data.local.AalapPlaylists.all(c).filter { it.name == name }
+                gone.forEach { com.music.aalap.data.local.AalapPlaylists.delete(c, it.id) }
+                out.put("deleted_playlists", gone.size)
+            }
+            if (p["blends"] != null) {
+                runBlocking { com.music.aalap.data.recommendation.BlendSync.pull(c) }
+                val me = com.music.aalap.data.recommendation.Blend.myId(c)
+                out.put("me", me).put("sync", com.music.aalap.data.recommendation.BlendSync.status.value)
+                out.put("blends", JSONArray(com.music.aalap.data.recommendation.BlendSync.blends.value.map { b ->
+                    val pts = b.points(me)
+                    JSONObject().put("pair", b.pairId).put("friend", b.friendName(me)).put("synced", b.synced).put("day", b.day)
+                        .put("songs", b.songs.size).put("match", b.match(me)).put("score", b.score(me))
+                        .put("mine", pts.mine).put("theirs", pts.theirs).put("together", pts.together)
+                        .put("history", JSONObject(b.history.mapKeys { it.key.toString() } as Map<*, *>))
+                        .put("first", JSONArray(b.songs.take(3).map { "${it.title} — ${it.artists} [${it.by.take(6)}]" }))
+                }))
+            }
+            p["removeblend"]?.let { name ->
+                val me = com.music.aalap.data.recommendation.Blend.myId(c)
+                com.music.aalap.data.recommendation.BlendSync.blends.value.filter { it.friendName(me) == name }
+                    .forEach { com.music.aalap.data.recommendation.BlendSync.remove(c, it.pairId) }
+            }
+            p["blendheard"]?.toIntOrNull()?.let { i ->
+                val b = com.music.aalap.data.recommendation.BlendSync.blends.value.firstOrNull()
+                b?.songs?.getOrNull(i)?.let { com.music.aalap.data.recommendation.BlendSync.heard(c, it.toModel()); out.put("heard", it.title) }
+            }
             out.put("dial", com.music.aalap.data.preferences.RecoPrefs.discovery(c).name)
                 .put("langs", JSONObject(com.music.aalap.data.preferences.RecoPrefs.languageLevels(c) as Map<*, *>))
             val bytes = out.toString(2).toByteArray()
