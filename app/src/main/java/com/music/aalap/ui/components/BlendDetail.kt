@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -70,6 +71,16 @@ import com.music.aalap.ui.theme.TextPrimary
 
 private val Teal = Color(0xFF4FC3D9)
 
+/**
+ * A Blend's colour as a page or card background: the full colour on the dark theme; on the
+ * light (cream) theme a soft tint of it, so the dark text on it stays readable.
+ */
+internal fun blendWash(c: Color, strength: Float = 1f): Color =
+    if (com.music.aalap.ui.theme.AalapPalette.isLight) c.copy(alpha = 0.26f * strength).compositeOver(AppBackground) else c.copy(alpha = strength)
+
+/** Faint lines and empty tracks: light on the dark theme, dark on the light one. */
+internal val Faint: Color get() = TextPrimary
+
 /** A Blend as a card (Library → Blends, the Blend screen): score, names, today's state. */
 @Composable
 fun BlendCardRow(b: BlendSync.Shared, onClick: () -> Unit) {
@@ -81,12 +92,12 @@ fun BlendCardRow(b: BlendSync.Shared, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(20.dp))
-            .background(Brush.horizontalGradient(listOf(Color(ShareCards.blendColor(score)).copy(alpha = 0.55f), Surface)))
+            .background(Brush.horizontalGradient(listOf(blendWash(Color(ShareCards.blendColor(score)), 0.55f), Surface)))
             .clickable(onClick = onClick).padding(14.dp),
     ) {
         Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
             ScoreRing(score / 100f, Modifier.fillMaxSize(), stroke = 5.dp.value * 2.6f)
-            Text("$score", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("$score", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
@@ -107,7 +118,7 @@ private fun ScoreRing(fraction: Float, modifier: Modifier, stroke: Float = 18f) 
     Canvas(modifier) {
         val inset = stroke / 2
         val sz = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
-        drawArc(Color.White.copy(alpha = 0.12f), 0f, 360f, false, Offset(inset, inset), sz, style = Stroke(stroke))
+        drawArc(Faint.copy(alpha = 0.12f), 0f, 360f, false, Offset(inset, inset), sz, style = Stroke(stroke))
         drawArc(Brush.sweepGradient(listOf(Saffron, SaffronGold, Saffron)), -90f, 360f * fraction.coerceIn(0f, 1f), false,
             Offset(inset, inset), sz, style = Stroke(stroke, cap = StrokeCap.Round))
     }
@@ -140,7 +151,7 @@ fun BlendDetail(pairId: String, state: CurrentSongState, onClose: () -> Unit) {
     LaunchedEffect(score) { shown.animateTo(score.toFloat(), tween(1200, easing = FastOutSlowInEasing)) }
 
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        PullToClose(onClose, Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(ShareCards.blendColor(score)), AppBackground, AppBackground)))) {
+        PullToClose(onClose, Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(blendWash(Color(ShareCards.blendColor(score))), AppBackground, AppBackground)))) {
             LazyColumn(
                 Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 40.dp),
@@ -177,7 +188,7 @@ fun BlendDetail(pairId: String, state: CurrentSongState, onClose: () -> Unit) {
                         Box(Modifier.size(190.dp), contentAlignment = Alignment.Center) {
                             ScoreRing(shown.value / 100f, Modifier.fillMaxSize(), stroke = 34f)
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("${shown.value.toInt()}", color = Color.White, fontSize = 60.sp, fontWeight = FontWeight.Bold)
+                                Text("${shown.value.toInt()}", color = TextPrimary, fontSize = 60.sp, fontWeight = FontWeight.Bold)
                                 Text("BLEND SCORE", color = TextMuted, fontSize = 10.sp, letterSpacing = 1.5.sp)
                             }
                         }
@@ -263,9 +274,9 @@ fun BlendDetail(pairId: String, state: CurrentSongState, onClose: () -> Unit) {
                             modifier = Modifier.clip(RoundedCornerShape(50)).background(col.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 3.dp))
                         Spacer(Modifier.width(8.dp))
                         // Who has heard it this week.
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(if (heardByMe) Saffron else Color.White.copy(alpha = 0.12f)))
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(if (heardByMe) Saffron else Faint.copy(alpha = 0.12f)))
                         Spacer(Modifier.width(3.dp))
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(if (heardByThem) Teal else Color.White.copy(alpha = 0.12f)))
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(if (heardByThem) Teal else Faint.copy(alpha = 0.12f)))
                     }
                 }
                 item {
@@ -323,7 +334,7 @@ private fun ScoreChart(history: Map<Long, Int>, today: Long, modifier: Modifier)
                     if (v != null) Text("$v", color = if (isToday) SaffronGold else TextMuted, fontSize = 10.sp, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal)
                     val frac = if (v == null) 0.06f else ((v - lo).toFloat() / (hi - lo).coerceAtLeast(1)).coerceIn(0.12f, 1f)
                     Box(Modifier.padding(top = 3.dp).width(14.dp).fillMaxHeight(frac * 0.78f).clip(RoundedCornerShape(7.dp))
-                        .background(when { v == null -> Color.White.copy(alpha = 0.08f); isToday -> Saffron; else -> Saffron.copy(alpha = 0.45f) }))
+                        .background(when { v == null -> Faint.copy(alpha = 0.08f); isToday -> Saffron; else -> Saffron.copy(alpha = 0.45f) }))
                     Text(names[k], color = if (isToday) TextPrimary else TextMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
                 }
             }

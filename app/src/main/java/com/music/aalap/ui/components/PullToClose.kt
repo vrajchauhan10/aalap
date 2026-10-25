@@ -31,6 +31,19 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun PullToClose(onClose: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    // A full-screen dialog draws its own status and navigation bars: see-through, with icons
+    // that read on the page (dark on the light theme), not a dark band over a cream page.
+    val view = androidx.compose.ui.platform.LocalView.current
+    val light = com.music.aalap.ui.theme.AalapPalette.isLight
+    androidx.compose.runtime.SideEffect {
+        (view.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window?.let { w ->
+            w.setDimAmount(0f)
+            @Suppress("DEPRECATION") run { w.statusBarColor = android.graphics.Color.TRANSPARENT; w.navigationBarColor = android.graphics.Color.TRANSPARENT }
+            androidx.core.view.WindowCompat.getInsetsController(w, view).apply {
+                isAppearanceLightStatusBars = light; isAppearanceLightNavigationBars = light
+            }
+        }
+    }
     val scope = rememberCoroutineScope()
     val offset = remember { Animatable(0f) }
     val threshold = with(LocalDensity.current) { 120.dp.toPx() }

@@ -121,6 +121,12 @@ fun LibraryScreen(navController: NavController) {
     var filter by remember { mutableStateOf(LibraryFilter.ALL) }
     val blends by com.music.aalap.data.recommendation.BlendSync.blends.collectAsState()
     androidx.compose.runtime.LaunchedEffect(Unit) { com.music.aalap.data.recommendation.BlendSync.pull(context) }
+    // Trending playlists for the Playlists tab (cached for the day).
+    var trendingPlaylists by remember { mutableStateOf(com.music.aalap.data.api.TrendingPlaylists.cached(context)) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val t = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.music.aalap.data.api.TrendingPlaylists.load(context) }
+        if (t.isNotEmpty()) trendingPlaylists = t
+    }
     val blendPlaylists = remember(blends) { blends.map { it.playlistId }.toSet() }
     val allEntries = (entries as? Response.Success)?.data.orEmpty()
     // Liked Songs and Downloads get their own tiles, so they're not repeated in the list.
@@ -325,6 +331,7 @@ fun LibraryScreen(navController: NavController) {
                         grid = shownGrid,
                         favouriteAlbums = if (q.isBlank() && (shownFilter == LibraryFilter.ALL || shownFilter == LibraryFilter.ALBUMS)) favouriteAlbums else emptyList(),
                         favouriteAlbumsAsGrid = shownFilter == LibraryFilter.ALBUMS,
+                        trending = if (q.isBlank() && shownFilter == LibraryFilter.PLAYLISTS) trendingPlaylists else emptyList(),
                         onSeeAll = { filter = it },
                         emptyText = when {
                             q.isNotBlank() -> "Nothing matches that."
@@ -464,16 +471,19 @@ private fun LibraryContent(
     onSeeAll: (LibraryFilter) -> Unit = {},
     emptyText: String = "Nothing matches that.",
     blends: List<com.music.aalap.data.recommendation.BlendSync.Shared> = emptyList(),
+    trending: List<LibraryEntry> = emptyList(),
 ) {
     // Long-press a playlist to remove it (Aalap playlists are deleted; Spotify ones hidden in Aalap only).
     var removing by remember { mutableStateOf<LibraryEntry?>(null) }
     removing?.let { e ->
         com.music.aalap.ui.components.RemovePlaylistDialog(e.spotifyId, e.name, onDismiss = { removing = null }, onRemoved = { removing = null })
     }
+    // Trending playlists aren't yours: nothing to remove on a long press.
+    val trendingIds = remember(trending) { trending.mapTo(HashSet()) { it.spotifyId } }
     val press: (LibraryEntry) -> Modifier = { entry ->
         Modifier.combinedClickable(
             onClick = { openLibraryEntry(entry, navController) },
-            onLongClick = if (entry.isPlaylist) ({ removing = entry }) else null,
+            onLongClick = if (entry.isPlaylist && entry.spotifyId !in trendingIds) ({ removing = entry }) else null,
         )
     }
     LazyVerticalGrid(
@@ -513,10 +523,15 @@ private fun LibraryContent(
             }
         }
 
-        if (entries.isNotEmpty()) {
-            item(span = full) { LibrarySectionTitle("Playlists and albums") }
-            items(entries.size) { i ->
-                val entry = entries[i]
+        // Your playlists and albums, then (on Playlists) what's trending now.
+        for ((title, list) in listOf("Playlists and albums" to entries, "Trending playlists" to trending)) {
+            if (list.isEmpty()) continue
+            if (list === trending && entries.isEmpty()) item(span = full) {
+                Text(emptyText, color = com.music.aalap.ui.theme.TextMuted, fontSize = 14.sp, modifier = Modifier.padding(20.dp, 16.dp))
+            }
+            item(span = full) { LibrarySectionTitle(title) }
+            items(list.size) { i ->
+                val entry = list[i]
                 if (grid) {
                     Column(
                         modifier = Modifier
@@ -594,7 +609,7 @@ private fun LibraryContent(
             }
         }
 
-        if (entries.isEmpty() && artists.isEmpty() && !showTiles) {
+        if (entries.isEmpty() && artists.isEmpty() && trending.isEmpty() && !showTiles) {
             item(span = full) {
                 Text(emptyText, color = com.music.aalap.ui.theme.TextMuted, fontSize = 14.sp, modifier = Modifier.padding(20.dp, 30.dp))
             }

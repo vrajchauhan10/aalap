@@ -146,7 +146,7 @@ private fun BlendScreen(state: CurrentSongState, onClose: () -> Unit) {
     var result by remember { mutableStateOf<Blend.Made?>(null) }
     val saved by com.music.aalap.data.recommendation.BlendSync.blends.collectAsState()
 
-    PullToClose(onClose, Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF3A1A3E), AppBackground, AppBackground)))) {
+    PullToClose(onClose, Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(blendWash(Color(0xFF3A1A3E)), AppBackground, AppBackground)))) {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().navigationBarsPadding().padding(horizontal = 20.dp),
         ) {
@@ -295,13 +295,13 @@ private fun ScoreReveal(made: Blend.Made, myName: String, state: CurrentSongStat
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier.padding(18.dp).fillMaxWidth().clip(RoundedCornerShape(30.dp))
-                .background(Brush.verticalGradient(listOf(accent, Surface))).padding(24.dp),
+                .background(Brush.verticalGradient(listOf(blendWash(accent), Surface))).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text("YOU + ${made.friend.name.uppercase()}", color = SaffronGold, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
             Box(Modifier.size(230.dp), contentAlignment = Alignment.Center) {
                 BandAnimation(score, Modifier.fillMaxSize(), progress = count.value / score.coerceAtLeast(1))
-                Text("${count.value.toInt()}%", color = Color.White, fontSize = 58.sp, fontWeight = FontWeight.Bold)
+                Text("${count.value.toInt()}%", color = TextPrimary, fontSize = 58.sp, fontWeight = FontWeight.Bold)
             }
             AnimatedVisibility(done, enter = fadeIn(tween(400)) + scaleIn(initialScale = 0.8f)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -311,7 +311,7 @@ private fun ScoreReveal(made: Blend.Made, myName: String, state: CurrentSongStat
                         Text("YOU BOTH LOVE", color = Saffron, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             made.match.sharedArtists.take(5).forEach {
-                                Text(it, color = TextPrimary, fontSize = 12.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.1f)).padding(horizontal = 10.dp, vertical = 5.dp))
+                                Text(it, color = TextPrimary, fontSize = 12.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(Faint.copy(alpha = 0.1f)).padding(horizontal = 10.dp, vertical = 5.dp))
                             }
                         }
                     }
@@ -363,7 +363,7 @@ private fun BandAnimation(score: Int, modifier: Modifier, progress: Float) {
                     drawCircle(teal.copy(alpha = alpha * 0.5f), 16f - k, Offset(c.x + cos(ang).toFloat() * r * 0.78f, c.y + sin(ang).toFloat() * r * 0.78f))
                     drawCircle(saffron.copy(alpha = alpha * 0.5f), 16f - k, Offset(c.x - cos(ang).toFloat() * r * 0.78f, c.y - sin(ang).toFloat() * r * 0.78f))
                 }
-                drawCircle(Color.White.copy(alpha = 0.08f), r * 0.78f, c, style = Stroke(2f))
+                drawCircle(Faint.copy(alpha = 0.08f), r * 0.78f, c, style = Stroke(2f))
             }
             score < 50 -> { // Common ground: two circles drift together and overlap.
                 val d = r * (0.55f - 0.25f * ((sin(a) + 1) / 2).toFloat()) * (2f - progress)
@@ -398,7 +398,7 @@ private fun BandAnimation(score: Int, modifier: Modifier, progress: Float) {
                         drawLine(gold.copy(alpha = 0.35f), c, Offset(c.x + cos(ang).toFloat() * r, c.y + sin(ang).toFloat() * r), strokeWidth = 10f)
                     }
                 }
-                val colors = listOf(gold, saffron, pink, teal, Color.White)
+                val colors = listOf(gold, saffron, pink, teal, if (com.music.aalap.ui.theme.AalapPalette.isLight) Color(0xFF9C2F5A) else Color.White)
                 for (k in 0 until 36) {
                     val seed = k * 97 % 101 / 101f
                     val x = size.width * ((k * 0.137f + seed) % 1f)

@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -85,12 +86,27 @@ fun ArtistPickerScreen(navController: NavController) {
     var followedKeys by remember { mutableStateOf(emptySet<String>()) }
     // Artists that just slid in after a follow (briefly highlighted).
     var fresh by remember { mutableStateOf(emptySet<String>()) }
-    fun key(name: String) = SongMatcher.artistKeys(name).firstOrNull().orEmpty()
+    // Never blank (a blank key twice in one list crashed the screen): the name itself then.
+    fun key(name: String) = SongMatcher.artistKeys(name).firstOrNull()?.takeIf { it.isNotBlank() } ?: name.trim().lowercase()
+    // A place in the grid: the Spotify id (two artists can share a name, e.g. two "Arijit"s,
+    // and the same key twice crashed the screen), the name when there's no id.
+    fun slot(a: ArtistsModel) = a.id.ifBlank { key(a.name) }
+    val trending = remember { mutableStateListOf<ArtistPicker.Pick>() }
+    // Unfollowed in "Following": fades and shrinks away, then leaves the list.
+    var leaving by remember { mutableStateOf(emptySet<String>()) }
 
+    // Trending now: loads alongside your own lists (it doesn't wait for them).
+    LaunchedEffect(Unit) {
+        val hot = withContext(Dispatchers.IO) {
+            runCatching { ArtistPicker.trending(context, emptySet(), limit = 24) }
+                .onFailure { android.util.Log.w("ArtistPicker", "trending failed", it) }.getOrDefault(emptyList())
+        }
+        trending.addAll(hot)
+    }
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             val f = ArtistPicker.following(context)
-            withContext(Dispatchers.Main) { following.addAll(f); followedKeys = f.mapTo(HashSet()) { key(it.name) } }
+            withContext(Dispatchers.Main) { following.addAll(f.distinctBy { slot(it) }); followedKeys = f.mapTo(HashSet()) { key(it.name) } }
             val mine = runCatching { ArtistPicker.fromYourListening(context) }
                 .onFailure { android.util.Log.w("ArtistPicker", "top artists failed", it) }.getOrDefault(emptyList())
             withContext(Dispatchers.Main) { fromListening.addAll(mine) }
@@ -103,7 +119,8 @@ fun ArtistPickerScreen(navController: NavController) {
         delay(300)
         searching = true
         val found = withContext(Dispatchers.IO) { runCatching { ArtistPicker.search(context, query) }.getOrDefault(emptyList()) }
-        results.clear(); results.addAll(found.map { ArtistPicker.Pick(it, "Artist") })
+        // Each artist once: the same artist twice (two listings) crashed the grid.
+        results.clear(); results.addAll(found.distinctBy { slot(it) }.map { ArtistPicker.Pick(it, "Artist") })
         searching = false
     }
 
@@ -117,8 +134,9 @@ fun ArtistPickerScreen(navController: NavController) {
             if (follow) {
                 if (following.none { key(it.name) == k }) following.add(0, resolved)
                 if (list != null) {
-                    val shown = (fromListening + similar + results).mapTo(HashSet()) { key(it.artist.name) } + followedKeys
+                    val shown = (fromListening + similar + trending + results).mapTo(HashSet()) { key(it.artist.name) } + followedKeys
                     val more = withContext(Dispatchers.IO) { runCatching { ArtistPicker.relatedTo(context, resolved, shown) }.getOrDefault(emptyList()) }
+                        .distinctBy { key(it.artist.name) }.filter { m -> list.none { key(it.artist.name) == key(m.artist.name) } }
                     val at = list.indexOfFirst { key(it.artist.name) == k }
                     if (at >= 0 && more.isNotEmpty()) {
                         list.addAll(at + 1, more)
@@ -127,7 +145,10 @@ fun ArtistPickerScreen(navController: NavController) {
                     }
                 }
             } else {
+                leaving = leaving + k
+                delay(320)
                 following.removeAll { key(it.name) == k }
+                leaving = leaving - k
             }
         }
     }
@@ -159,21 +180,28 @@ fun ArtistPickerScreen(navController: NavController) {
         ) {
             if (query.isNotBlank()) {
                 if (searching && results.isEmpty()) item(span = { GridItemSpan(3) }) { CenterLoader() }
-                items(results, key = { "s:" + key(it.artist.name) }) { p ->
+                items(results, key = { "s:" + slot(it.artist) }) { p ->
                     ArtistCell(p.artist, p.reason, key(p.artist.name) in followedKeys, key(p.artist.name) in fresh,
                         Modifier.animateItemPlacement(), onOpen = { navController.navigate(artistRoute(p.artist.name, p.artist.id)) }) { toggle(p.artist, results) }
                 }
             } else {
                 if (fromListening.isNotEmpty()) {
                     item(span = { GridItemSpan(3) }) { Header("Your top artists", "From what you play the most") }
-                    items(fromListening, key = { "m:" + key(it.artist.name) }) { p ->
+                    items(fromListening, key = { "m:" + slot(it.artist) }) { p ->
                         ArtistCell(p.artist, p.reason, key(p.artist.name) in followedKeys, key(p.artist.name) in fresh,
                             Modifier.animateItemPlacement(), onOpen = { navController.navigate(artistRoute(p.artist.name, p.artist.id)) }) { toggle(p.artist, fromListening) }
                     }
                 }
+                if (trending.isNotEmpty()) {
+                    item(span = { GridItemSpan(3) }) { Header("Trending now", "Most heard in India this week") }
+                    items(trending, key = { "t:" + slot(it.artist) }) { p ->
+                        ArtistCell(p.artist, p.reason, key(p.artist.name) in followedKeys, key(p.artist.name) in fresh,
+                            Modifier.animateItemPlacement(), onOpen = { navController.navigate(artistRoute(p.artist.name, p.artist.id)) }) { toggle(p.artist, trending) }
+                    }
+                }
                 if (similar.isNotEmpty()) {
                     item(span = { GridItemSpan(3) }) { Header("Fans also like", "Similar to the artists you love") }
-                    items(similar, key = { "r:" + key(it.artist.name) }) { p ->
+                    items(similar, key = { "r:" + slot(it.artist) }) { p ->
                         ArtistCell(p.artist, p.reason, key(p.artist.name) in followedKeys, key(p.artist.name) in fresh,
                             Modifier.animateItemPlacement(), onOpen = { navController.navigate(artistRoute(p.artist.name, p.artist.id)) }) { toggle(p.artist, similar) }
                     }
@@ -181,9 +209,10 @@ fun ArtistPickerScreen(navController: NavController) {
                 if (loading) item(span = { GridItemSpan(3) }) { CenterLoader() }
                 if (following.isNotEmpty()) {
                     item(span = { GridItemSpan(3) }) { Header("Following", "Everyone you follow on Spotify, YouTube Music and Aalap") }
-                    items(following, key = { "f:" + key(it.name) }) { a ->
+                    items(following, key = { "f:" + slot(it) }) { a ->
+                        val gone by androidx.compose.animation.core.animateFloatAsState(if (key(a.name) in leaving) 0f else 1f, androidx.compose.animation.core.tween(300), label = "leave")
                         ArtistCell(a, null, key(a.name) in followedKeys, false,
-                            Modifier.animateItemPlacement(), onOpen = { navController.navigate(artistRoute(a.name, a.id)) }) { toggle(a, null) }
+                            Modifier.animateItemPlacement().graphicsLayer { alpha = gone; scaleX = 0.7f + 0.3f * gone; scaleY = 0.7f + 0.3f * gone }, onOpen = { navController.navigate(artistRoute(a.name, a.id)) }) { toggle(a, null) }
                     }
                 }
             }

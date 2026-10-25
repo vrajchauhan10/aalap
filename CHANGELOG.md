@@ -4,6 +4,27 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 6.1.0 — 25 Oct 2026 (build 62)
+- **Artist search no longer crashes.** Searching "arijit" closed the app: Spotify has more
+  than one artist with the same name ("Arijit"), and the list used the name to tell artists
+  apart. It now uses each artist's own id, so both show.
+- **Your artists: "Trending now".** Up to 24 artists from today's Top 50 India and Trending
+  India charts ("12 chart songs"), right after your top artists, loading alongside them.
+  Ones you follow show Following. "Fans also like" starts from your top 6 artists (was 4).
+- **Follow and unfollow everywhere alike.** Following from search works like anywhere else
+  (similar artists slide in after it); unfollowing under Following fades and shrinks the
+  artist away and the rest slide up, instead of it vanishing.
+- **Library → Playlists: "Trending playlists".** The official Trending Now India, Top 50
+  India, Hot Hits Hindi, Hot Hits Punjabi, This Is Arijit Singh, Romantic Bollywood Mix,
+  Viral Hits, Bollywood Central, Desi Hits, I-Pop Superhits… (fan-made copies left out),
+  under your own playlists.
+- **Refreshed daily:** trending playlists and trending artists follow today's charts.
+- **Light theme:**
+  - Blend pages tint softly with the Blend's colour instead of a dark plum band; the score,
+    rings and chart read on cream.
+  - No more grey band over the status bar anywhere in the app: the closed player's window
+    was asking for white icons.
+
 ## 6.0.0 — 25 Oct 2026 (build 61)
 - **Your pace, in any language.** Aalap now works out your pace lately: the tempo and energy
   of the last 25 songs you really listened to (30 s or more, newest counting most),

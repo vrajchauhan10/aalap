@@ -50,7 +50,7 @@ object ArtistPicker {
     suspend fun similar(c: Context, exclude: Set<String>, limit: Int = 18): List<Pick> = coroutineScope {
         val api = Api(c)
         val skip = following(c).mapTo(HashSet()) { key(it.name) } + exclude
-        val seeds = Personalizer.summary(c).artists.take(4)
+        val seeds = Personalizer.summary(c).artists.take(6)
         val lists = seeds.map { seed ->
             async {
                 val found = resolve(api, seed) ?: return@async emptyList<Pick>()
@@ -65,6 +65,25 @@ object ArtistPicker {
             i++
         }
         out.take(limit)
+    }
+
+    /**
+     * Who's hot right now: the artists across today's Top 50 India and Trending India (most
+     * songs in the charts first), followed or not (the ones you follow show as Following).
+     */
+    suspend fun trending(c: Context, exclude: Set<String>, limit: Int = 18): List<Pick> = coroutineScope {
+        val skip = exclude
+        val counts = LinkedHashMap<String, Pair<String, Int>>()
+        com.music.aalap.data.recommendation.HomeMixes.trendingSongs(c).forEach { s ->
+            s.singer.split(",").map { it.trim() }.filter { it.isNotBlank() }.take(2).forEach { name ->
+                val k = key(name)
+                if (k.isNotBlank() && k !in skip) counts[k] = name to ((counts[k]?.second ?: 0) + 1)
+            }
+        }
+        val api = Api(c)
+        counts.values.sortedByDescending { it.second }.take(limit + 6)
+            .map { (name, n) -> async { runCatching { resolve(api, name) }.getOrNull()?.let { Pick(it, if (n > 1) "$n chart songs" else "In the charts") } } }
+            .awaitAll().filterNotNull().distinctBy { key(it.artist.name) }.take(limit)
     }
 
     /** A few artists like [artist] that aren't in [exclude] (keys): shown right after you follow it. */

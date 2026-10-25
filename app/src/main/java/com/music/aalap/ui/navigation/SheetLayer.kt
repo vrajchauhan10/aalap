@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
@@ -54,7 +55,6 @@ fun SheetLayer(onClosed: () -> Unit, content: @Composable () -> Unit) {
             if (android.os.Build.VERSION.SDK_INT >= 28) w.attributes = w.attributes.apply {
                 layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
-            WindowCompat.getInsetsController(w, view).isAppearanceLightStatusBars = false
         }
     }
     val height = with(LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
@@ -63,6 +63,19 @@ fun SheetLayer(onClosed: () -> Unit, content: @Composable () -> Unit) {
     val scope = rememberCoroutineScope()
     val closing = remember { booleanArrayOf(false) }
     LaunchedEffect(Unit) { down.animateTo(0f, tween(380, easing = SheetEasing)) }
+    // Light status-bar icons over the player (dark artwork and video); once it's away, the
+    // page's own: this window stays on top, and its light icons put a grey band over the
+    // cream page on the light theme.
+    val open by androidx.compose.runtime.remember { androidx.compose.runtime.derivedStateOf { down.value < 0.5f } }
+    val lightPage = com.music.aalap.ui.theme.AalapPalette.isLight
+    LaunchedEffect(open, lightPage) {
+        (view.parent as? DialogWindowProvider)?.window?.let { w ->
+            WindowCompat.getInsetsController(w, view).apply {
+                isAppearanceLightStatusBars = !open && lightPage
+                isAppearanceLightNavigationBars = !open && lightPage
+            }
+        }
+    }
     val close: () -> Unit = {
         if (!closing[0]) {
             closing[0] = true
