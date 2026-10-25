@@ -4,6 +4,11 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 5.8.0 — 25 Oct 2026 (build 60)
+- **"Ask Aalap" icon only if you want it.** The extra app-drawer icon is gone by default;
+  holding a volume key (switched on in Accessibility) asks Aalap from anywhere. Profile →
+  Voice → "Ask Aalap" icon brings it back, e.g. for the side key's double press.
+
 ## 5.7.0 — 25 Oct 2026 (build 59)
 - **"Hey Aalap" works over any app, and in Aalap over the player.**
   - The bar now shows over other apps when Aalap is closed and music plays on. Samsung

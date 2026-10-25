@@ -117,22 +117,29 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
-        <!-- "Ask Aalap": the voice bar over any app (a held volume key, or the side key's double press). -->
+        <!-- "Ask Aalap": the voice bar over any app, opened by a held volume key or its optional icon. -->
         <activity
             android:name=".di.AskAalapActivity"
-            android:exported="true"
+            android:exported="false"
             android:label="@string/ask_aalap"
-            android:icon="@drawable/ic_shortcut_mic"
             android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:excludeFromRecents="true"
             android:noHistory="true"
             android:taskAffinity=""
-            android:launchMode="singleInstance">
+            android:launchMode="singleInstance" />
+        <!-- Its icon, only while Profile → Voice → "Ask Aalap icon" is on (e.g. for the side key's double press). -->
+        <activity-alias
+            android:name=".AskAalapIcon"
+            android:targetActivity=".di.AskAalapActivity"
+            android:exported="true"
+            android:enabled="false"
+            android:label="@string/ask_aalap"
+            android:icon="@drawable/ic_shortcut_mic">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
         <service
             android:name=".di.AalapKeyService"
             android:exported="false"

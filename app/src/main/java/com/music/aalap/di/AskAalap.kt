@@ -12,8 +12,8 @@ import android.view.accessibility.AccessibilityEvent
 
 /**
  * "Ask Aalap" with no screen of its own: brings up the voice bar over whatever is showing and
- * goes away at once. Opened by a held volume key ([AalapKeyService]) or the side key
- * (Settings → Advanced features → Side button → Double press → Open app → Ask Aalap).
+ * goes away at once. Opened by a held volume key ([AalapKeyService]), or by its own icon if
+ * switched on in Profile → Voice (which the side key's double press can open).
  * Being on screen for that moment is what lets Android hand Aalap the microphone.
  */
 class AskAalapActivity : Activity() {
@@ -77,4 +77,18 @@ class AalapKeyService : AccessibilityService() {
             return list.split(':').any { it.equals("${c.packageName}/${AalapKeyService::class.java.name}", true) }
         }
     }
+}
+
+/** The optional "Ask Aalap" icon in the app drawer (an alias, off unless switched on). */
+object AskAalapIcon {
+    private fun component(c: android.content.Context) = android.content.ComponentName(c.packageName, "com.music.aalap.AskAalapIcon")
+
+    fun isOn(c: android.content.Context) =
+        c.packageManager.getComponentEnabledSetting(component(c)) == android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+
+    fun set(c: android.content.Context, on: Boolean) = c.packageManager.setComponentEnabledSetting(
+        component(c),
+        if (on) android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED else android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+        android.content.pm.PackageManager.DONT_KILL_APP,
+    )
 }

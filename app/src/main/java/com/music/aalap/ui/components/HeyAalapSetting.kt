@@ -105,9 +105,7 @@ fun AskKeysSetting() {
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Text("Hold a volume key to ask", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         Text(
-            "Hold volume up or down for a moment, over any app, and the bar comes up listening. A quick press still changes the volume. " +
-                "On the side key: Settings → Advanced features → Side button → Double press → Open app → Ask Aalap " +
-                "(holding the side key is kept for Bixby or the power menu).",
+            "Hold volume up or down for a moment, over any app, and the bar comes up listening. A quick press still changes the volume.",
             color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp,
         )
         Text(
@@ -118,6 +116,30 @@ fun AskKeysSetting() {
                 .clickable {
                     runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 }.padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+    }
+    // The optional icon: one tap from the app drawer, or the side key's double press.
+    var iconOn by remember { mutableStateOf(com.music.aalap.di.AskAalapIcon.isOn(context)) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().toggleable(value = iconOn, role = androidx.compose.ui.semantics.Role.Switch) { want ->
+            com.music.aalap.di.AskAalapIcon.set(context, want); iconOn = want
+        }.padding(vertical = 8.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("\u201CAsk Aalap\u201D icon", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Adds an Ask Aalap icon to your apps: tap it and the bar comes up listening, over whatever is on screen. " +
+                    "Put it on the side key: Settings \u2192 Advanced features \u2192 Side button \u2192 Double press \u2192 Open app \u2192 Ask Aalap.",
+                color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp,
+            )
+        }
+        Switch(
+            checked = iconOn, onCheckedChange = null,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = com.music.aalap.ui.theme.OnSaffron, checkedTrackColor = com.music.aalap.ui.theme.AppPalette,
+                uncheckedThumbColor = com.music.aalap.ui.theme.TextMuted, uncheckedTrackColor = com.music.aalap.ui.theme.SurfaceHigh,
+            ),
         )
     }
 }
