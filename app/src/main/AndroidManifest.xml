@@ -117,6 +117,32 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+        <!-- "Ask Aalap": the voice bar over any app (a held volume key, or the side key's double press). -->
+        <activity
+            android:name=".di.AskAalapActivity"
+            android:exported="true"
+            android:label="@string/ask_aalap"
+            android:icon="@drawable/ic_shortcut_mic"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:launchMode="singleInstance">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <service
+            android:name=".di.AalapKeyService"
+            android:exported="false"
+            android:label="@string/aalap_keys"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/aalap_keys" />
+        </service>
         <service
             android:name=".di.HeyAalapService"
             android:exported="false"

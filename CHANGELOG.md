@@ -4,6 +4,38 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 5.7.0 — 25 Oct 2026 (build 59)
+- **"Hey Aalap" works over any app, and in Aalap over the player.**
+  - The bar now shows over other apps when Aalap is closed and music plays on. Samsung
+    pauses the screen ticks of apps in the background, so the bar was added but never drawn;
+    it now runs on its own clock.
+  - It shows over the full player too, which sits in a window of its own above Aalap's screen.
+  - The request after "Hey Aalap" is heard: one listening session stays open from the wake
+    words to the request, and its end is found even when the speech engine doesn't report it.
+    "Hey Aalap, play Kesariya" said in one breath works too.
+  - Hears you over loud music: the mic records through the phone's echo canceller on the
+    speech source (the call source this Samsung uses was all but silent), with "Aalap"
+    taught to the speech engine.
+  - It no longer switches itself off when Android starts it twice as Aalap opens, and it
+    recovers by itself if the mic stream or the speech engine stops.
+- **Hold a volume key to ask Aalap.** Hold volume up or down for a moment, over any app, and
+  the bar comes up listening; a quick press still changes the volume. Works with "Hey Aalap"
+  off. Switch it on once in Accessibility (Profile → Voice has the button).
+- **Side key:** Samsung keeps press-and-hold of the side key for Bixby or the power menu,
+  but double press can open "Ask Aalap" (Settings → Advanced features → Side button →
+  Double press → Open app → Ask Aalap).
+- A song asked for while Aalap was closed now gets its notification and lock-screen controls.
+- **Voice bar:** the orange edge fills a little slower, from both ends meeting at the top,
+  then fades away; the sound bars along the bottom stay and move with your voice.
+- **"Play Hindi songs"** (or Punjabi, Tamil, English…) plays a mix of your own songs in
+  that language in under a second, topped up with popular ones; it used to search for a
+  song called "Hindi songs".
+- **The card always shows the song that plays.** Aalap checks the song really started,
+  and tries once more if it didn't (before, a song that failed to load skipped to the next
+  one while the card still showed the first).
+- **Blend:** "Your score this week" is a bar per day, Monday to Sunday, with today
+  highlighted and the start, best and today's score below (no more empty black chart).
+
 ## 5.6.0 — 25 Oct 2026 (build 58)
 - **Aaj ka Aalap posters: the V shows properly in every design.** Checked all 100 on the
   phone; 23 had a V with only one arm showing, an arm hidden under the words panel, or

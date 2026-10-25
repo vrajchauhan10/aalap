@@ -12,4 +12,7 @@ object VoiceUi {
     }
 
     val state = MutableStateFlow<State?>(null)
+
+    /** The bar is showing in its own window over everything ("Hey Aalap"), so Aalap's copy stays hidden. */
+    val overApps = MutableStateFlow(false)
 }

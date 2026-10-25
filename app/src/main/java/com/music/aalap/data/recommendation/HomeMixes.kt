@@ -149,6 +149,9 @@ object HomeMixes {
 
     fun todayUpdatedAt(c: Context): Long = prefs(c).getLong("today.at", 0)
 
+    /** The last Your Mix made (no network, any age); empty if none yet. */
+    fun yourMixCached(c: Context): List<SongsModel> = runCatching { songsFrom(JSONArray(prefs(c).getString("yourmix", "[]"))) }.getOrDefault(emptyList())
+
     /** The cached Aaj ka Aalap (no network); empty until it's been built today. */
     fun todayCached(): List<TodaySong> =
         if (prefs(appCtx).getString("today.stamp", null) == today()) readToday().orEmpty() else emptyList()

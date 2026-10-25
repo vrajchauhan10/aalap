@@ -92,4 +92,12 @@ class VoicePlayTest {
         assertEquals("Saiyaara", VoicePlay.bestMatch("saiyaara", results)?.album)
         assertEquals("Lofi Hits", VoicePlay.bestMatch("saiyaara lofi", results)?.album)
     }
+
+    @Test fun languageRequests() {
+        assertEquals(Plan.Language("hindi"), plan("play hindi song"))
+        assertEquals(Plan.Language("hindi"), plan("hindi songs"))
+        assertEquals(Plan.Language("punjabi"), plan("play some punjabi music"))
+        assertEquals(Plan.Language("english"), plan("english songs"))
+        assertTrue(plan("tere liye") is Plan.Song)
+    }
 }

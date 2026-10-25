@@ -81,6 +81,8 @@ object VoicePlay {
         data object Today : Plan()
         data object YourMix : Plan()
         data object Resume : Plan()
+        /** "Hindi songs", "some Punjabi music": a mix in that language. */
+        data class Language(val language: String) : Plan()
     }
 
     private val FILLER = Regex("""^(please\s+)?(play|put on|start|listen to|i want to (hear|listen to)|can you play)\s+""")
@@ -99,6 +101,7 @@ object VoicePlay {
         com.music.aalap.data.api.Mood.HAPPY to listOf("happy", "feel good", "feel-good", "upbeat", "cheerful"),
         com.music.aalap.data.api.Mood.ROAD_TRIP to listOf("road trip", "driving", "drive", "travel"),
     )
+    private val LANGUAGE = Regex("""^(some |a few |the |top |latest |new |best )?(hindi|punjabi|english|gujarati|tamil|telugu|marathi|bengali|bhojpuri|haryanvi|malayalam|kannada)( film| bollywood| movie)?( song| songs| music| gaane| gane| hits| tracks)?$""")
     private val MOOD_TAIL = Regex("""\s+(songs?|music|mix|playlist|vibes?|tracks?|hits)$""")
     private val MOOD_HEAD = Regex("""^(some|a few|my|hindi|punjabi|bollywood|english|something|a)\s+""")
 
@@ -119,6 +122,7 @@ object VoicePlay {
             if (t.isNotBlank()) return Plan.Song(listOf(t, req.artist).filter { it.isNotBlank() }.joinToString(" "))
         }
         if (q in GENERIC) return Plan.Resume
+        LANGUAGE.matchEntire(q)?.let { return Plan.Language(it.groupValues[2]) }
         if (Regex("""^(my )?(liked|favou?rite|loved)( songs?| music| tracks?)?$|^my (likes|favou?rites)$""").matches(q)) return Plan.Liked
         if (isToday(q)) return Plan.Today
         if (Regex("""^(my mix|your mix|a mix for me|something i like|my taste|songs i like)$""").matches(q)) return Plan.YourMix
@@ -229,6 +233,13 @@ object VoicePlay {
                 val song = findSong(context, plan.query, req.alternatives) ?: return null
                 ready()
                 withContext(Dispatchers.Main) { SmartPlay.single(context, state, song) }
+                // Only say it's playing once it really is (a stream that fails makes the player
+                // move on to the next song, and the card would name one song while another plays).
+                if (!playingNow(state, song)) {
+                    Log.w(TAG, "'${song.title}' didn't start, trying again")
+                    withContext(Dispatchers.Main) { SmartPlay.single(context, state, song) }
+                    if (!playingNow(state, song)) { last = "'${req.query}' → $plan → couldn't play"; return null }
+                }
                 Played(song.title, listOf(song.singer.substringBefore(",").trim(), song.album).filter { it.isNotBlank() }.distinct().joinToString(" · "), song.coverUri)
             }
             is Plan.Artist -> {
@@ -263,6 +274,15 @@ object VoicePlay {
                 Played("Aaj ka Aalap", "Today's ${list.size} songs", list.first().coverUri)
             }
             Plan.YourMix -> { ready(); playYourMix(context, state)?.let { Played(it, "Made from your taste") } }
+            is Plan.Language -> {
+                val list = languageMix(context, plan.language)
+                if (list.isEmpty()) return null
+                ready()
+                val name = plan.language.replaceFirstChar { it.uppercase() } + " songs"
+                withContext(Dispatchers.Main) { SmartPlay.playAll(context, state, list, name) }
+                if (!playingNow(state, list.first())) return null
+                Played(name, "${list.size} songs, starting with ${list.first().title}", list.first().coverUri)
+            }
             is Plan.Mood -> {
                 val list = com.music.aalap.data.recommendation.AalapRadio.moodRadio(context, plan.mood)
                 if (list.isEmpty()) return null
@@ -289,6 +309,36 @@ object VoicePlay {
     }
 
     private fun Plan.Artist.query() = name
+
+    /** Waits (up to ~12 s) for [song] to be the one playing; false if the player moved on or never started. */
+    private suspend fun playingNow(state: CurrentSongState, song: SongsModel): Boolean {
+        repeat(24) {
+            kotlinx.coroutines.delay(500)
+            val (current, playing) = withContext(Dispatchers.Main) { state.songId.value to SongPlayer.isPlaying() }
+            if (current != song.id) return false
+            if (playing) return true
+        }
+        return false
+    }
+
+    /** Songs in [language] from what you have (Aaj ka Aalap, Your Mix, Liked Songs), topped up from search. */
+    private suspend fun languageMix(context: Context, language: String): List<SongsModel> {
+        val db = com.music.aalap.data.recommendation.engine.RecoDb.get(context)
+        // Only what's already made (building today's mixes can take long): Aaj ka Aalap, Your Mix, your likes.
+        val pool = (runCatching { com.music.aalap.data.recommendation.HomeMixes.todayCached().map { it.song } }.getOrDefault(emptyList()) +
+            com.music.aalap.data.recommendation.HomeMixes.yourMixCached(context) +
+            com.music.aalap.data.preferences.LikedLibrary.all(context)).distinctBy { it.id }
+        val songs = kotlinx.coroutines.withTimeoutOrNull(6_000) { db.resolveAll(pool.map(com.music.aalap.data.recommendation.engine.SongBridge::toCandidate)) }.orEmpty()
+        val mine = songs.filter { com.music.aalap.data.recommendation.engine.VibeStore.language(context, it) == language }
+        val picked = mine.shuffled().take(40).toMutableList()
+        if (picked.size < 12) {
+            // Not enough of your own: the most played songs in that language.
+            val found = kotlinx.coroutines.withTimeoutOrNull(10_000) { com.music.aalap.data.api.Api(context).searchCandidates("top $language songs", 30) }.orEmpty()
+            picked += db.resolveAll(found).filter { s -> picked.none { it.id == s.id } }
+        }
+        android.util.Log.d("VoicePlay", "$language mix: ${mine.size} of yours in ${pool.size}, ${picked.size} in all")
+        return picked.map(com.music.aalap.data.recommendation.engine.SongBridge::toSongsModel)
+    }
 
     private suspend fun playYourMix(context: Context, state: CurrentSongState): String? {
         val mix = com.music.aalap.data.recommendation.HomeMixes.yourMix(context)

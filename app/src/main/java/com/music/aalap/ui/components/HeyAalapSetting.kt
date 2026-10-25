@@ -88,3 +88,36 @@ fun HeyAalapSetting() {
         )
     }
 }
+
+/**
+ * Profile → Voice: hold a volume key to ask Aalap (an accessibility shortcut the user switches
+ * on in Android's settings), and how to put "Ask Aalap" on the side key.
+ */
+@Composable
+fun AskKeysSetting() {
+    val context = LocalContext.current
+    var keysOn by remember { mutableStateOf(com.music.aalap.di.AalapKeyService.isOn(context)) }
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val o = androidx.lifecycle.LifecycleEventObserver { _, e -> if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) keysOn = com.music.aalap.di.AalapKeyService.isOn(context) }
+        lifecycle.addObserver(o); onDispose { lifecycle.removeObserver(o) }
+    }
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text("Hold a volume key to ask", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            "Hold volume up or down for a moment, over any app, and the bar comes up listening. A quick press still changes the volume. " +
+                "On the side key: Settings → Advanced features → Side button → Double press → Open app → Ask Aalap " +
+                "(holding the side key is kept for Bixby or the power menu).",
+            color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp,
+        )
+        Text(
+            if (keysOn) "On · change in Accessibility" else "Turn on in Accessibility → Aalap",
+            color = if (keysOn) com.music.aalap.ui.theme.Saffron else com.music.aalap.ui.theme.OnSaffron, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 8.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
+                .background(if (keysOn) com.music.aalap.ui.theme.SurfaceHigh else com.music.aalap.ui.theme.Saffron)
+                .clickable {
+                    runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                }.padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+    }
+}

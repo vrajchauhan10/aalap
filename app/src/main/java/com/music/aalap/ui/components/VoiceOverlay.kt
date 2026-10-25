@@ -67,18 +67,20 @@ private val Snap = CubicBezierEasing(0.2f, 0.9f, 0.25f, 1f)
 
 /**
  * The voice bar: a slim card at the bottom with a thin orange edge. It rises and its edge
- * traces round it in a quarter of a second; while you speak only the bottom edge moves
+ * fills round it from both ends, meeting at the top, then fades; while you speak only the bottom edge moves
  * with your voice; when Aalap has the song the bar shows it, then the edge pulls back and
  * the bar drops away just as quickly. Tap anywhere else to cancel.
  */
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
-fun VoiceOverlay(onCancel: () -> Unit, onRetry: () -> Unit) {
+fun VoiceOverlay(onCancel: () -> Unit, onRetry: () -> Unit, inApp: Boolean = false) {
     val state by VoiceUi.state.collectAsState()
+    val overApps by VoiceUi.overApps.collectAsState()
     // The last thing shown stays on the bar while it leaves.
     var shown by remember { mutableStateOf<VoiceUi.State?>(null) }
     val edge = remember { Animatable(0f) }      // 0 = no edge, 1 = drawn all round
     val rise = remember { Animatable(0f) }      // 0 = below the screen, 1 = in place
+    val edgeAlpha = remember { Animatable(1f) }  // the edge fades once it has filled
 
     LaunchedEffect(state) {
         val s = state
@@ -86,8 +88,15 @@ fun VoiceOverlay(onCancel: () -> Unit, onRetry: () -> Unit) {
             shown = s
             if (rise.value < 1f) {
                 kotlinx.coroutines.coroutineScope {
-                    launch { rise.animateTo(1f, tween(220, easing = Snap)) }
-                    launch { edge.snapTo(0f); kotlinx.coroutines.delay(60); edge.animateTo(1f, tween(260, easing = Snap)) }
+                    launch { rise.animateTo(1f, tween(200, easing = Snap)) }
+                    // The edge runs up both sides from the middle of the bottom and the two ends
+                    // meet at the top, then it fades: no line stays.
+                    launch {
+                        edgeAlpha.snapTo(1f); edge.snapTo(0f)
+                        edge.animateTo(1f, tween(620, easing = CubicBezierEasing(0.45f, 0f, 0.25f, 1f)))
+                        kotlinx.coroutines.delay(140)
+                        edgeAlpha.animateTo(0f, tween(380))
+                    }
                 }
             }
             // What it found / what went wrong goes away by itself.
@@ -97,12 +106,12 @@ fun VoiceOverlay(onCancel: () -> Unit, onRetry: () -> Unit) {
                 else -> {}
             }
         } else if (rise.value > 0f) {
-            edge.animateTo(0f, tween(160))
             rise.animateTo(0f, tween(180, easing = Snap))
             shown = null
         }
     }
     val s = shown ?: return
+    if (inApp && overApps) return
 
     Box(Modifier.fillMaxSize()) {
         // A barely-there veil; tapping it cancels.
@@ -117,10 +126,10 @@ fun VoiceOverlay(onCancel: () -> Unit, onRetry: () -> Unit) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
-                    .voiceEdge(s, edge.value)
+                    .voiceEdge(s, edge.value, edgeAlpha.value)
                     .clip(RoundedCornerShape(22.dp)).background(Surface)
                     .clickable(remember { MutableInteractionSource() }, indication = null) { if (s is VoiceUi.State.Failed) onRetry() }
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 28.dp),
             ) {
                 AnimatedContent(s, transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(100)) }, contentKey = { it.javaClass }, label = "voice") { st ->
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -166,20 +175,23 @@ private fun MicDot(state: VoiceUi.State) {
 }
 
 /**
- * The thin orange edge: [drawn] 0..1 traces it from the middle of the bottom edge up both
- * sides to the top; while listening, the bottom edge brightens out from the middle with
- * your voice.
+ * The orange edge, filled once round the bar ([drawn] 0..1 from the middle of the bottom up
+ * both sides) and faded by [alpha]; and along the bottom, a row of thin sound bars that dance
+ * with your voice while Aalap listens (and ripple softly while it thinks).
  */
 @Composable
-private fun Modifier.voiceEdge(state: VoiceUi.State, drawn: Float): Modifier {
+private fun Modifier.voiceEdge(state: VoiceUi.State, drawn: Float, alpha: Float): Modifier {
     val level = (state as? VoiceUi.State.Listening)?.level ?: 0f
     val voice by animateFloatAsState(level, tween(90), label = "voice")
+    val t by rememberInfiniteTransition(label = "bars").animateFloat(0f, 1000f, infiniteRepeatable(tween(1_000_000, easing = androidx.compose.animation.core.LinearEasing)), label = "t")
+    val thinking = state is VoiceUi.State.Thinking
+    val listening = state is VoiceUi.State.Listening
     return this.drawWithContent {
         drawContent()
-        val r = 22.dp.toPx(); val sw = 1.5.dp.toPx()
+        val r = 22.dp.toPx(); val sw = 2.dp.toPx()
         val l = sw / 2; val top = sw / 2; val rgt = size.width - sw / 2; val bot = size.height - sw / 2; val mid = size.width / 2
         val color = if (state is VoiceUi.State.Failed) Color(0xFFE57373) else Saffron
-        for (dir in listOf(-1f, 1f)) {
+        if (alpha > 0.01f && drawn > 0f) for (dir in listOf(-1f, 1f)) {
             val side = if (dir < 0) l else rgt
             val inward = if (dir < 0) 1f else -1f
             val path = Path().apply {
@@ -189,11 +201,24 @@ private fun Modifier.voiceEdge(state: VoiceUi.State, drawn: Float): Modifier {
             }
             val pm = PathMeasure().apply { setPath(path, false) }
             val seg = Path(); pm.getSegment(0f, pm.length * drawn, seg, true)
-            drawPath(seg, color, style = Stroke(sw, cap = StrokeCap.Round))
+            drawPath(seg, color, alpha = alpha, style = Stroke(sw, cap = StrokeCap.Round))
         }
-        if (state is VoiceUi.State.Listening && drawn >= 1f && voice > 0.05f) {
-            val half = (size.width / 2 - r) * voice
-            drawLine(color, Offset(mid - half, bot), Offset(mid + half, bot), sw * 2f, cap = StrokeCap.Round)
+        // The sound bars: thin and rounded, tallest in the middle, each with its own wobble.
+        if (listening || thinking) {
+            val n = 28
+            val span = size.width - r * 2.4f
+            val gap = span / n
+            val barW = gap * 0.45f
+            val maxH = 14.dp.toPx()
+            val secs = t * 1000f / 1000f
+            for (k in 0 until n) {
+                val x = r * 1.2f + gap * (k + 0.5f)
+                val centre = 1f - kotlin.math.abs(k - (n - 1) / 2f) / (n / 2f)
+                val wobble = 0.55f + 0.45f * kotlin.math.sin(secs * (6f + k % 5) + k * 1.7f)
+                val amp = if (listening) (0.12f + voice * 0.88f) else 0.18f + 0.1f * kotlin.math.sin(secs * 4f + k * 0.5f)
+                val hgt = (maxH * amp * wobble * (0.35f + 0.65f * centre)).coerceAtLeast(2.dp.toPx())
+                drawLine(color.copy(alpha = 0.9f), Offset(x, size.height - 6.dp.toPx()), Offset(x, size.height - 6.dp.toPx() - hgt), barW, cap = StrokeCap.Round)
+            }
         }
     }
 }

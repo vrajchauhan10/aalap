@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -186,8 +187,8 @@ fun BlendDetail(pairId: String, state: CurrentSongState, onClose: () -> Unit) {
 
                 // How it's moved
                 item {
-                    Section("Your score, day by day")
-                    ScoreChart(b.history + (today to score), today, Modifier.fillMaxWidth().height(120.dp))
+                    Section("Your score this week")
+                    ScoreChart(b.history + (today to score), today, Modifier.fillMaxWidth().height(150.dp))
                 }
 
                 // This week
@@ -278,28 +279,39 @@ fun BlendDetail(pairId: String, state: CurrentSongState, onClose: () -> Unit) {
     }
 }
 
-/** The score each day over the last two weeks (days without a score carry the last one). */
+/**
+ * The score this week, a bar per day (Monday to today and on): each day's score as a bar
+ * with its number, today's bar bright; days still to come are faint stubs, so the card is
+ * never an empty space. Underneath: where it started, its best, and today.
+ */
 @Composable
 private fun ScoreChart(history: Map<Long, Int>, today: Long, modifier: Modifier) {
-    val days = (today - 13..today).toList()
-    var last = history.filterKeys { it < days.first() }.maxByOrNull { it.key }?.value
-    val values = days.map { d -> history[d]?.also { last = it } ?: last }
-    Column(modifier.clip(RoundedCornerShape(18.dp)).background(Surface).padding(14.dp)) {
-        Canvas(Modifier.fillMaxWidth().weight(1f)) {
-            val known = values.filterNotNull()
-            if (known.isEmpty()) return@Canvas
-            val lo = (known.min() - 5).coerceAtLeast(0).toFloat(); val hi = (known.max() + 5).coerceAtMost(100).toFloat()
-            fun x(i: Int) = size.width * i / (days.size - 1)
-            fun y(v: Int) = size.height * (1 - (v - lo) / (hi - lo).coerceAtLeast(1f))
-            val path = Path(); var started = false
-            values.forEachIndexed { i, v -> if (v != null) { if (!started) { path.moveTo(x(i), y(v)); started = true } else path.lineTo(x(i), y(v)) } }
-            drawPath(path, Saffron, style = Stroke(5f, cap = StrokeCap.Round))
-            values.forEachIndexed { i, v -> if (v != null && history.containsKey(days[i])) drawCircle(if (i == days.lastIndex) SaffronGold else Saffron, if (i == days.lastIndex) 9f else 5f, Offset(x(i), y(v))) }
+    val monday = today - (java.time.LocalDate.ofEpochDay(today).dayOfWeek.value - 1)
+    val week = (monday until monday + 7).toList()
+    val names = listOf("M", "T", "W", "T", "F", "S", "S")
+    val known = history.filterKeys { it <= today }
+    val lo = ((known.values.minOrNull() ?: 50) - 12).coerceAtLeast(0)
+    val hi = ((known.values.maxOrNull() ?: 70) + 4).coerceAtMost(100)
+    Column(modifier.clip(RoundedCornerShape(18.dp)).background(Surface).padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.Bottom) {
+            week.forEachIndexed { k, d ->
+                val v = known[d]
+                val isToday = d == today
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+                    if (v != null) Text("$v", color = if (isToday) SaffronGold else TextMuted, fontSize = 10.sp, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal)
+                    val frac = if (v == null) 0.06f else ((v - lo).toFloat() / (hi - lo).coerceAtLeast(1)).coerceIn(0.12f, 1f)
+                    Box(Modifier.padding(top = 3.dp).width(14.dp).fillMaxHeight(frac * 0.78f).clip(RoundedCornerShape(7.dp))
+                        .background(when { v == null -> Color.White.copy(alpha = 0.08f); isToday -> Saffron; else -> Saffron.copy(alpha = 0.45f) }))
+                    Text(names[k], color = if (isToday) TextPrimary else TextMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                }
+            }
         }
-        Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-            Text("2 weeks ago", color = TextMuted, fontSize = 10.sp, modifier = Modifier.weight(1f))
-            Text("Today ${values.last() ?: ""}", color = SaffronGold, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-        }
+        val first = known.minByOrNull { it.key }?.value
+        Text(
+            listOfNotNull(first?.let { "Started at $it" }, known.values.maxOrNull()?.let { "best $it" }, known[today]?.let { "today $it" }).joinToString(" · ")
+                .ifBlank { "Your score shows here day by day" },
+            color = TextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp),
+        )
     }
 }
 

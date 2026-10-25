@@ -20,4 +20,11 @@ class HeyAalapTest {
         assertEquals("some party songs", HeyAalap.hear("so ok alap some party songs").request)
         assertEquals("", HeyAalap.hear("hey aalap").request)
     }
+
+    @Test fun shortGuesses() {
+        for (t in listOf("okay Al", "ki Hala", "hey ala", "Jay HAL", "ok olap"))
+            assertTrue(t, HeyAalap.heardShort(t))
+        for (t in listOf("okay alright", "hey", "okay", "hey there", "play all songs now", "ha", "hey al play kesariya now"))
+            assertFalse(t, HeyAalap.heardShort(t))
+    }
 }

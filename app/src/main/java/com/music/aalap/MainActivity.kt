@@ -174,7 +174,7 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.foundation.layout.Box {
                     App()
                     com.music.aalap.ui.components.BlendHost(currentSongState)
-                    com.music.aalap.ui.components.VoiceOverlay(onCancel = { voice.cancel(); com.music.aalap.di.VoiceUi.state.value = null }, onRetry = { listen() })
+                    com.music.aalap.ui.components.VoiceOverlay(onCancel = { voice.cancel(); com.music.aalap.di.VoiceUi.state.value = null }, onRetry = { listen() }, inApp = true)
                 }
             }
         }

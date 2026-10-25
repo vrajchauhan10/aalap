@@ -1,6 +1,8 @@
 <resources>
     <string name="app_name">Aalap</string>
     <string name="ask_aalap">Ask Aalap</string>
+    <string name="aalap_keys">Aalap: hold a volume key to ask</string>
+    <string name="aalap_keys_desc">Hold volume up or down for a moment and Aalap listens for a song, singer or mood, over any app. A quick press still changes the volume. Aalap only looks at the two volume keys; it reads nothing on your screen.</string>
     <string name="ask_aalap_long">Ask Aalap: say a song, artist or mood</string>
     <string name="widget_large_desc">Now playing with artwork and controls</string>
     <string name="widget_compact_desc">Small player: cover, song, previous, play and next</string>

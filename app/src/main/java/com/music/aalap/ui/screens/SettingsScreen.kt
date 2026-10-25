@@ -156,6 +156,7 @@ fun SettingsScreen(navController: NavController) {
 
             SectionTitle("Voice")
             com.music.aalap.ui.components.HeyAalapSetting()
+            com.music.aalap.ui.components.AskKeysSetting()
 
             SectionTitle("Recommendations")
             com.music.aalap.ui.components.RecommendationSettings()
