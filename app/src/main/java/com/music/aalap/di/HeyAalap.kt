@@ -21,6 +21,8 @@ import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
 /**
  * "Hey Aalap" / "OK Aalap": ask for music without touching the phone.
@@ -94,10 +96,28 @@ object HeyAalap {
             for (n in 1..2) {
                 if (i + 1 + n > words.size) break
                 val name = squash(words.subList(i + 1, minOf(words.size, i + 1 + n)).joinToString(""))
-                if (name.length in 3..6 && dist(name, "alap") <= 1 && name.first() in "ao") {
+                // Close to "alap" ("alap", "olap", "alup"), or a common mishearing of it that
+                // starts the same way ("alarm", "all of", "all off").
+                val close = dist(name, "alap") <= 1 && name.first() in "ao" ||
+                    name.length in 4..5 && name.startsWith("al") && dist(name, "alap") <= 2
+                if (name.length in 3..6 && close) {
                     return Heard(true, words.drop(i + 1 + n).joinToString(" "))
                 }
             }
+        }
+        // The "hey" lost ("ke all of play kesariya", "a alarm play…"): the name followed straight
+        // by "play" is still clearly a request to Aalap.
+        for (i in words.indices) for (n in 1..2) {
+            if (i + n >= words.size) break
+            val name = squash(words.subList(i, i + n).joinToString(""))
+            val isName = name.length in 3..6 && (dist(name, "alap") <= 1 && name.first() in "ao" || name.length in 4..5 && name.startsWith("al") && dist(name, "alap") <= 2)
+            if (isName && words[i + n] in setOf("play", "bajao", "chalao", "put")) return Heard(true, words.drop(i + n).joinToString(" "))
+        }
+        // "Hey Aalap" said quickly often blurs into one word: "hal aap", "haal aap", "halaap".
+        for (i in words.indices) for (n in 1..2) {
+            if (i + n > words.size) break
+            val joined = squash(words.subList(i, i + n).joinToString(""))
+            if (joined.length in 4..7 && joined.first() == 'h' && dist(joined, "halap") <= 1) return Heard(true, words.drop(i + n).joinToString(" "))
         }
         return Heard(false)
     }
@@ -111,6 +131,7 @@ class HeyAalapService : Service() {
     /** Waiting for the request after the wake words (in the background). */
     private var awaitingRequest = false
     private var pausedMusic = false
+    private var idleSince = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -157,8 +178,16 @@ class HeyAalapService : Service() {
     private val loop: Runnable = object : Runnable {
         override fun run() {
             if (!HeyAalap.isEnabled(this@HeyAalapService)) { stopSelf(); return }
-            // Aalap closed and nothing playing: nothing to ask for, so stop (battery).
-            if (!HeyAalap.appVisible && !SongPlayer.isPlaying() && !awaitingRequest) { stopSelf(); return }
+            // Aalap closed and nothing playing for a minute: nothing to ask for, so stop (battery).
+            // Not at once: between songs (a request just made, the next song loading) nothing
+            // plays for a moment, and this service is what keeps Aalap's network on then
+            // (Android cuts a background app's network, e.g. in Battery Saver).
+            if (!HeyAalap.appVisible && !SongPlayer.isPlaying() && !awaitingRequest) {
+                if (idleSince == 0L) idleSince = System.currentTimeMillis()
+                if (System.currentTimeMillis() - idleSince > 60_000) { stopSelf(); return }
+            } else idleSince = 0L
+            // The card closed by itself (song shown, or nothing heard): take it off the screen.
+            if (overlay != null && VoiceUi.state.value == null) hideOverlay()
             if (rec == null) {
                 when {
                     micBusy() -> {}                                        // a call or another app's recording: wait
@@ -182,25 +211,42 @@ class HeyAalapService : Service() {
         r.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onRmsChanged(rmsdB: Float) {
+                // While Aalap waits for the request, the card's mic and bottom edge follow your voice.
+                val st = VoiceUi.state.value as? VoiceUi.State.Listening ?: return
+                if (!awaitingRequest) return
+                val level = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
+                if (kotlin.math.abs(level - st.level) > 0.05f) VoiceUi.state.value = st.copy(level = level)
+            }
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
             override fun onEvent(eventType: Int, params: Bundle?) {}
             override fun onPartialResults(partial: Bundle?) {
-                if (awaitingRequest) return
+                if (awaitingRequest) {
+                    val words = partial?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                    (VoiceUi.state.value as? VoiceUi.State.Listening)?.let { if (words.isNotBlank()) VoiceUi.state.value = it.copy(heard = words) }
+                    return
+                }
                 val text = partial?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
                 if (HeyAalap.hear(text).woke && HeyAalap.hear(text).request.split(" ").size < 2) woke("")
             }
             override fun onResults(results: Bundle?) {
                 val all = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
+                Log.d(tag, "heard: $all")
                 release()
                 if (awaitingRequest) { request(all); return }
-                val heard = all.map { HeyAalap.hear(it) }.firstOrNull { it.woke } ?: return
+                val heard = all.map { HeyAalap.hear(it) }.firstOrNull { it.woke } ?: run { relisten(); return }
                 woke(heard.request)
             }
             override fun onError(error: Int) {
+                Log.d(tag, "listen ended: error $error")
                 release()
-                if (awaitingRequest) { awaitingRequest = false; resumeMusic(); update("Didn't catch that. Say “Hey Aalap” again") }
+                if (awaitingRequest) {
+                    awaitingRequest = false; resumeMusic()
+                    VoiceUi.state.value = VoiceUi.State.Failed("Didn't catch that. Say \u201CHey Aalap\u201D again.")
+                    update("Didn't catch that. Say “Hey Aalap” again")
+                }
+                relisten()
             }
         })
         val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
@@ -209,7 +255,12 @@ class HeyAalapService : Service() {
             .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
-        runCatching { r.startListening(i) }.onFailure { release() }
+        runCatching { r.startListening(i) }.onFailure { Log.w(tag, "can't listen: $it"); release() }
+    }
+
+    /** Straight back to listening, so words said between two listening rounds aren't missed. */
+    private fun relisten() = main.post {
+        if (rec == null && HeyAalap.isEnabled(this) && !micBusy() && VoiceUi.state.value == null) listen()
     }
 
     private fun release() {
@@ -222,10 +273,13 @@ class HeyAalapService : Service() {
     private fun woke(request: String) {
         release()
         Log.d(tag, "woke: '$request'")
+        if (!HeyAalap.appVisible) showOverlay()
         if (request.split(" ").filter { it.isNotBlank() }.size >= 2) { play(listOf(request)); return }
         if (HeyAalap.appVisible && HeyAalap.openVoiceCard != null) { HeyAalap.openVoiceCard?.invoke(); return }
-        // In the background: quiet the music and listen for the request.
-        if (SongPlayer.isPlaying()) { SongPlayer.pause(); pausedMusic = true }
+        VoiceUi.state.value = VoiceUi.State.Listening()
+        // In the background: turn the music right down (not paused: a paused app loses its
+        // network in the background on some phones, and the request needs it) and listen.
+        if (SongPlayer.isPlaying()) { SongPlayer.exoPlayer?.volume = 0.12f; pausedMusic = true }
         awaitingRequest = true
         update("Listening… say a song, a singer or a mood")
         main.postDelayed({ if (awaitingRequest && rec == null) listen() }, 250)
@@ -233,21 +287,86 @@ class HeyAalapService : Service() {
 
     private fun request(words: List<String>) {
         awaitingRequest = false
-        if (words.isEmpty()) { resumeMusic(); return }
+        if (words.isEmpty()) { resumeMusic(); VoiceUi.state.value = VoiceUi.State.Failed("Didn't catch that. Say \u201CHey Aalap\u201D again."); return }
         play(words)
     }
 
     private fun play(words: List<String>) {
+        // If nothing is found, the music that was paused for the request comes back.
+        // Back to full volume as the request goes off (the new song starts a moment later).
+        if (pausedMusic) SongPlayer.exoPlayer?.volume = 1f
         pausedMusic = false
+        main.postDelayed({
+            if (VoicePlay.last.endsWith("nothing found")) update("Couldn't find \u201C${words.first()}\u201D. Try the song and the singer")
+        }, 6_000)
         val state = dagger.hilt.android.EntryPointAccessors.fromApplication(applicationContext, StateEntryPoint::class.java).currentSongState()
-        VoicePlay.handle(this, state, VoicePlay.Request(words.first(), alternatives = words.drop(1)), fromApp = HeyAalap.appVisible)
+        // The card (in Aalap, or over other apps) shows Aalap thinking and then the song.
+        VoicePlay.handle(this, state, VoicePlay.Request(words.first(), alternatives = words.drop(1)), fromApp = HeyAalap.appVisible || overlay != null)
         update("Asked for “${words.first()}”")
-        main.postDelayed({ update("Say “Hey Aalap” to ask for music") }, 6_000)
+        main.postDelayed({ update("Say “Hey Aalap” to ask for music") }, 10_000)
     }
 
-    private fun resumeMusic() { if (pausedMusic) { pausedMusic = false; SongPlayer.play() } }
+    private fun resumeMusic() { if (pausedMusic) { pausedMusic = false; SongPlayer.exoPlayer?.volume = 1f } }
+
+    // ── the card over other apps ────────────────────────────────────────────
+
+    private var overlay: androidx.compose.ui.platform.ComposeView? = null
+    private var overlayOwner: OverlayOwner? = null
+
+    /**
+     * The voice card over whatever app is on screen (needs "Display over other apps",
+     * which Profile → Voice asks for). Without it, the notification shows what's happening.
+     */
+    private fun showOverlay() {
+        if (overlay != null || !android.provider.Settings.canDrawOverlays(this)) return
+        runCatching {
+            val owner = OverlayOwner().also { it.start() }
+            val view = androidx.compose.ui.platform.ComposeView(this).apply {
+                setViewTreeLifecycleOwner(owner)
+                setViewTreeSavedStateRegistryOwner(owner)
+                setContent {
+                    com.music.aalap.ui.theme.AalapTheme {
+                        com.music.aalap.ui.components.VoiceOverlay(onCancel = { cancelCard() }, onRetry = { cancelCard() })
+                    }
+                }
+            }
+            val lp = android.view.WindowManager.LayoutParams(
+                android.view.WindowManager.LayoutParams.MATCH_PARENT, android.view.WindowManager.LayoutParams.MATCH_PARENT,
+                android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                android.graphics.PixelFormat.TRANSLUCENT,
+            )
+            getSystemService(android.view.WindowManager::class.java).addView(view, lp)
+            overlay = view; overlayOwner = owner
+        }.onFailure { Log.w(tag, "overlay: $it") }
+    }
+
+    private fun hideOverlay() {
+        overlay?.let { v -> runCatching { getSystemService(android.view.WindowManager::class.java).removeView(v) } }
+        overlayOwner?.stop()
+        overlay = null; overlayOwner = null
+    }
+
+    /** Tapped outside the card: stop waiting for a request, music back to full. */
+    private fun cancelCard() {
+        awaitingRequest = false
+        release()
+        resumeMusic()
+        VoiceUi.state.value = null
+    }
+
+    /** A lifecycle for Compose in a window that has no activity. */
+    private class OverlayOwner : androidx.lifecycle.LifecycleOwner, androidx.savedstate.SavedStateRegistryOwner {
+        private val registry = androidx.lifecycle.LifecycleRegistry(this)
+        private val saved = androidx.savedstate.SavedStateRegistryController.create(this)
+        override val lifecycle: androidx.lifecycle.Lifecycle get() = registry
+        override val savedStateRegistry: androidx.savedstate.SavedStateRegistry get() = saved.savedStateRegistry
+        fun start() { saved.performRestore(null); registry.currentState = androidx.lifecycle.Lifecycle.State.RESUMED }
+        fun stop() { registry.currentState = androidx.lifecycle.Lifecycle.State.DESTROYED }
+    }
 
     override fun onDestroy() {
+        hideOverlay()
         main.removeCallbacksAndMessages(null)
         release()
         HeyAalap.releaseMic = null

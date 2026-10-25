@@ -19,6 +19,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -130,37 +133,10 @@ fun SettingsScreen(navController: NavController) {
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             ProfileHeader(navController)
+            // What people come here for, up top: Blend, Wrapped, history, sharing.
+            ProfileQuickTiles(navController)
             ConnectedServicesSection(navController)
             YourTasteSection()
-            SectionTitle("Appearance")
-            // Applies instantly: ThemeState drives the Aalap palette app-wide.
-            com.music.aalap.data.preferences.ThemeMode.entries.forEach { mode ->
-                SourceSettingRow(
-                    title = mode.label,
-                    subtitle = when (mode) {
-                        com.music.aalap.data.preferences.ThemeMode.SYSTEM -> "Match your phone's dark mode"
-                        com.music.aalap.data.preferences.ThemeMode.LIGHT -> "Warm cream background"
-                        com.music.aalap.data.preferences.ThemeMode.DARK -> "Deep indigo background"
-                    },
-                    selected = com.music.aalap.ui.theme.ThemeState.mode == mode,
-                ) { com.music.aalap.ui.theme.ThemeState.set(context, mode) }
-            }
-
-            SectionTitle("Your music")
-            NavRow("Your artists", "Follow artists, with suggestions from what you play") {
-                navController.navigate(com.music.aalap.ui.navigation.Routes.ArtistPicker.route)
-            }
-
-            SectionTitle("Recommendations")
-            com.music.aalap.ui.components.RecommendationSettings()
-
-            SectionTitle("Sound")
-            NavRow("Sound and equalizer", "Presets, bass boost, normalize volume, playback speed") {
-                navController.navigate(com.music.aalap.ui.navigation.Routes.Sound.route)
-            }
-            NavRow("Your Aalap Wrapped", "Your month in music, ready to share") {
-                navController.navigate(com.music.aalap.ui.navigation.Routes.Wrapped.route)
-            }
 
             SectionTitle("Playback")
             var fastLoading by remember { mutableStateOf(com.music.aalap.data.preferences.isFastLoading(context)) }
@@ -181,6 +157,17 @@ fun SettingsScreen(navController: NavController) {
             SectionTitle("Voice")
             com.music.aalap.ui.components.HeyAalapSetting()
 
+            SectionTitle("Recommendations")
+            com.music.aalap.ui.components.RecommendationSettings()
+
+            SectionTitle("Sound and your music")
+            NavRow("Sound and equalizer", "Presets, bass boost, normalize volume, playback speed") {
+                navController.navigate(com.music.aalap.ui.navigation.Routes.Sound.route)
+            }
+            NavRow("Your artists", "Follow artists, with suggestions from what you play") {
+                navController.navigate(com.music.aalap.ui.navigation.Routes.ArtistPicker.route)
+            }
+
             SectionTitle("Notifications")
             var notifButtons by remember { mutableStateOf(com.music.aalap.data.preferences.isNotificationExtraButtons(context)) }
             SettingsSwitchRow(
@@ -197,10 +184,6 @@ fun SettingsScreen(navController: NavController) {
                     .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
                 runCatching { context.startActivity(intent) }
             }
-
-            SectionTitle("Share")
-            ShareAalapRow()
-            com.music.aalap.ui.components.BlendSettings()
 
             SectionTitle("Offline")
             val offline = com.music.aalap.data.preferences.OfflineState
@@ -347,6 +330,20 @@ fun SettingsScreen(navController: NavController) {
                     inactiveTrackColor = com.music.aalap.ui.theme.SurfaceHigh,
                 ),
             )
+            SectionTitle("Appearance")
+            // Applies instantly: ThemeState drives the Aalap palette app-wide.
+            com.music.aalap.data.preferences.ThemeMode.entries.forEach { mode ->
+                SourceSettingRow(
+                    title = mode.label,
+                    subtitle = when (mode) {
+                        com.music.aalap.data.preferences.ThemeMode.SYSTEM -> "Match your phone's dark mode"
+                        com.music.aalap.data.preferences.ThemeMode.LIGHT -> "Warm cream background"
+                        com.music.aalap.data.preferences.ThemeMode.DARK -> "Deep indigo background"
+                    },
+                    selected = com.music.aalap.ui.theme.ThemeState.mode == mode,
+                ) { com.music.aalap.ui.theme.ThemeState.set(context, mode) }
+            }
+
             Spacer(Modifier.height(12.dp))
             // Power-user options, folded away so the page stays about everyday choices.
             var showAdvanced by remember { mutableStateOf(false) }
@@ -421,6 +418,42 @@ fun SettingsScreen(navController: NavController) {
             }
             // Clears the floating mini player + tab bar so Log out can scroll fully into view.
             Spacer(Modifier.height(190.dp))
+        }
+    }
+}
+
+/** Profile's quick tiles: Blend, Wrapped, listening history and sharing Aalap. */
+@Composable
+private fun ProfileQuickTiles(navController: NavController) {
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    @Composable
+    fun Tile(title: String, subtitle: String, icon: androidx.compose.ui.graphics.painter.Painter, modifier: Modifier, onClick: () -> Unit) {
+        Column(
+            modifier.clip(RoundedCornerShape(18.dp)).background(com.music.aalap.ui.theme.Surface).clickable(onClick = onClick).padding(14.dp),
+        ) {
+            Icon(icon, contentDescription = null, tint = AppPalette, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.height(8.dp))
+            Text(title, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, maxLines = 1)
+        }
+    }
+    Column(Modifier.padding(top = 14.dp), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+            Tile("Blend", "Mix tastes with a friend", androidx.compose.ui.res.painterResource(com.music.aalap.R.drawable.ic_blend), Modifier.weight(1f)) {
+                com.music.aalap.ui.components.BlendUi.open()
+            }
+            Tile("Wrapped", "Your month in music", androidx.compose.ui.graphics.vector.rememberVectorPainter(androidx.compose.material.icons.Icons.Default.Star), Modifier.weight(1f)) {
+                navController.navigate(com.music.aalap.ui.navigation.Routes.Wrapped.route)
+            }
+        }
+        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)) {
+            Tile("History", "Everything you played", androidx.compose.ui.graphics.vector.rememberVectorPainter(androidx.compose.material.icons.Icons.Default.DateRange), Modifier.weight(1f)) {
+                navController.navigate(com.music.aalap.ui.navigation.Routes.History.route)
+            }
+            Tile("Share Aalap", "Send the app to friends", androidx.compose.ui.graphics.vector.rememberVectorPainter(androidx.compose.material.icons.Icons.Default.Share), Modifier.weight(1f)) {
+                scope.launch { runCatching { com.music.aalap.ui.share.ShareApp.share(context) } }
+            }
         }
     }
 }

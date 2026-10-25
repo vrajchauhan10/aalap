@@ -40,11 +40,14 @@ object SongVideo {
         val artistWords = words(firstArtist)
         // YouTube marks official music videos (OMV); those first.
         val ranked = items.take(8).sortedByDescending { if (it.musicVideoType?.contains("OMV") == true) 1 else 0 }
+        Log.d(TAG, "'$title' candidates: " + ranked.joinToString { "${it.title} / ${it.artists.joinToString { a -> a.name }} / ${it.musicVideoType} / ${it.duration}" })
         return ranked.firstOrNull { v ->
             val t = words(v.title)
             val a = v.artists.flatMap { words(it.name) }.toSet() + t
             val titleOk = want.isNotEmpty() && want.count { it in t } >= (want.size + 1) / 2
-            val artistOk = artistWords.isEmpty() || artistWords.any { it in a }
+            // Film songs are often uploaded by the label (T-Series, Sony Music…), not the singer:
+            // an official music video with the title is enough there.
+            val artistOk = artistWords.isEmpty() || artistWords.any { it in a } || v.musicVideoType?.contains("OMV") == true
             // Not a lyric video, a still-image "audio" upload, a cover…
             val notOther = listOf("lyric", "lyrics", "audio", "cover", "karaoke", "live", "reaction", "slowed", "8d", "remix").none { it in t && it !in want }
             // Videos often run a little longer than the song (an intro); not a mix or a short.

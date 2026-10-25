@@ -9,9 +9,9 @@ import org.junit.Test
 /** How "Hey Aalap" is recognised in what the speech engine heard. */
 class HeyAalapTest {
     @Test fun wakeWords() {
-        for (t in listOf("hey aalap", "Hey Alap", "ok aalap", "okay alaap", "hey all up", "hey a lap", "hey olap", "OK Aalap."))
+        for (t in listOf("hey aalap", "Hey Alap", "ok aalap", "okay alaap", "hey all up", "hey a lap", "hey olap", "OK Aalap.", "ki HAL aap play kesariya", "haal aap", "hey all app", "hey alarm play kesariya", "hey all of play kesariya", "ke all of play kesariya", "a alarm play kesariya"))
             assertTrue(t, HeyAalap.hear(t).woke)
-        for (t in listOf("hey apple", "hey alexa", "aalap", "play aalap songs", "hey", "hey lap top", "okay a laptop"))
+        for (t in listOf("hey apple", "hey alexa", "aalap", "play aalap songs", "hey", "hey lap top", "okay a laptop", "hello world", "the hall was empty", "help me", "set an alarm for six", "all of us play together"))
             assertFalse(t, HeyAalap.hear(t).woke)
     }
 

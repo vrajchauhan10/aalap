@@ -139,7 +139,31 @@ object BlendSync {
         val merged = remote.filter { it.pairId !in hidden }.map { r -> r.copy(playlistId = local[r.pairId]?.playlistId.orEmpty()) } +
             _blends.value.filter { !it.synced }
         setAll(app, merged.map { mirror(app, it) })
+        // A friend made a Blend with your code: tell you (once per Blend).
+        val seen = app.getSharedPreferences("blend_sync", Context.MODE_PRIVATE).getStringSet("seen", null)
+        val ids = merged.mapTo(HashSet()) { it.pairId }
+        if (seen != null) for (b in merged.filter { it.pairId !in seen && it.synced }) notifyNew(app, b)
+        app.getSharedPreferences("blend_sync", Context.MODE_PRIVATE).edit().putStringSet("seen", (seen.orEmpty() + ids)).apply()
     }
+
+    /** "Rahul made a Blend with you": opens Blend. */
+    private fun notifyNew(app: Context, b: Shared) {
+        runCatching {
+            val nm = app.getSystemService(android.app.NotificationManager::class.java)
+            nm.createNotificationChannel(android.app.NotificationChannel("blend", "Blend", android.app.NotificationManager.IMPORTANCE_DEFAULT))
+            val open = android.app.PendingIntent.getActivity(app, 7,
+                android.content.Intent(app, com.music.aalap.MainActivity::class.java).setAction(ACTION_OPEN_BLEND).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                android.app.PendingIntent.FLAG_IMMUTABLE)
+            val me = Blend.myId(app)
+            nm.notify(b.pairId.hashCode(), androidx.core.app.NotificationCompat.Builder(app, "blend")
+                .setSmallIcon(com.music.aalap.R.drawable.ic_blend)
+                .setContentTitle("${b.friendName(me)} added your code")
+                .setContentText("Your Blend is ready: ${b.songs.size} songs, match ${b.score(me)}")
+                .setContentIntent(open).setAutoCancel(true).build())
+        }
+    }
+
+    const val ACTION_OPEN_BLEND = "com.music.aalap.OPEN_BLEND"
 
     // ── making and refreshing ───────────────────────────────────────────────
 

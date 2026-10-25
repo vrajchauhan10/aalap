@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!-- "Hey Aalap" (off by default): listens while Aalap is open or its music plays. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+    <!-- "Hey Aalap" outside the app: the voice card over other apps (you allow it in Settings). -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <!-- Exporting downloads to public Music/ on API <=28 (MediaStore needs none on 29+). -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28"/>

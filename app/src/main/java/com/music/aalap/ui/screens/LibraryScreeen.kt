@@ -834,9 +834,10 @@ private fun LibrarySkeleton(padding: PaddingValues) {
     }
 }
 
+/** The account menu, the same from Home's and Library's photo: profile, Blend, history, sharing. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AccountSheet(
+internal fun AccountSheet(
     account: AccountModel,
     navController: NavController,
     onDismiss: () -> Unit,
@@ -872,6 +873,10 @@ private fun AccountSheet(
             AccountRow("Profile and settings") {
                 onDismiss()
                 navController.navigate(Routes.Settings.route)
+            }
+            AccountRow("Blend with a friend") {
+                onDismiss()
+                com.music.aalap.ui.components.BlendUi.open()
             }
             AccountRow("Listening history") {
                 onDismiss()

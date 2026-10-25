@@ -317,6 +317,17 @@ private fun HomeHeaderRow(navController: NavController) {
         val photoVersion by com.music.aalap.data.preferences.ProfilePhoto.version.collectAsState()
         val avatarUrl: Any? = remember(photoVersion) { com.music.aalap.data.preferences.ProfilePhoto.get(context) }
             ?: com.music.aalap.data.api.ProfileCache.imageUrl
+        // The photo opens the same account menu as in Library (profile, Blend, history, share).
+        var showAccount by remember { androidx.compose.runtime.mutableStateOf(false) }
+        if (showAccount) AccountSheet(
+            account = com.music.aalap.data.entity.AccountModel(
+                name = com.music.aalap.data.api.ProfileCache.name.orEmpty(),
+                email = com.music.aalap.data.preferences.getAalapEmail(context),
+                imageUrl = (avatarUrl as? java.io.File)?.path ?: (avatarUrl as? String).orEmpty(),
+            ),
+            navController = navController,
+            onDismiss = { showAccount = false },
+        )
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
@@ -326,7 +337,7 @@ private fun HomeHeaderRow(navController: NavController) {
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                ) { navController.navigate(Routes.Settings.route) },
+                ) { showAccount = true },
         ) {
             if (avatarUrl != null) {
                 GlideImage(

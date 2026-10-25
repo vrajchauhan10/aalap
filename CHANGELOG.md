@@ -4,6 +4,38 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 5.5.0 — 25 Oct 2026 (build 57)
+- **Blend:**
+  - Petals fall the first time you open it, and again when you come back after a while.
+  - Your Blends come first on the screen, then making a new one.
+  - A "How Blend stays in sync" card says what happens on both phones and shows when
+    you're connected.
+  - When a friend adds your code you get a notification ("Meera added your code: your
+    Blend is ready"), which opens Blend.
+- **Profile:**
+  - Your photo on Home now opens the same menu as in Library (profile and settings,
+    Blend, listening history, share Aalap) instead of jumping straight into settings.
+  - The menu has "Blend with a friend".
+  - The Profile page starts with four quick tiles (Blend, Wrapped, History, Share
+    Aalap), then your services and taste, then everyday settings (playback, quality and
+    crossfade, voice, recommendations, sound); appearance and advanced options are lower.
+- **Song videos from YouTube now find film songs** uploaded by the music label rather
+  than the singer (e.g. Mashooqa).
+- **"Hey Aalap":**
+  - **The voice bar comes up wherever you are**, over any app, when you allow "Display over
+    other apps" (Profile → Voice has the button). Without it, the notification shows what's
+    happening.
+  - **A lighter voice bar:** a slim card with a thin orange edge that traces round it in
+    a quarter of a second and pulls back as fast; a small orange dot breathes with your
+    voice, one line shows your words, then the song.
+  - **Requests from the background now play:** the music is turned right down instead of
+    paused while it listens, and the listener waits a minute before stopping, so Aalap
+    keeps its network (Android cuts it for idle background apps, e.g. in Battery Saver).
+    Tested: "Hey Aalap" … "play Believer by Imagine Dragons" with Aalap minimised.
+  - Understands more ways it's heard ("hal aap", "hey alarm", "all of play…"), and starts
+    listening again at once after each round so words aren't missed.
+  - If a request finds nothing, the music comes back to full volume and the bar says so.
+
 ## 5.4.0 — 25 Oct 2026 (build 56)
 - **"Hey Aalap" / "OK Aalap"** (Profile → Voice, off by default). Say it, then a song,
   singer or mood, or all at once ("Hey Aalap, play Kesariya"). It listens while Aalap is

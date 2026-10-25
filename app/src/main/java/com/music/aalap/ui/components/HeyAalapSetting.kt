@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -57,6 +60,24 @@ fun HeyAalapSetting() {
                 color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp,
             )
             if (note.isNotBlank()) Text(note, color = com.music.aalap.ui.theme.Saffron, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            // Outside Aalap the voice card shows over other apps, which Android asks you to allow.
+            var overlayOk by remember { mutableStateOf(android.provider.Settings.canDrawOverlays(context)) }
+            val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+            androidx.compose.runtime.DisposableEffect(lifecycle) {
+                val o = androidx.lifecycle.LifecycleEventObserver { _, e -> if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) overlayOk = android.provider.Settings.canDrawOverlays(context) }
+                lifecycle.addObserver(o); onDispose { lifecycle.removeObserver(o) }
+            }
+            if (on && !overlayOk) Text(
+                "Allow \u201CDisplay over other apps\u201D so the voice card also comes up when Aalap isn't open",
+                color = com.music.aalap.ui.theme.OnSaffron, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 8.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(50)).background(com.music.aalap.ui.theme.Saffron)
+                    .clickable {
+                        runCatching {
+                            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                android.net.Uri.parse("package:${context.packageName}")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                        }
+                    }.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
         }
         Switch(
             checked = on, onCheckedChange = null,

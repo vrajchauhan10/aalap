@@ -154,9 +154,16 @@ private fun BlendScreen(state: CurrentSongState, onClose: () -> Unit) {
                 Text("Blend", color = TextPrimary, fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 Text("Close", color = TextMuted, fontSize = 14.sp, modifier = Modifier.clip(RoundedCornerShape(50)).clickable { onClose() }.padding(12.dp))
             }
-            Text("One playlist from two tastes, with a match score. No account, nothing uploaded: you swap taste codes.",
+            Text("One playlist from two tastes, the same on both phones, fresh every day. Send your code once: when your friend adds it, the Blend appears for both of you.",
                 color = TextMuted, fontSize = 13.sp)
             Box(Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) { MergingOrbs(Modifier.size(150.dp)) }
+
+            // Your Blends first: they're what you come back for.
+            if (saved.isNotEmpty()) {
+                Text("Your Blends", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
+                saved.forEach { s -> BlendCardRow(s) { BlendUi.detail.value = s.pairId } }
+                Text("New Blend", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 18.dp, bottom = 2.dp))
+            }
 
             // 1 · your code
             Card {
@@ -221,15 +228,36 @@ private fun BlendScreen(state: CurrentSongState, onClose: () -> Unit) {
                 }
             }
 
-            // Saved Blends
-            if (saved.isNotEmpty()) {
-                Text("Your Blends", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 22.dp, bottom = 4.dp))
-                Text("Also in Library → Blends. A fresh 30 every day, the same on both phones; listening to them raises your score.",
-                    color = TextMuted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
-                saved.forEach { s -> BlendCardRow(s) { BlendUi.detail.value = s.pairId } }
+            // How the two phones stay in step (free: Aalap's own Firebase, no account to make).
+            Card {
+                Text("How Blend stays in sync", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                for ((dot, line) in listOf(
+                    "1" to "You send your code; your friend adds it (or you add theirs). One of you is enough.",
+                    "2" to "The Blend shows on both phones, in Blend and Library → Blends.",
+                    "3" to "Each day the first phone to open Aalap makes the new 30; the other gets the same 30.",
+                    "4" to "Songs either of you hear raise the score for both. Updates when Aalap opens and every minute on a Blend's page.",
+                )) Row(Modifier.padding(vertical = 3.dp)) {
+                    Text(dot, color = Saffron, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(18.dp))
+                    Text(line, color = TextMuted, fontSize = 12.sp)
+                }
+                val sync by com.music.aalap.data.recommendation.BlendSync.status.collectAsState()
+                Text(
+                    when (sync) { "live" -> "● Connected"; "local" -> "This build has no Blend sync"; "connecting" -> "Connecting…"; else -> "Offline: syncs when you're back online" },
+                    color = if (sync == "live") Color(0xFF4CD964) else TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp),
+                )
             }
             Box(Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 24.dp), contentAlignment = Alignment.CenterEnd) { Signature(size = 12f) }
         }
+
+        // Petals fall the first time you open Blend, and again after a long while away.
+        val petals = remember {
+            val p = context.getSharedPreferences("blend", Context.MODE_PRIVATE)
+            val last = p.getLong("opened", 0L)
+            p.edit().putLong("opened", System.currentTimeMillis()).apply()
+            System.currentTimeMillis() - last > 12 * 3_600_000L
+        }
+        if (petals) PetalShower(Modifier.fillMaxSize())
 
         if (making) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -399,6 +427,39 @@ private fun sparkles(scope: DrawScope, t: Float, color: Color, n: Int) = with(sc
         val tw = ((sin((t * 2 * PI * 3) + k * 1.7) + 1) / 2).toFloat()
         val x = size.width * ((k * 0.31f + 0.07f) % 1f); val y = size.height * ((k * 0.53f + 0.11f) % 1f)
         drawCircle(color.copy(alpha = tw * 0.9f), 3f + tw * 4f, Offset(x, y))
+    }
+}
+
+/**
+ * Marigold and rose petals drifting down over the screen once (about three seconds),
+ * each turning and swaying as it falls, then fading away.
+ */
+@Composable
+private fun PetalShower(modifier: Modifier) {
+    val fall = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { fall.animateTo(1f, tween(3200, easing = LinearEasing)) }
+    if (fall.value >= 1f) return
+    val colors = listOf(Saffron, SaffronGold, Color(0xFFFF6F91), Color(0xFFFFB38A), Color(0xFFF7C8D0))
+    // Each petal: where it starts across, when it starts, how fast, how big, how it sways.
+    val petals = remember { List(42) { k -> val r = java.util.Random(k * 7919L); floatArrayOf(r.nextFloat(), r.nextFloat() * 0.45f, 0.55f + r.nextFloat() * 0.45f, 0.7f + r.nextFloat() * 0.6f, r.nextFloat() * 6.28f) } }
+    Canvas(modifier) {
+        val t = fall.value
+        petals.forEachIndexed { k, (x0, start, speed, scale, phase) ->
+            val p = ((t - start) / (1f - start)).coerceIn(0f, 1f) * speed * 1.3f
+            if (t < start || p > 1.2f) return@forEachIndexed
+            val y = -40f + p * (size.height + 80f)
+            val x = x0 * size.width + sin(p * 9f + phase) * 36f
+            val alpha = (if (t > 0.8f) (1f - t) / 0.2f else 1f).coerceIn(0f, 1f)
+            val s = 9.dp.toPx() * scale
+            rotate(p * 540f + phase * 57f, Offset(x, y)) {
+                val petal = Path().apply {
+                    moveTo(x, y - s)
+                    cubicTo(x + s * 0.9f, y - s * 0.4f, x + s * 0.5f, y + s * 0.8f, x, y + s)
+                    cubicTo(x - s * 0.5f, y + s * 0.8f, x - s * 0.9f, y - s * 0.4f, x, y - s)
+                }
+                drawPath(petal, colors[k % colors.size].copy(alpha = 0.9f * alpha))
+            }
+        }
     }
 }
 
