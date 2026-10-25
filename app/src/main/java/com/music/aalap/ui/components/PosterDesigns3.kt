@@ -58,12 +58,15 @@ private val Shisha = PosterDesign("Mirror work", "India", Color(0xFF0F2A3F)) {
     val h = size.height
     drawRect(Color(0xFF1F4E5F))
     artArea {
-        val v = gridV(h * 0.15f, shift = h * 0.075f, levels = 2)
+        val cells = ArrayList<Offset>()
+        micro(h * 0.15f, shift = h * 0.075f) { c, _, _ -> cells += c }
+        val vCells = pickV(cells, h * 0.15f, h * 0.3f, n = 2).map { cells[it] }
         micro(h * 0.15f, shift = h * 0.075f) { c, i, j ->
-            val isV = v.hit(c, h * 0.03f)
-            val ray = if (isV) Color.White else listOf(Color(0xFFFF8A3D), Color(0xFFE5397A), Color(0xFFF2C14E))[(i + j) % 3]
+            val isV = vCells.any { (it - c).getDistance() < 1f }
+            val ray = if (isV) Color(0xFFF2C14E) else listOf(Color(0xFFFF8A3D), Color(0xFFE5397A), Color(0xFF7FD1C7))[(i + j) % 3]
             for (k in 0 until 12) rotate(k * 30f, c) { drawLine(ray, Offset(c.x, c.y - h * 0.03f), Offset(c.x, c.y - h * 0.05f), h * 0.005f, cap = StrokeCap.Round) }
-            drawCircle(if (isV) Color(0xFFF2C14E) else Color(0xFFDDE6EA), h * 0.026f, c)
+            // In the V the mirror is set in gold thread, rays and all, in white.
+            drawCircle(if (isV) Color(0xFFF2C14E) else Color(0xFFDDE6EA), if (isV) h * 0.032f else h * 0.026f, c)
             drawCircle(Color.White, h * 0.009f, Offset(c.x - h * 0.008f, c.y - h * 0.008f))
         }
     }
@@ -76,21 +79,21 @@ private val Parang = PosterDesign("Batik parang", "Indonesia", Color(0xFF2A1A0E)
     val w = size.width; val h = size.height
     drawRect(Color(0xFF8A5A2B))
     val cream = Color(0xFFF2E3C6); val dark = Color(0xFF3B2412)
-    // Along a V, the blades are dyed gold instead of cream.
-    val v = vArms(vSpot(), h * 0.12f, h * 0.26f)
     artArea {
         val gap = h * 0.13f
+        val blades = ArrayList<Offset>()
         var x = w * 0.5f - h
         while (x < w + h) {
             drawLine(dark, Offset(x, h), Offset(x + h, 0f), gap * 0.42f)
             var t = 0f
-            while (t < 1f) {
-                val c = Offset(x + h * t, h - h * t)
-                rotate(-45f, c) { drawOval(if (v.near(c, h * 0.035f)) Color(0xFFF2B33D) else cream, Offset(c.x - h * 0.012f, c.y - h * 0.03f), Size(h * 0.024f, h * 0.06f)) }
-                drawCircle(cream, h * 0.006f, Offset(c.x + gap * 0.4f, c.y + gap * 0.05f))
-                t += 0.07f
-            }
+            while (t < 1f) { blades += Offset(x + h * t, h - h * t); t += 0.07f }
             x += gap
+        }
+        // Two arms of blades, in a V, are dyed gold instead of cream.
+        val gold = pickV(blades, h * 0.13f, h * 0.28f, n = 3)
+        blades.forEachIndexed { k, c ->
+            rotate(-45f, c) { drawOval(if (k in gold) Color(0xFFF2B33D) else cream, Offset(c.x - h * 0.012f, c.y - h * 0.03f), Size(h * 0.024f, h * 0.06f)) }
+            drawCircle(cream, h * 0.006f, Offset(c.x + gap * 0.4f, c.y + gap * 0.05f))
         }
     }
     panel(Color(0xFF2A1A0E), Edge.SLANT)
@@ -397,17 +400,19 @@ private val Lahariya = PosterDesign("Lahariya", "India", Color(0xFF4A1048)) {
     val waves = listOf(Color(0xFFE5397A), Color(0xFF7B2CBF), Color(0xFF2EC4B6))
     artArea {
         val gap = h * 0.06f
-        val v = vArms(vSpot(), h * 0.1f, h * 0.24f)
+        val all = ArrayList<Offset>()
         var x = w * 0.5f - h; var k = 0
         while (x < w + h) {
             val pts = ArrayList<Offset>()
             var t = 0f
             while (t <= 1f) { pts += Offset(x + h * t + sin(t * 40f) * h * 0.008f, h - h * t); t += 0.005f }
             drawPath(Path().apply { moveTo(pts[0].x, pts[0].y); pts.forEach { lineTo(it.x, it.y) } }, waves[k % waves.size].copy(alpha = 0.85f), style = Stroke(h * 0.012f, cap = StrokeCap.Round))
-            // Where a wave crosses the V it took the deep plum dye instead.
-            traceV(pts, v, h * 0.016f, Color(0xFF4A1048), h * 0.012f)
+            all += pts
             x += gap; k++
         }
+        // Short stretches of the waves, two arms of them in a V, took the deep plum dye.
+        // Tie-dye resist spots on the waves, two arms of them in a V, took the deep plum dye.
+        for (i in pickV(all, h * 0.12f, h * 0.26f, n = 4)) drawCircle(Color(0xFF4A1048), h * 0.015f, all[i])
     }
     panel(Color(0xFF4A1048), Edge.WAVE)
     hem(Color.White.copy(alpha = 0.45f))

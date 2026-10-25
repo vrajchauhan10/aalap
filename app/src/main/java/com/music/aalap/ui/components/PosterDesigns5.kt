@@ -46,7 +46,9 @@ private val Paisley = PosterDesign("Paisley", "India", Color(0xFF3A0E16)) {
     drawRect(Color(0xFF9E2A2B))
     val cream = Color(0xFFF4E3C1)
     artArea {
-        val v = gridV(h * 0.2f, h * 0.17f, shift = h * 0.1f, levels = 2)
+        val all = ArrayList<Offset>()
+        grid(h * 0.2f, h * 0.17f, shift = h * 0.1f) { c, _, _ -> all += c }
+        val gold = pickV(all, h * 0.2f, h * 0.34f, n = 2).map { all[it] }
         grid(h * 0.2f, h * 0.17f, shift = h * 0.1f) { c, _, _ ->
             val s = h * 0.15f
             val p = Path().apply {
@@ -56,7 +58,7 @@ private val Paisley = PosterDesign("Paisley", "India", Color(0xFF3A0E16)) {
                 cubicTo(c.x + s * 0.5f, c.y - s * 0.1f, c.x + s * 0.45f, c.y + s * 0.45f, c.x, c.y + s * 0.5f)
                 close()
             }
-            drawPath(p, if (v.hit(c, h * 0.04f)) Color(0xFFE8B33A) else Color(0xFF1F6F6B))
+            drawPath(p, if (gold.any { (it - c).getDistance() < 1f }) Color(0xFFE8B33A) else Color(0xFF1F6F6B))
             drawPath(p, cream, style = Stroke(h * 0.006f))
             drawCircle(cream, s * 0.09f, Offset(c.x - s * 0.02f, c.y + s * 0.18f))
         }
@@ -99,7 +101,7 @@ private val AjrakhJaal = PosterDesign("Ajrakh jaal", "India", Color(0xFF1F2A55))
                 var y = 0f
                 while (y <= h) { pts += Offset(x0 + sgn * A * sin(2 * PI * y / P).toFloat(), y); y += h * 0.005f }
                 drawPath(Path().poly(pts, closed = false), ink, style = Stroke(h * 0.01f))
-                traceV(pts, v, h * 0.016f, Color(0xFFF7EFE3), h * 0.012f)
+                traceV(pts, v, h * 0.022f, Color(0xFFF7EFE3), h * 0.014f)
             }
             var y = 0f; var k = 0
             while (y <= h) {
@@ -217,14 +219,14 @@ private val LotusMandala = PosterDesign("Lotus mandala", "India", Color(0xFF0624
             val r1 = h * 0.11f * k; val r0 = r1 - h * 0.13f; val n = 6 + k * 4; val wd = h * 0.03f + k * h * 0.006f
             // The inner ring sits square to the top, so its petals either side of it, gilded,
             // make a V with the heart.
-            val turn = if (k == 1) 0f else k * 7f
+            val turn = if (k == 2) 0f else k * 7f
             for (p in 0 until n) rotate(p * 360f / n + turn, c) {
                 val petal = Path().apply {
                     moveTo(c.x, c.y - r0)
                     quadraticBezierTo(c.x + wd, c.y - (r0 + r1) / 2, c.x, c.y - r1)
                     quadraticBezierTo(c.x - wd, c.y - (r0 + r1) / 2, c.x, c.y - r0)
                 }
-                val gild = k == 1 && (p == 1 || p == n - 1)
+                val gild = k == 2 && (p == 1 || p == n - 1)
                 drawPath(petal, if (gild) Color(0xFFE9B949) else pinks[k % pinks.size])
                 drawPath(petal, Color(0xFF0D3B2E), style = Stroke(h * 0.003f))
             }
@@ -481,7 +483,7 @@ private val Argyle = PosterDesign("Argyle", "Scotland", Color(0xFF1B2428)) {
         // The overcheck is knitted in pale yarn; on one diamond its two lower edges are in gold.
         best?.let { c ->
             drawPath(Path().poly(listOf(Offset(c.x - dw / 2, c.y), Offset(c.x, c.y + dh / 2), Offset(c.x + dw / 2, c.y)), closed = false), Color(0xFFE9C46A),
-                style = Stroke(h * 0.004f, pathEffect = dash(h * 0.012f, h * 0.01f)))
+                style = Stroke(h * 0.007f, cap = StrokeCap.Round))
         }
     }
     panel(Color(0xFF1B2428), Edge.SLANT)
@@ -663,10 +665,7 @@ private val Arabesque = PosterDesign("Arabesque", "Morocco", Color(0xFF0B1A33)) 
             y0 += h * 0.16f; row++
         }
     }
-    val apex = crests.minByOrNull { (it - vSpot()).getDistance() }
-    val vCrests = if (apex == null) emptyList() else listOf(apex) + listOf(-1f, 1f).mapNotNull { side ->
-        crests.filter { it.y < apex.y - h * 0.08f && (it.x - apex.x) * side > 0 }.minByOrNull { (it - Offset(apex.x + side * h * 0.16f, apex.y - h * 0.16f)).getDistance() }
-    }
+    val vCrests = pickV(crests, h * 0.16f, h * 0.32f, n = 2).map { crests[it] }
     artArea {
         var y0 = h * 0.08f; var row = 0
         while (y0 < h + h * 0.1f) {

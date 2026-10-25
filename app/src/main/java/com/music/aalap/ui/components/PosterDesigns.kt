@@ -102,8 +102,23 @@ internal fun DrawScope.stitchV(c: Offset, size: Float, color: Color, thread: Flo
     drawPath(p, color, style = Stroke(thread, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round, pathEffect = dash))
 }
 
-/** Where the maker's V sits: right of the words, between the shuffle button and the label. */
-internal fun DrawScope.vSpot() = Offset(size.width * 0.82f, size.height * 0.6f)
+/**
+ * Where the maker's V sits: well right of the words, so even the left arm of a wide V stays
+ * clear of the panel's edge (arches and waves reach out to about 0.75 of the width), and
+ * between the shuffle button and the label.
+ */
+internal fun DrawScope.vSpot() = Offset(size.width * 0.87f, size.height * 0.58f)
+
+/**
+ * Of a pattern's own pieces ([points]), the ones nearest to marks along both arms of a V
+ * ([n] per arm, plus the bottom): the V is always two whole arms of the pattern's pieces,
+ * whatever way the pattern runs. Returns their indexes.
+ */
+internal fun DrawScope.pickV(points: List<Offset>, spread: Float, rise: Float, n: Int = 3, apex: Offset = vSpot()): Set<Int> {
+    if (points.isEmpty()) return emptySet()
+    val marks = listOf(apex) + (1..n).flatMap { k -> val f = k / n.toFloat(); listOf(Offset(apex.x - spread * f, apex.y - rise * f), Offset(apex.x + spread * f, apex.y - rise * f)) }
+    return marks.mapTo(HashSet()) { m -> points.indices.minByOrNull { (points[it] - m).getDistance() }!! }
+}
 
 /** The two arms of a V whose bottom is [apex]: (left top, apex, right top). */
 internal fun vArms(apex: Offset, spread: Float, rise: Float) =
@@ -192,10 +207,12 @@ private val Sashiko = PosterDesign("Sashiko", "Japan", Color(0xFF14203A)) {
             y += r * 0.55f; row++
         }
     }
-    // The V comes from the pattern itself: along a V line, the short run of wave stitches
-    // lying right on it is sewn in orange thread, so the stitches trace a V.
-    val vBottom = Offset(w * 0.84f, h * 0.62f)
-    val vPoints = (0..4).flatMap { i -> listOf(-1f, 1f).map { side -> Offset(vBottom.x + side * h * 0.04f * i, vBottom.y - h * 0.08f * i) } }.distinct()
+    // The V comes from the pattern itself: the stitches of the wave crests nearest a V,
+    // two arms of them, are sewn in orange thread.
+    val vPoints = run {
+        val apex = vSpot()
+        (0..4).flatMap { i -> listOf(-1f, 1f).map { side -> Offset(apex.x + side * h * 0.035f * i, apex.y - h * 0.07f * i) } }.distinct()
+    }
     artArea {
         for ((c, k) in waves) {
             drawArc(
@@ -243,10 +260,10 @@ private val Zellige = PosterDesign("Zellige", "Morocco", Color(0xFF0F4C4A)) {
             }
             y += s * 0.85f; j++
         }
-        // Five stars, glazed gold, sit in a V: one, and two up each side of it.
-        stars.minByOrNull { (it - vSpot()).getDistance() }?.let { apex ->
-            val vStars = (0..2).flatMap { k -> listOf(-1f, 1f).map { side -> Offset(apex.x + side * s * 0.7f * k, apex.y - s * 0.85f * k) } }
-            for (c in stars) if (vStars.any { (it - c).getDistance() < s * 0.1f }) {
+        // Three stars, glazed gold, sit in a V: one, and one up either side of it.
+        run {
+            val gold = pickV(stars, s * 0.7f, s * 0.85f, n = 1).map { stars[it] }
+            for (c in gold) {
                 for (a in listOf(0f, 45f)) rotate(a, c) {
                     drawRect(Color(0xFFE0B04A), topLeft = Offset(c.x - s * 0.28f, c.y - s * 0.28f), size = Size(s * 0.56f, s * 0.56f))
                 }
@@ -441,19 +458,18 @@ private val Madhubani = PosterDesign("Madhubani", "India", Color(0xFF7A1F16)) {
         drawCircle(black, h * 0.018f, Offset(c.x + h * 0.2f, c.y - h * 0.16f))
     }
     artArea {
-        // Madhubani fills its ground with fine dots; a V of them is painted red.
-        val v = vArms(Offset(c.x + h * 0.02f, c.y + h * 0.04f), h * 0.06f, h * 0.12f)
+        // Madhubani fills its ground with fine dots.
         var yy = h * 0.04f
         while (yy < h) {
             var xx = w * 0.6f + h * 0.02f
-            while (xx < w) {
-                val d = Offset(xx, yy)
-                if (v.near(d, h * 0.012f)) drawCircle(red, h * 0.008f, d) else drawCircle(black.copy(alpha = 0.35f), h * 0.005f, d)
-                xx += h * 0.035f
-            }
+            while (xx < w) { drawCircle(black.copy(alpha = 0.35f), h * 0.005f, Offset(xx, yy)); xx += h * 0.035f }
             yy += h * 0.035f
         }
         fish(false); fish(true)
+        // The lower fish's body is dotted too; a V of its dots is painted red.
+        val body = (0..6).flatMap { i -> (0..3).map { j -> Offset(c.x - h * 0.13f + i * h * 0.04f, c.y + h * 0.08f + j * h * 0.04f) } }
+        val vDots = pickV(body, h * 0.08f, h * 0.12f, n = 2, apex = Offset(c.x + h * 0.03f, c.y + h * 0.2f))
+        body.forEachIndexed { k, d -> if (k in vDots) drawCircle(red, h * 0.012f, d) else drawCircle(black.copy(alpha = 0.55f), h * 0.006f, d) }
         // Double-line border with a row of red dots between.
         val inset = h * 0.07f
         drawRect(black, topLeft = Offset(w * 0.6f, inset), size = Size(w * 0.4f - inset, h - inset * 2), style = Stroke(sw))

@@ -4,6 +4,17 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 5.6.0 — 25 Oct 2026 (build 58)
+- **Aaj ka Aalap posters: the V shows properly in every design.** Checked all 100 on the
+  phone; 23 had a V with only one arm showing, an arm hidden under the words panel, or
+  too faint to see.
+  - The V now sits further right, clear of the panel's curved edges.
+  - Designs whose pattern runs one way (Batik parang, Harris Tweed, Lahariya, Ajrakh jaal,
+    Sashiko, Arabesque…) now pick the pattern's own pieces nearest both arms of a V, so
+    the V is always two whole arms.
+  - Faint ones are clearer: Madhubani, Kalamkari, Kuba, Mola, Mirror work, Persian carpet,
+    Lotus mandala, Argyle, Azulejo, Khatamband, Paisley.
+
 ## 5.5.0 — 25 Oct 2026 (build 57)
 - **Blend:**
   - Petals fall the first time you open it, and again when you come back after a while.

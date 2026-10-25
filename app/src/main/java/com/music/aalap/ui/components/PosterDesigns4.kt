@@ -92,12 +92,14 @@ private val Khatamband = PosterDesign("Khatamband", "India", Color(0xFF2E1F12)) 
     val groove = Color(0xFF4A3018)
     val s = h * 0.11f
     artArea {
-        // The brass pins at each joint: five of them, in a V, are polished bright.
-        val v = gridV(s, levels = 2)
+        // The brass pins at each joint: two arms of them, in a V, are polished bright.
+        val pins = ArrayList<Offset>()
+        cells(s) { c, _, _ -> pins += c }
+        val bright = pickV(pins, s * 1.2f, s * 2.4f, n = 2).map { pins[it] }
         cells(s) { c, _, _ ->
             rotate(45f, c) { drawRect(groove, Offset(c.x - s * 0.28f, c.y - s * 0.28f), Size(s * 0.56f, s * 0.56f), style = Stroke(h * 0.005f)) }
             drawRect(groove, Offset(c.x - s * 0.5f, c.y - s * 0.5f), Size(s, s), style = Stroke(h * 0.004f))
-            if (v.hit(c, s * 0.3f)) drawCircle(Color(0xFFFFE3A8), h * 0.012f, c) else drawCircle(Color(0xFFE2B77E), h * 0.006f, c)
+            if (bright.any { (it - c).getDistance() < 1f }) drawCircle(Color(0xFFFFE3A8), h * 0.014f, c) else drawCircle(Color(0xFFE2B77E), h * 0.006f, c)
         }
     }
     panel(Color(0xFF2E1F12), Edge.ARCH)
@@ -137,15 +139,22 @@ private val HarrisTweed = PosterDesign("Harris Tweed", "Scotland", Color(0xFF1F2
     val light = Color(0xFFC9C2A8); val dark = Color(0xFF2F382C)
     artArea {
         val col = h * 0.06f; val dash = h * 0.03f
-        // Flecks of orange yarn are spun into the light weft where it runs along a V.
-        val v = vArms(vSpot(), h * 0.1f, h * 0.22f); val fleck = Color(0xFFE08A3C)
+        // Flecks of orange yarn are spun into the light weft: two arms of them, in a V.
+        val fleck = Color(0xFFE08A3C)
+        val mids = ArrayList<Offset>()
+        run {
+            var xx = w * 0.5f; var kk = 0
+            while (xx < w + col) { var yy = 0f; val d = if (kk % 2 == 0) 1f else -1f; while (yy < h) { mids += Offset(xx + col * d * 0.4f, yy + dash / 2); yy += dash }; xx += col; kk++ }
+        }
+        val flecks = pickV(mids, h * 0.12f, h * 0.26f, n = 4).map { mids[it] }
         var x = w * 0.5f; var k = 0
         while (x < w + col) {
             var y = 0f
             while (y < h) {
                 val dir = if (k % 2 == 0) 1f else -1f
                 val mid = Offset(x + col * dir * 0.4f, y + dash / 2)
-                drawLine(if (v.near(mid, col * 0.45f)) fleck else light, Offset(x, y), Offset(x + col * dir * 0.8f, y + dash), h * 0.006f, cap = StrokeCap.Round)
+                val on = flecks.any { (it - mid).getDistance() < 1f }
+                drawLine(if (on) fleck else light, Offset(x, y), Offset(x + col * dir * 0.8f, y + dash), if (on) h * 0.01f else h * 0.006f, cap = StrokeCap.Round)
                 drawLine(dark, Offset(x, y + dash * 0.5f), Offset(x + col * dir * 0.8f, y + dash * 1.5f), h * 0.004f, cap = StrokeCap.Round)
                 y += dash
             }

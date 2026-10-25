@@ -119,7 +119,12 @@ private val Kalamkari = PosterDesign("Kalamkari", "India", Color(0xFF3B2414)) {
             drawCircle(ochre, h * 0.022f, Offset((from.x + to.x) / 2, (from.y + to.y) / 2 + h * 0.03f))
         }
         drawCircle(madder, h * 0.06f, Offset(base.x + h * 0.015f, h * 0.1f))
-        petalV(Offset(base.x + h * 0.012f, h * 0.8f), h * 0.12f, ochre)
+        // Kalamkari dots its ground with fine kalam dots; two arms of them are in madder red.
+        val dots = ArrayList<Offset>()
+        var yy = h * 0.05f
+        while (yy < h) { var xx = w * 0.6f; while (xx < w) { dots += Offset(xx, yy); xx += h * 0.045f }; yy += h * 0.045f }
+        val red = pickV(dots, h * 0.12f, h * 0.24f, n = 3)
+        dots.forEachIndexed { k, d -> if (k in red) drawCircle(madder, h * 0.011f, d) else drawCircle(brown.copy(alpha = 0.3f), h * 0.004f, d) }
     }
     panel(Color(0xFF3B2414), Edge.ARCH)
     hem(ochre.copy(alpha = 0.6f))
@@ -212,12 +217,13 @@ private val Mola = PosterDesign("Mola", "Panama", Color(0xFF1B1B3A)) {
     artArea {
         // Molas are cut with little slits ("tas") down to the layer below; in the heart
         // of the big motif a V of them shows the red base cloth.
-        val c = Offset(w * 0.8f, h * 0.5f); val st = h * 0.03f
-        val v = vArms(Offset(c.x, c.y + st * 1.5f), st * 2f, st * 3f)
-        for (iy in -2..2) for (ix in -3..3) {
-            val p = Offset(c.x + ix * st, c.y + iy * st)
-            val col = if (v.near(p, st * 0.35f)) Color(0xFFE63946) else Color(0xFF111111).copy(alpha = 0.55f)
-            drawRoundRect(col, Offset(p.x - st * 0.12f, p.y - st * 0.32f), Size(st * 0.24f, st * 0.64f), CornerRadius(st * 0.12f))
+        val c = Offset(w * 0.8f, h * 0.5f); val st = h * 0.032f
+        val slits = (-2..2).flatMap { iy -> (-3..3).map { ix -> Offset(c.x + ix * st, c.y + iy * st) } }
+        val red = pickV(slits, st * 2f, st * 3.6f, n = 2, apex = Offset(c.x, c.y + st * 2))
+        slits.forEachIndexed { k, p ->
+            val col = if (k in red) Color(0xFFE63946) else Color(0xFF111111).copy(alpha = 0.55f)
+            val wd = if (k in red) st * 0.34f else st * 0.24f
+            drawRoundRect(col, Offset(p.x - wd / 2, p.y - st * 0.34f), Size(wd, st * 0.68f), CornerRadius(wd / 2))
         }
     }
     panel(Color(0xFF1B1B3A), Edge.STEP)
@@ -274,7 +280,7 @@ private val Azulejo = PosterDesign("Azulejo", "Portugal", Color(0xFF0D2C5C)) {
             val gold = Color(0xFFE0A526)
             drawCircle(if (isV) gold else blue, t * 0.06f, c)
             for ((dx, dy) in listOf(-1f to -1f, 1f to -1f, -1f to 1f, 1f to 1f)) for (rr in listOf(0.2f, 0.33f)) {
-                drawCircle(if (isV && dy < 0) gold else blue.copy(alpha = 0.7f), t * 0.028f, Offset(c.x + dx * t * rr, c.y + dy * t * rr))
+                drawCircle(if (isV && dy < 0) gold else blue.copy(alpha = 0.7f), if (isV && dy < 0) t * 0.045f else t * 0.028f, Offset(c.x + dx * t * rr, c.y + dy * t * rr))
             }
             drawLine(blue.copy(alpha = 0.5f), Offset(c.x - t / 2, c.y - t / 2), Offset(c.x - t * 0.32f, c.y - t * 0.32f), h * 0.008f)
             drawLine(blue.copy(alpha = 0.5f), Offset(c.x + t / 2, c.y + t / 2), Offset(c.x + t * 0.32f, c.y + t * 0.32f), h * 0.008f)
@@ -334,15 +340,11 @@ private val Kuba = PosterDesign("Kuba cloth", "Congo", Color(0xFF2B1D10)) {
         }
     }
     artArea {
-        // Every motif has a cut-pile knot at its heart; three of them, a motif and the two
-        // diagonally above it, are dyed red: a V.
-        vKuba?.let { apex ->
-            val step = h * 0.25f
-            val v = listOf(apex, Offset(apex.x - step, apex.y - step), Offset(apex.x + step, apex.y - step))
-            tiles(h * 0.25f) { c, _, _ ->
-                if (v.hit(c, step * 0.2f)) drawCircle(Color(0xFFA8442A), h * 0.022f, c) else drawCircle(ink, h * 0.012f, c)
-            }
-        }
+        // Cut-pile knots at every motif's heart and corners; two arms of them are dyed red: a V.
+        val knots = ArrayList<Offset>()
+        tiles(h * 0.125f) { c, _, _ -> knots += c }
+        val red = pickV(knots, h * 0.12f, h * 0.25f, n = 2)
+        knots.forEachIndexed { k, c -> if (k in red) drawCircle(Color(0xFFB8452A), h * 0.02f, c) else drawCircle(ink, h * 0.008f, c) }
     }
     panel(Color(0xFF2B1D10), Edge.STEP)
     hem(Color(0xFFC8A876).copy(alpha = 0.5f))
@@ -391,7 +393,7 @@ private val PersianCarpet = PosterDesign("Persian carpet", "Iran", Color(0xFF142
         lozenge(h * 0.3f, h * 0.37f, navy)
         lozenge(h * 0.18f, h * 0.22f, Color(0xFF8B1E2D))
         lozenge(h * 0.08f, h * 0.1f, gold)
-        // A ring of twelve small gold buds; the two either side of the top are ivory, and
+        // A ring of twelve small gold buds; the two either side of the top are madder red, and
         // with the gold heart they make a V.
         for (k in 0 until 12) rotate(k * 30f, c) {
             val bud = Path().apply {
@@ -399,7 +401,7 @@ private val PersianCarpet = PosterDesign("Persian carpet", "Iran", Color(0xFF142
                 quadraticBezierTo(c.x + h * 0.022f, c.y - h * 0.26f, c.x, c.y - h * 0.235f)
                 quadraticBezierTo(c.x - h * 0.022f, c.y - h * 0.26f, c.x, c.y - h * 0.3f)
             }
-            drawPath(bud, if (k == 1 || k == 11) ivory else gold)
+            if (k == 1 || k == 11) { drawPath(bud, Color(0xFFC0392B)); drawPath(bud, Color(0xFFC0392B), style = Stroke(h * 0.012f)) } else drawPath(bud, gold)
         }
         drawLine(ivory, Offset(w - h * 0.06f, 0f), Offset(w - h * 0.06f, h), h * 0.02f)
         drawLine(gold, Offset(w - h * 0.1f, 0f), Offset(w - h * 0.1f, h), h * 0.008f, pathEffect = dashes(h * 0.02f, h * 0.02f))
