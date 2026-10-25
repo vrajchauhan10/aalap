@@ -5,6 +5,8 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -150,6 +152,10 @@ fun BlendDetail(pairId: String, state: CurrentSongState, onClose: () -> Unit) {
                             Text("BLEND", color = SaffronGold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                             Text("You + $friend", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                         }
+                        androidx.compose.material3.Icon(
+                            androidx.compose.material.icons.Icons.Outlined.Delete, contentDescription = "Delete Blend", tint = TextMuted,
+                            modifier = Modifier.clip(CircleShape).clickable { confirmRemove = true }.padding(10.dp).size(22.dp),
+                        )
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 12.dp, top = 4.dp)) {
                         val live = b.synced && syncStatus == "live"
@@ -267,15 +273,31 @@ fun BlendDetail(pairId: String, state: CurrentSongState, onClose: () -> Unit) {
                         Box(Modifier.size(8.dp).clip(CircleShape).background(Saffron)); Text("  you heard it   ", color = TextMuted, fontSize = 11.sp)
                         Box(Modifier.size(8.dp).clip(CircleShape).background(Teal)); Text("  $friend heard it", color = TextMuted, fontSize = 11.sp)
                     }
-                    Text(if (confirmRemove) "Tap again to remove this Blend from your phone" else "Remove Blend",
-                        color = if (confirmRemove) Saffron else TextMuted, fontSize = 13.sp,
-                        modifier = Modifier.padding(top = 26.dp).clip(RoundedCornerShape(50)).clickable {
-                            if (confirmRemove) { BlendSync.remove(context, b.pairId); onClose() } else confirmRemove = true
-                        }.padding(10.dp))
+                    Text("Delete Blend", color = Color(0xFFE57373), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 26.dp).clip(RoundedCornerShape(50))
+                            .border(1.dp, Color(0xFFE57373).copy(alpha = 0.5f), RoundedCornerShape(50))
+                            .clickable { confirmRemove = true }.padding(horizontal = 18.dp, vertical = 10.dp))
                     Box(Modifier.fillMaxWidth().padding(top = 18.dp), contentAlignment = Alignment.CenterEnd) { Signature(size = 12f) }
                 }
             }
         }
+        if (confirmRemove) androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmRemove = false },
+            containerColor = com.music.aalap.ui.theme.Surface,
+            title = { Text("Delete your Blend with $friend?", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+            text = {
+                Text("It comes off your phone with its songs and score. $friend keeps theirs. To blend again, swap codes once more.",
+                    color = TextMuted, fontSize = 14.sp)
+            },
+            confirmButton = {
+                Text("Delete", color = Color(0xFFE57373), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable { confirmRemove = false; BlendSync.remove(context, b.pairId); onClose() }.padding(horizontal = 14.dp, vertical = 10.dp))
+            },
+            dismissButton = {
+                Text("Keep", color = TextPrimary, fontSize = 15.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable { confirmRemove = false }.padding(horizontal = 14.dp, vertical = 10.dp))
+            },
+        )
     }
 }
 

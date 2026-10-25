@@ -5,11 +5,15 @@ import com.music.aalap.data.api.Discover
 import com.music.aalap.data.api.Mood
 import com.music.aalap.data.entity.SongsModel
 import com.music.aalap.data.recommendation.engine.Diversifier
+import com.music.aalap.data.recommendation.engine.Pace
 import com.music.aalap.data.recommendation.engine.Personalizer
 import com.music.aalap.data.recommendation.engine.QueueEngine
+import com.music.aalap.data.recommendation.engine.RecentPace
 import com.music.aalap.data.recommendation.engine.RecoDb
 import com.music.aalap.data.recommendation.engine.SongBridge
 import com.music.aalap.data.recommendation.engine.SongMatcher
+import com.music.aalap.data.recommendation.engine.Vibe
+import com.music.aalap.data.recommendation.engine.VibeStore
 import java.util.Random
 
 /**
@@ -52,9 +56,13 @@ object AalapRadio {
         // Favourites: how much you replay a song, plus how much you like its artist.
         val favIds = profile.songAffinity.keys.filter { it !in profile.recentSkips }
         val favSongs = db.songs(favIds)
+        // Your pace lately (tempo and energy, any language) nudges which favourites come up.
+        val pace = RecentPace.target(context)
+        val favVibes = if (pace != null) VibeStore.vibes(context, favSongs.values) else emptyMap()
         val favScored = favSongs.values.map { s ->
             s to (0.6 * (profile.songAffinity[s.id] ?: 0.0) + 0.4 * profile.taste(s.info, s.id) -
-                (if (s.id in profile.recentIds) 0.3 else 0.0))
+                (if (s.id in profile.recentIds) 0.3 else 0.0) +
+                (if (pace != null) 0.2 * (Pace.closeness(pace, favVibes[s.id] ?: Vibe.UNKNOWN) - 0.5) else 0.0))
         }.sortedByDescending { it.second }.take(60).toMutableList()
         val favourites = buildList {
             while (size > 0 && favScored.isNotEmpty() && this.size < size / 2) {

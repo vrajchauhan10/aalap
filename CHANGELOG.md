@@ -4,6 +4,21 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 6.0.0 — 25 Oct 2026 (build 61)
+- **Your pace, in any language.** Aalap now works out your pace lately: the tempo and energy
+  of the last 25 songs you really listened to (30 s or more, newest counting most),
+  whatever their language. Recommendations lean towards it:
+  - Language mixes ("play English songs", "play Hindi songs") start with the songs closest
+    to your pace instead of a random shuffle, so after a run of fast Hindi songs the English
+    mix starts fast too. The voice card says so ("…fast and lively like you've been playing").
+  - Your Mix favours favourites that match your pace.
+  - Profile → Recommendations shows "Your pace lately" (e.g. "Easy-going · about 95 bpm").
+  - Half and double tempo count as a match (a 70 bpm song fits a 140 bpm run), and songs not
+    measured yet sit in the middle rather than being pushed out.
+- **Delete a Blend.** A delete button at the top of every Blend, and a clear "Delete Blend"
+  button at the bottom, both asking first. It comes off your phone with its songs and score;
+  your friend keeps theirs.
+
 ## 5.8.0 — 25 Oct 2026 (build 60)
 - **"Ask Aalap" icon only if you want it.** The extra app-drawer icon is gone by default;
   holding a volume key (switched on in Accessibility) asks Aalap from anywhere. Profile →

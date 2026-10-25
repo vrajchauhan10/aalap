@@ -39,7 +39,21 @@ fun RecommendationSettings() {
     var dial by remember { mutableStateOf(RecoPrefs.discovery(context)) }
     var levels by remember { mutableStateOf(RecoPrefs.languageLevels(context)) }
 
+    // Your pace lately: what the mixes lean towards (worked out off the main thread).
+    val pace by androidx.compose.runtime.produceState<com.music.aalap.data.recommendation.engine.Pace.Target?>(null) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.music.aalap.data.recommendation.engine.RecentPace.target(context) }
+    }
+
     Column(Modifier.padding(vertical = 8.dp)) {
+        Text("Your pace lately", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(
+            pace?.let { p ->
+                "${p.label.replaceFirstChar { it.uppercase() }}" + (p.bpm?.let { " \u00B7 about ${it.toInt()} bpm" } ?: "") +
+                    " \u00B7 from your last ${p.songs} songs. Your Mix and language mixes (\u201Cplay Hindi songs\u201D) lean this way, in any language."
+            } ?: "Play a few more songs and Aalap learns your pace: the tempo and energy your mixes lean towards, in any language.",
+            color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+        )
+        Spacer(Modifier.height(18.dp))
         Text("Discovery", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

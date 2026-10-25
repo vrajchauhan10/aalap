@@ -281,7 +281,7 @@ object VoicePlay {
                 val name = plan.language.replaceFirstChar { it.uppercase() } + " songs"
                 withContext(Dispatchers.Main) { SmartPlay.playAll(context, state, list, name) }
                 if (!playingNow(state, list.first())) return null
-                Played(name, "${list.size} songs, starting with ${list.first().title}", list.first().coverUri)
+                Played(name, lastPace?.let { "${list.size} songs, ${it.label} like you've been playing" } ?: "${list.size} songs, starting with ${list.first().title}", list.first().coverUri)
             }
             is Plan.Mood -> {
                 val list = com.music.aalap.data.recommendation.AalapRadio.moodRadio(context, plan.mood)
@@ -322,6 +322,9 @@ object VoicePlay {
     }
 
     /** Songs in [language] from what you have (Aaj ka Aalap, Your Mix, Liked Songs), topped up from search. */
+    /** The pace the last language mix followed (for the card). */
+    @Volatile private var lastPace: com.music.aalap.data.recommendation.engine.Pace.Target? = null
+
     private suspend fun languageMix(context: Context, language: String): List<SongsModel> {
         val db = com.music.aalap.data.recommendation.engine.RecoDb.get(context)
         // Only what's already made (building today's mixes can take long): Aaj ka Aalap, Your Mix, your likes.
@@ -330,13 +333,20 @@ object VoicePlay {
             com.music.aalap.data.preferences.LikedLibrary.all(context)).distinctBy { it.id }
         val songs = kotlinx.coroutines.withTimeoutOrNull(6_000) { db.resolveAll(pool.map(com.music.aalap.data.recommendation.engine.SongBridge::toCandidate)) }.orEmpty()
         val mine = songs.filter { com.music.aalap.data.recommendation.engine.VibeStore.language(context, it) == language }
-        val picked = mine.shuffled().take(40).toMutableList()
+        // Your pace lately (any language) leads: after fast Hindi songs, the English mix starts fast too.
+        val pace = com.music.aalap.data.recommendation.engine.RecentPace.target(context)
+        lastPace = pace
+        val vibes = com.music.aalap.data.recommendation.engine.VibeStore.vibes(context, mine)
+        val picked = com.music.aalap.data.recommendation.engine.Pace.rank(mine, pace, { vibes[it.id] ?: com.music.aalap.data.recommendation.engine.Vibe.UNKNOWN }, kotlin.random.Random)
+            .take(40).toMutableList()
         if (picked.size < 12) {
             // Not enough of your own: the most played songs in that language.
             val found = kotlinx.coroutines.withTimeoutOrNull(10_000) { com.music.aalap.data.api.Api(context).searchCandidates("top $language songs", 30) }.orEmpty()
-            picked += db.resolveAll(found).filter { s -> picked.none { it.id == s.id } }
+            val more = db.resolveAll(found).filter { s -> picked.none { it.id == s.id } }
+            val moreVibes = com.music.aalap.data.recommendation.engine.VibeStore.vibes(context, more)
+            picked += com.music.aalap.data.recommendation.engine.Pace.rank(more, pace, { moreVibes[it.id] ?: com.music.aalap.data.recommendation.engine.Vibe.UNKNOWN }, kotlin.random.Random)
         }
-        android.util.Log.d("VoicePlay", "$language mix: ${mine.size} of yours in ${pool.size}, ${picked.size} in all")
+        android.util.Log.d("VoicePlay", "$language mix: ${mine.size} of yours in ${pool.size}, ${picked.size} in all, pace ${pace ?: "unknown"}")
         return picked.map(com.music.aalap.data.recommendation.engine.SongBridge::toSongsModel)
     }
 
