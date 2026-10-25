@@ -4,6 +4,16 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 6.2.0 — 25 Oct 2026 (build 63)
+- **"Follow my pace" switch** (Profile → Recommendations). Your pace lately (e.g. "easy-going ·
+  about 94 bpm, your last 25 songs") is always shown; with the switch on, Your Mix and
+  language mixes lean towards it; off, they don't look at it.
+- **Your feedback, shown as what it's about.** Instead of one "Clear more / less" row:
+  - More like this and Less like this each show how many songs, their pace ("Fast, lively ·
+    about 128 bpm"), the artists ("Arijit Singh ×3") and the kinds of song (Romantic ×4).
+  - ✕ on an artist or a kind forgets just those songs' feedback; "Clear all" forgets that side.
+  - Never play: blocked artists (✕ to unblock one) and blocked songs, with Clear all.
+
 ## 6.1.0 — 25 Oct 2026 (build 62)
 - **Artist search no longer crashes.** Searching "arijit" closed the app: Spotify has more
   than one artist with the same name ("Arijit"), and the list used the name to tell artists

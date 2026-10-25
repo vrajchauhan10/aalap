@@ -54,7 +54,12 @@ object Pace {
 object RecentPace {
     private const val DAYS_3 = 3L * 24 * 3_600_000
 
-    fun target(context: Context): Pace.Target? = runCatching {
+    /** Your pace, or null when you've switched "Follow my pace" off. */
+    fun target(context: Context): Pace.Target? =
+        if (com.music.aalap.data.preferences.RecoPrefs.followPace(context)) measured(context) else null
+
+    /** Your pace whether or not mixes follow it (for showing it). */
+    fun measured(context: Context): Pace.Target? = runCatching {
         val all = com.music.aalap.data.preferences.getListeningHistory(context)
             .filter { it.listenedMs < 0 || it.listenedMs >= 30_000 }
             .sortedByDescending { it.ts }

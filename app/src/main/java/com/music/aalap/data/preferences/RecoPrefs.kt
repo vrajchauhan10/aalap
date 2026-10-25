@@ -37,6 +37,10 @@ object RecoPrefs {
 
     fun setDiscovery(c: Context, d: Discovery) = p(c).edit().putString("discovery", d.name).apply()
 
+    /** Mixes lean towards your pace lately (tempo and energy); on unless switched off. */
+    fun followPace(c: Context): Boolean = p(c).getBoolean("follow_pace", true)
+    fun setFollowPace(c: Context, on: Boolean) = p(c).edit().putBoolean("follow_pace", on).apply()
+
     /** Levels per language (0..2); empty = automatic. */
     fun languageLevels(c: Context): Map<String, Int> = runCatching {
         val o = JSONObject(p(c).getString("languages", "{}") ?: "{}")

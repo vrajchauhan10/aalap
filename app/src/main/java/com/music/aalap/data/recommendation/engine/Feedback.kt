@@ -108,6 +108,79 @@ object Feedback {
         return s
     }
 
+    // ── what your feedback adds up to (Profile → Recommendations) ───────────
+
+    /**
+     * One side of your feedback (more or less) as what it's about rather than a list of songs:
+     * the artists ("Arijit Singh" ×3), the kinds of song (Romantic ×4) and their pace.
+     */
+    data class Summary(
+        val songs: Int,
+        /** Artist key → (name to show, how many songs). */
+        val artists: List<Triple<String, String, Int>>,
+        val feels: List<Pair<Feel, Int>>,
+        val bpm: Double?,
+        val energy: Double?,
+    ) {
+        val pace: String? get() = energy?.let { e ->
+            (if (e >= 0.62) "Fast, lively" else if (e <= 0.38) "Slow, easy" else "Easy-going") + (bpm?.let { " · about ${it.toInt()} bpm" } ?: "")
+        }
+    }
+
+    /** Pure: [rows] of one kind's song ids with their songs and vibes, summed up (tested). */
+    fun summarise(ids: List<String>, songs: Map<String, Song>, vibes: Map<String, Vibe>): Summary {
+        val artists = LinkedHashMap<String, Pair<String, Int>>()
+        val feels = HashMap<Feel, Int>()
+        val energies = ArrayList<Double>(); val bpms = ArrayList<Double>()
+        ids.mapNotNull { songs[it] }.forEach { s ->
+            val name = s.artists.split(",").first().trim()
+            SongMatcher.artistKeys(s.artists).firstOrNull()?.let { k -> artists[k] = name to ((artists[k]?.second ?: 0) + 1) }
+            vibes[s.id]?.let { v ->
+                if (v.known) v.dominant?.let { feels[it] = (feels[it] ?: 0) + 1 }
+                if (v.energyKnown) energies += v.energy
+                v.bpm?.takeIf { it in 50.0..220.0 }?.let { bpms += it }
+            }
+        }
+        return Summary(
+            ids.size,
+            artists.entries.sortedByDescending { it.value.second }.map { Triple(it.key, it.value.first, it.value.second) },
+            feels.entries.sortedByDescending { it.value }.map { it.key to it.value },
+            bpms.sorted().takeIf { it.isNotEmpty() }?.let { it[it.size / 2] },
+            energies.takeIf { it.isNotEmpty() }?.average(),
+        )
+    }
+
+    fun summary(context: Context, kind: Kind): Summary {
+        val db = RecoDb.get(context)
+        val ids = db.feedback(RecoDb.userId(context)).filter { it.first == kind.name }.map { it.second }
+        val songs = db.songs(ids)
+        return summarise(ids, songs, VibeStore.vibes(context, songs.values))
+    }
+
+    /** Blocked artists (names) and how many songs are blocked. */
+    fun blocked(context: Context): Pair<List<String>, Int> {
+        val rows = RecoDb.get(context).feedback(RecoDb.userId(context))
+        return rows.filter { it.first == Kind.BLOCK_ARTIST.name }.map { it.second } to rows.count { it.first == Kind.BLOCK_SONG.name }
+    }
+
+    /**
+     * Forgets part of one side: the songs by [artistKey], or of [feel], or all of [kind] when
+     * neither is given. For blocks, [artistKey] unblocks that artist; neither unblocks all.
+     */
+    fun clear(context: Context, kind: Kind, artistKey: String? = null, feel: Feel? = null) {
+        val db = RecoDb.get(context)
+        val userId = RecoDb.userId(context)
+        val ids = db.feedback(userId).filter { it.first == kind.name }.map { it.second }
+        val drop = when {
+            kind == Kind.BLOCK_ARTIST && artistKey != null -> listOf(artistKey)
+            artistKey != null -> db.songs(ids).values.filter { SongMatcher.artistKeys(it.artists).firstOrNull() == artistKey }.map { it.id }
+            feel != null -> { val songs = db.songs(ids); val v = VibeStore.vibes(context, songs.values); songs.values.filter { v[it.id]?.dominant == feel }.map { it.id } }
+            else -> ids
+        }
+        drop.forEach { db.removeFeedback(userId, kind.name, it) }
+        invalidate()
+    }
+
     fun clearAll(context: Context) {
         RecoDb.get(context).writableDatabase.delete("feedback", "user_id = ?", arrayOf(RecoDb.userId(context)))
         invalidate()
