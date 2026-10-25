@@ -77,6 +77,8 @@ object YTPlayerUtils {
         playlistId: String? = null,
         audioQuality: AudioQuality,
         connectivityManager: ConnectivityManager,
+        /** Picks the stream instead of the audio choice (Aalap: a song's music video). */
+        formatPicker: ((PlayerResponse) -> PlayerResponse.StreamingData.Format?)? = null,
     ): Result<PlaybackData> = runCatching {
         Timber.tag(TAG).d("=== PLAYER RESPONSE FOR PLAYBACK ===")
         Timber.tag(TAG).d("videoId: $videoId")
@@ -311,8 +313,8 @@ object YTPlayerUtils {
                 // remains the final fallback after the complete client walk.
                 val responseToUse = streamPlayerResponse
 
-                format =
-                    findFormat(
+                format = formatPicker?.invoke(responseToUse)
+                    ?: if (formatPicker != null) null else findFormat(
                         responseToUse,
                         audioQuality,
                         connectivityManager,

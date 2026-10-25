@@ -340,6 +340,7 @@ fun PlayerScreen(navController: NavController) {
             // scrim on top so the title, slider and buttons stay readable.
             CanvasVideo(
                 url = canvasUrl,
+                synced = playerViewModel.videoSynced.value,
                 onFail = { playerViewModel.videoFailed() },
                 modifier = Modifier.fillMaxSize(),
             )
@@ -1536,18 +1537,29 @@ fun PlayerMenuRow(
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
-private fun CanvasVideo(url: String, onFail: () -> Unit = {}, modifier: Modifier = Modifier) {
+private fun CanvasVideo(url: String, synced: Boolean = false, onFail: () -> Unit = {}, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var failed by remember(url) { mutableStateOf(false) }
     val exo = remember(url) {
-        val sources = androidx.media3.datasource.cache.CacheDataSource.Factory()
+        val sources: androidx.media3.datasource.DataSource.Factory = if (synced) {
+            // A YouTube music video: streamed like the audio (the headers of the YouTube app
+            // that issued the link, in ranged chunks), not cached since it's big.
+            val http = androidx.media3.datasource.DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true)
+            com.music.aalap.playback.ChunkedDataSource.Factory(
+                androidx.media3.datasource.ResolvingDataSource.Factory(http) { spec ->
+                    spec.withAdditionalHeaders(com.metrolist.innertube.models.YouTubeClient.forStreamUrl(spec.uri.toString()).mediaHeaders())
+                },
+                2L * 1024 * 1024,
+            )
+        } else androidx.media3.datasource.cache.CacheDataSource.Factory()
             .setCache(SongPlayer.mediaCache(context.applicationContext))
             .setUpstreamDataSourceFactory(androidx.media3.datasource.DefaultHttpDataSource.Factory())
         androidx.media3.exoplayer.ExoPlayer.Builder(context)
             .setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(sources))
             .build().apply {
                 setMediaItem(androidx.media3.common.MediaItem.fromUri(url))
-                repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+                // A Canvas loops; a music video follows the song instead.
+                repeatMode = if (synced) androidx.media3.common.Player.REPEAT_MODE_OFF else androidx.media3.common.Player.REPEAT_MODE_ALL
                 volume = 0f
                 playWhenReady = true
                 // If the video can't play, the artwork comes back instead of a black screen.
@@ -1559,6 +1571,16 @@ private fun CanvasVideo(url: String, onFail: () -> Unit = {}, modifier: Modifier
     }
     if (failed) return
     val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    // A music video stays in step with the song: same position (within a second), and
+    // paused when the song is.
+    if (synced) LaunchedEffect(exo) {
+        while (true) {
+            val songPos = SongPlayer.exoPlayer?.currentPosition ?: 0L
+            if (exo.playbackState == androidx.media3.common.Player.STATE_READY && kotlin.math.abs(exo.currentPosition - songPos) > 1_000) exo.seekTo(songPos)
+            exo.playWhenReady = SongPlayer.isPlaying() && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+            kotlinx.coroutines.delay(700)
+        }
+    }
     androidx.compose.runtime.DisposableEffect(url, lifecycle) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, _ ->
             exo.playWhenReady = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)

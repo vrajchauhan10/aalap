@@ -173,49 +173,56 @@ private fun ThinkingDots() {
 }
 
 /**
- * The card's lit edge. Listening: a comet of light runs round the border, longer the
- * louder you speak, and the bottom edge fills out from the middle with your voice.
- * Thinking: the border fills up, round and round. Found: it closes into a full ring.
- * Something went wrong: a short, still red arc.
+ * The card's lit edge. When the card opens, the border draws itself once, quickly: two
+ * lines leave the middle of the bottom edge in opposite directions, run up both sides
+ * and meet at the top. Then, while you speak, the bottom edge fills out from the middle
+ * with your voice. Thinking: the full border glows softly. Something went wrong: it's red.
  */
 @Composable
 private fun Modifier.voiceGlow(state: VoiceUi.State?): Modifier {
+    val shown = state != null
+    val drawn = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(shown) {
+        if (shown) { drawn.snapTo(0f); drawn.animateTo(1f, tween(450, easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0.8f, 0.3f, 1f))) }
+        else drawn.snapTo(0f)
+    }
     val t = rememberInfiniteTransition(label = "edge")
-    val spin by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = androidx.compose.animation.core.LinearEasing)), label = "spin")
-    val fill by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing)), label = "fill")
+    val pulse by t.animateFloat(0.55f, 1f, infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
     val level = (state as? VoiceUi.State.Listening)?.level ?: 0f
-    val voice by animateFloatAsState(level, tween(140), label = "voice")
-    val done by animateFloatAsState(if (state is VoiceUi.State.Found) 1f else 0f, tween(600), label = "done")
+    val voice by animateFloatAsState(level, tween(120), label = "voice")
     return this.drawWithContent {
         drawContent()
         if (state == null) return@drawWithContent
         val r = 28.dp.toPx(); val sw = 3.dp.toPx()
-        val outline = androidx.compose.ui.graphics.Path().apply {
-            addRoundRect(androidx.compose.ui.geometry.RoundRect(sw / 2, sw / 2, size.width - sw / 2, size.height - sw / 2, androidx.compose.ui.geometry.CornerRadius(r)))
+        val l = sw / 2; val top = sw / 2; val rgt = size.width - sw / 2; val bot = size.height - sw / 2; val mid = size.width / 2
+        // One half of the border: from the middle of the bottom edge, round one side, to the middle of the top.
+        fun half(dir: Float) = androidx.compose.ui.graphics.Path().apply {
+            val side = if (dir < 0) l else rgt
+            val inward = if (dir < 0) 1f else -1f
+            moveTo(mid, bot)
+            lineTo(side + inward * r, bot)
+            quadraticBezierTo(side, bot, side, bot - r)
+            lineTo(side, top + r)
+            quadraticBezierTo(side, top, side + inward * r, top)
+            lineTo(mid, top)
         }
-        val pm = androidx.compose.ui.graphics.PathMeasure().apply { setPath(outline, false) }
-        val len = pm.length
-        val brush = androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Saffron, SaffronGold, Saffron))
-        fun arc(from: Float, frac: Float, color: androidx.compose.ui.graphics.Brush, alpha: Float = 1f) {
-            val start = ((from % 1f) + 1f) % 1f * len; val end = start + frac.coerceIn(0f, 1f) * len
+        val color = when (state) {
+            is VoiceUi.State.Failed -> androidx.compose.ui.graphics.SolidColor(Color(0xFFE57373))
+            else -> androidx.compose.ui.graphics.Brush.verticalGradient(listOf(SaffronGold, Saffron))
+        }
+        val alpha = if (state is VoiceUi.State.Thinking) pulse else 1f
+        for (dir in listOf(-1f, 1f)) {
+            val path = half(dir)
+            val pm = androidx.compose.ui.graphics.PathMeasure().apply { setPath(path, false) }
             val seg = androidx.compose.ui.graphics.Path()
-            if (end <= len) pm.getSegment(start, end, seg, true)
-            else { pm.getSegment(start, len, seg, true); pm.getSegment(0f, end - len, seg, true) }
+            pm.getSegment(0f, pm.length * drawn.value, seg, true)
             drawPath(seg, color, alpha = alpha, style = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round))
         }
-        // Faint full border underneath, so the light has a track to run on.
-        drawPath(outline, Saffron.copy(alpha = 0.14f), style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
-        when (state) {
-            is VoiceUi.State.Listening -> {
-                arc(spin, 0.18f + voice * 0.35f, brush)
-                // The bottom edge fills out from the middle as you speak.
-                val half = size.width / 2 * (0.15f + voice * 0.85f)
-                drawLine(brush, androidx.compose.ui.geometry.Offset(size.width / 2 - half, size.height - sw / 2),
-                    androidx.compose.ui.geometry.Offset(size.width / 2 + half, size.height - sw / 2), sw * 1.6f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
-            }
-            is VoiceUi.State.Thinking -> arc(spin * 0.5f, fill, brush)
-            is VoiceUi.State.Found -> arc(0f, 0.4f + 0.6f * done, brush)
-            is VoiceUi.State.Failed -> arc(0.6f, 0.2f, androidx.compose.ui.graphics.SolidColor(Color(0xFFE57373)))
+        // The bottom edge answers your voice: a brighter, thicker line from the middle out.
+        if (state is VoiceUi.State.Listening && drawn.value >= 1f) {
+            val half = (size.width / 2 - r) * (0.08f + voice * 0.92f)
+            drawLine(SaffronGold, androidx.compose.ui.geometry.Offset(mid - half, bot), androidx.compose.ui.geometry.Offset(mid + half, bot),
+                sw * 2.2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
         }
     }
 }

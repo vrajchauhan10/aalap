@@ -38,6 +38,18 @@ class VoiceListener(private val context: Context, private val onWords: (List<Str
 
     fun start() {
         if (rec != null) return
+        // "Hey Aalap" may be holding the mic: that's Aalap itself, so it steps aside first.
+        if (HeyAalap.holdingMic) {
+            HeyAalap.releaseMic?.invoke()
+            VoiceUi.state.value = VoiceUi.State.Listening()
+            main.postDelayed({ startNow() }, 350)
+            return
+        }
+        startNow()
+    }
+
+    private fun startNow() {
+        if (rec != null) return
         if (micBusy()) { fail("The mic is in use by another app (a call or a voice note), so Aalap won't take it. Try again after."); return }
         if (SongPlayer.isPlaying()) { SongPlayer.pause(); pausedMusic = true }
         VoiceUi.state.value = VoiceUi.State.Listening()

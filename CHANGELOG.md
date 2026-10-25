@@ -4,6 +4,25 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 5.4.0 — 25 Oct 2026 (build 56)
+- **"Hey Aalap" / "OK Aalap"** (Profile → Voice, off by default). Say it, then a song,
+  singer or mood, or all at once ("Hey Aalap, play Kesariya"). It listens while Aalap is
+  open, and keeps listening in the background while Aalap's music plays; it stops when
+  Aalap is closed and nothing plays. With Aalap open the voice card comes up; in the
+  background the music pauses, Aalap hears the request and plays it. It uses the phone's
+  offline speech engine (nothing is sent anywhere), steps aside for calls, WhatsApp voice
+  notes and any other recording, and a notification shows while it listens (with
+  "Turn off").
+- **Song videos work whatever your Spotify setting.** Spotify only sends its Canvas
+  videos to accounts that have Canvas on in the Spotify app. When it sends none, Aalap
+  now plays the song's official music video from YouTube behind the player (muted, in
+  step with the song, 480p or less), through the same YouTube pipeline as the audio. So
+  Aalap's own "Song videos" setting decides.
+- **Voice card:** it slides up from the bottom and its border draws itself once, quickly:
+  two lines leave the middle of the bottom edge in opposite directions and meet at the
+  top. While you speak only the bottom edge moves, with your voice; while Aalap thinks
+  the border glows softly.
+
 ## 5.3.0 — 25 Oct 2026 (build 55)
 - **Aaj ka Aalap posters: the maker's V is now part of each pattern**, never drawn on
   top. In 28 designs that showed a plain V (a letter, a glyph, lines across the art) it

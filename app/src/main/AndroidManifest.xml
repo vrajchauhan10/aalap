@@ -8,6 +8,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- The mic button: Aalap listens once, only while you ask for a song. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- "Hey Aalap" (off by default): listens while Aalap is open or its music plays. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
     <!-- Exporting downloads to public Music/ on API <=28 (MediaStore needs none on 29+). -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28"/>
@@ -113,6 +115,10 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+        <service
+            android:name=".di.HeyAalapService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
         <service
             android:name=".ui.notification.StartupService"
             android:exported="false"

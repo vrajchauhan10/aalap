@@ -72,6 +72,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        // "Hey Aalap" (if switched on): listening starts while Aalap is on screen.
+        com.music.aalap.di.HeyAalap.appVisible = true
+        com.music.aalap.di.HeyAalap.openVoiceCard = { listen() }
+        com.music.aalap.di.HeyAalap.start(this)
         com.music.aalap.ui.components.PosterRotation.onAppStart(this)
         // Blends: follow the shared ones, and today's fresh 30 if no phone has made them yet.
         com.music.aalap.data.recommendation.BlendSync.start(this)
@@ -79,6 +83,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        com.music.aalap.di.HeyAalap.appVisible = false
+        com.music.aalap.di.HeyAalap.openVoiceCard = null
         com.music.aalap.ui.components.PosterRotation.onAppStop()
         // Leaving the screen frees the mic at once.
         voice.cancel()

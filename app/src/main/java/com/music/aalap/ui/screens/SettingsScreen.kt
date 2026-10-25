@@ -178,6 +178,9 @@ fun SettingsScreen(navController: NavController) {
                 }
             }
 
+            SectionTitle("Voice")
+            com.music.aalap.ui.components.HeyAalapSetting()
+
             SectionTitle("Notifications")
             var notifButtons by remember { mutableStateOf(com.music.aalap.data.preferences.isNotificationExtraButtons(context)) }
             SettingsSwitchRow(

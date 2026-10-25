@@ -182,12 +182,16 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
     // per track; null means no canvas / not resolved yet.
     private val _canvasUrl = mutableStateOf<String?>(null)
     val canvasUrl: State<String?> get() = _canvasUrl
+    /** True when the video is the song's music video (kept in step with the song), not a Canvas loop. */
+    private val _videoSynced = mutableStateOf(false)
+    val videoSynced: State<Boolean> get() = _videoSynced
     @Volatile private var canvasRequestId: String = ""
 
     /**
-     * The player background video (Spotify's Canvas loop), when Aalap's "Song videos"
-     * setting allows it. Asked with your Spotify account and, if that gives none (Canvas
-     * turned off in your Spotify app), signed out, so Aalap's own setting decides.
+     * The player background video, when Aalap's "Song videos" setting allows it: Spotify's
+     * Canvas loop if Spotify sends one (only for accounts with Canvas on in the Spotify
+     * app), otherwise the song's music video from YouTube, muted and in step with the song.
+     * So Aalap's own setting decides, whatever Spotify's says.
      */
     fun loadCanvas(song: com.music.aalap.data.entity.SongsModel?) {
         val key = song?.let { it.spotifyTrackId.ifBlank { it.title + "|" + it.singer } }.orEmpty()
@@ -201,8 +205,10 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
         if (!com.music.aalap.data.preferences.songVideosAllowed(com.music.aalap.MyApplication.instance)) return
         viewModelScope.launch {
             val canvas = if (song.spotifyTrackId.isBlank()) null else withContext(Dispatchers.IO) { runCatching { repository.provideCanvasUrl(song.spotifyTrackId) }.getOrNull() }
+            val (url, synced) = if (canvas != null) canvas to false
+                else withContext(Dispatchers.IO) { com.music.aalap.di.SongVideo.url(com.music.aalap.MyApplication.instance, song.title, song.singer, song.durationMs) } to true
             // Ignore a slow fetch for a track the user already skipped past.
-            if (canvasRequestId == key) _canvasUrl.value = canvas
+            if (canvasRequestId == key) { _videoSynced.value = synced; _canvasUrl.value = url }
         }
     }
 
