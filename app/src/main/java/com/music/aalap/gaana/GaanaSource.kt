@@ -34,7 +34,8 @@ object GaanaSource {
         val ta = norm(a).split(' ').filter { it.isNotBlank() }.toSet()
         val tb = norm(b).split(' ').filter { it.isNotBlank() }.toSet()
         if (ta.isEmpty() || tb.isEmpty()) return 0f
-        return ta.intersect(tb).size.toFloat() / minOf(ta.size, tb.size)
+        // Shared words over the longer title: "Tere Liye" isn't "Tere Liye Hi Toh".
+        return ta.intersect(tb).size.toFloat() / maxOf(ta.size, tb.size)
     }
 
     suspend fun resolve(title: String, artist: String, durationSec: Int, isrc: String, fallbackQuery: String): Match? =
@@ -48,6 +49,9 @@ object GaanaSource {
             val byIsrc = if (isrc.isNotBlank()) hits.firstOrNull { it.optString("isrc").equals(isrc, true) } else null
             val candidates = byIsrc?.let { listOf(it) } ?: hits.filter { h ->
                 similarity(wantTitle, h.optString("ti")) >= 0.6f &&
+                    // The same take: "Paro (Unplugged)" is never plain "Paro" (brackets are
+                    // dropped from the comparison above, so the take is checked on its own).
+                    com.music.aalap.data.recommendation.engine.SongVersion.same(wantTitle, h.optString("ti")) &&
                     (firstArtist.isBlank() || norm(h.optString("sti")).contains(firstArtist))
             }.take(3)
             for (c in candidates) {

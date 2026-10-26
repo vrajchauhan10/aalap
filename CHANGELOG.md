@@ -4,6 +4,36 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 6.3.0 — 26 Oct 2026 (build 64)
+- **The song you see is the song you hear.** Every recording is checked against the song's
+  own title, its singers (one by one: "Kinjal Dave" is never "Jinal Chauhan"), its length
+  and its album, and must be the same take:
+  - Asked for "Paro (Unplugged)" or "KALYANI - Remix", that take plays, never the plain song;
+    asked for the song, never a remix, reprise ("Bulleya (Reprise)"), live, cover
+    ("Originally by…"), lofi, slowed or sped-up upload. The same rule now holds on YouTube,
+    JioSaavn (its last resort too) and Gaana (which ignored brackets, so "Paro (Unplugged)"
+    matched plain "Paro").
+  - A title must really match (60%, judged without "(From …)", "feat." and the like).
+  - Checked twice or three times: when nothing passes, it looks again with just the song's
+    name and main singer, then with all its singers ("Agar Tum Saath Ho" and "We Don't Talk
+    Anymore" weren't found before), then YouTube videos; a wrong song never plays instead.
+  - Checked on today's 30 Aaj ka Aalap songs: two would have played the wrong recording, two
+    wouldn't have played; all now right.
+- **Notification:** tapping it opens the player on the song that's playing. Next on the last
+  song carries on into recommendations instead of jumping back to the first (it loops only
+  with Loop playlist on), and "Playing from" shows each recommended song's own album.
+- **Sharing a song:** one simple share for everyone: the message carries Spotify and YouTube
+  Music links that open on Android and iPhone alike, written in the message itself so
+  WhatsApp keeps them (they were hidden before and got dropped). The card carries the real
+  Aalap app icon.
+- **Logging out and in keeps everything yours:** besides likes, playlists and history, your
+  recommendation settings (discovery, languages, follow my pace), Blends and today's mixes
+  now go with your account and come back when you log in.
+- **Cleaner mixes:** each song once (the same song listed twice is one), and the song itself
+  rather than a remix, lofi, slowed or cover, unless the mix is mostly those.
+- **Song videos are off by default** (turn them on in Profile → Song videos).
+- **"Playing on" icon:** Aalap's own (a phone sending out sound; headphones when connected).
+
 ## 6.2.0 — 25 Oct 2026 (build 63)
 - **"Follow my pace" switch** (Profile → Recommendations). Your pace lately (e.g. "easy-going ·
   about 94 bpm, your last 25 songs") is always shown; with the switch on, Your Mix and

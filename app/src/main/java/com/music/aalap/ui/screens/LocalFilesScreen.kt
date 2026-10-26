@@ -295,7 +295,7 @@ private fun LocalHero(
                 .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(com.music.aalap.ui.theme.Saffron, com.music.aalap.ui.theme.Surface))),
         ) {
             Icon(
-                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_devices),
+                painter = androidx.compose.ui.res.painterResource(R.drawable.ic_output_phone),
                 contentDescription = null, tint = com.music.aalap.ui.theme.TextPrimary, modifier = Modifier.size(64.dp),
             )
         }

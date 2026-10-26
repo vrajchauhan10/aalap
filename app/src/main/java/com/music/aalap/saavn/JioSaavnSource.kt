@@ -96,11 +96,13 @@ object JioSaavnSource {
             val sim = titleSimilarity(wantTitle, rTitle)
             val artistOk = artist.isBlank() || artistMatch(artist, artists)
             val durDiff = if (durationSec > 0 && dur > 0) abs(durationSec - dur) else -1
-            val versionOk = versionWords(rTitle) == wantVersion
+            val versionOk = versionWords(rTitle) == wantVersion &&
+                com.music.aalap.data.recommendation.engine.SongVersion.same(wantTitle, rTitle)
             val accepted = if (!relaxed) {
                 sim >= 0.6f && artistOk && versionOk && (durDiff in 0..8 || durDiff == -1)
             } else {
-                sim >= 0.5f && (artistOk || durDiff in 0..5) && (durDiff in 0..20 || durDiff == -1)
+                // Even the last resort is the same take: never a remix or plain version instead.
+                sim >= 0.5f && versionOk && (artistOk || durDiff in 0..5) && (durDiff in 0..20 || durDiff == -1)
             }
             if (!accepted) return@mapNotNull null
             val score = sim * 2f + (if (artistOk) 1f else 0f) + (if (versionOk) 0.5f else 0f) +

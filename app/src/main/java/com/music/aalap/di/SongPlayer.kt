@@ -902,6 +902,8 @@ object SongPlayer {
     @Volatile var onStreamFailed: ((String) -> Unit)? = null
 
     private data class CandidateScore(
+        /** The same take of the song as asked for (see [com.music.aalap.data.recommendation.engine.SongVersion]). */
+        val sameTake: Boolean,
         val item: SongItem,
         val score: Double,
         val titleScore: Double,
@@ -984,13 +986,13 @@ object SongPlayer {
 
     private val alternateVersionMarkers = listOf(
         VersionMarker("remix", markerPattern("""re\s*mix|rmx|club mix|dance mix|dub mix|vip mix|ремикс|рмикс"""), true),
-        VersionMarker("alternate", markerPattern("""alternative|alternate|alt version|demo|demo version|unreleased|rough mix|early version|альтернатив\w*|демо|неиздан\w*|чернов\w*"""), true),
+        VersionMarker("alternate", markerPattern("""alternative|alternate|alt version|reprise|reprised|demo|demo version|unreleased|rough mix|early version|альтернатив\w*|демо|неиздан\w*|чернов\w*"""), true),
         VersionMarker("sped up", markerPattern("""sped\s*up|speed\s*up|fast version|ускоренн\w*|быстрая версия"""), true),
         VersionMarker("slowed", markerPattern("""slowed|slowed reverb|slow version|замедленн\w*|медленная версия"""), true),
         VersionMarker("nightcore", markerPattern("""nightcore|daycore"""), true),
         VersionMarker("live", markerPattern("""live|concert|session|performance|лайв|концерт|с концерта|выступлен\w*"""), true),
         VersionMarker("acoustic", markerPattern("""acoustic|unplugged|piano version|guitar version|акустик\w*|пианино|гитар\w*"""), true),
-        VersionMarker("cover", markerPattern("""cover|covered by|tribute|кавер|трибьют"""), true),
+        VersionMarker("cover", markerPattern("""cover|covered by|originally by|originally performed|in the style of|tribute|кавер|трибьют"""), true),
         VersionMarker("karaoke", markerPattern("""karaoke|minus one|караоке|минусовка"""), true),
         VersionMarker("instrumental", markerPattern("""instrumental|no vocals|инструментал|без вокала"""), true),
         VersionMarker("mashup", markerPattern("""mashup|mash up|bootleg|rework|flip|мешап|мэшап|бутлег"""), true),
@@ -1024,13 +1026,19 @@ object SongPlayer {
             if (split.size == 2) candidateTitle = split[1].trim()
         }
 
-        val titleScore = bigramSimilarity(candidateTitle, expected.title)
-        val uploaderArtistScore = bigramSimilarity(
-            candidate.artists.joinToString(" ") { it.name },
-            expected.artist,
+        // Compared as written and without the extras ("(From "2 States")", "[Official Video]",
+        // "- Lofi Flip", "feat. …"), so a longer listing of the right song still counts as it.
+        val titleScore = maxOf(
+            bigramSimilarity(candidateTitle, expected.title),
+            bigramSimilarity(coreTitle(candidateTitle), coreTitle(expected.title)),
         )
+        // Singer by singer: the best pair counts ("Kinjal Dave" and "Jinal Chauhan" look alike
+        // as one string of letters, but no singer of one is a singer of the other).
+        val expectedNames = expected.artist.split(",", "&", " x ", " and ").map { it.trim() }.filter { it.isNotBlank() }
+        val uploaderArtistScore = candidate.artists.map { it.name }.filter { it.isNotBlank() }
+            .flatMap { c -> expectedNames.map { e -> bigramSimilarity(c, e) } }.maxOrNull() ?: 0.0
         val titleArtistScore = if (candidate.isVideoSong) {
-            bigramSimilarity(candidate.title.substringBefore("-"), expected.artist)
+            (expectedNames.map { bigramSimilarity(candidate.title.substringBefore("-"), it) } + bigramSimilarity(candidate.title.substringBefore("-"), expected.artist)).max()
         } else {
             0.0
         }
@@ -1069,6 +1077,8 @@ object SongPlayer {
         val resultTypeBoost = if (candidate.isVideoSong) 1.0 else 2.0
         val baseScore = parts.average() * resultTypeBoost
         return CandidateScore(
+            sameTake = com.music.aalap.data.recommendation.engine.SongVersion.same(expected.title, candidateTitle + " " + candidate.album?.name.orEmpty()) ||
+                com.music.aalap.data.recommendation.engine.SongVersion.same(expected.title, candidateTitle),
             item = candidate,
             score = (baseScore - alternatePenalty).coerceAtLeast(0.0),
             titleScore = titleScore,
@@ -1080,6 +1090,11 @@ object SongPlayer {
             unexpectedAlternates = unexpectedAlternates,
         )
     }
+
+    /** A title without what's in brackets, after " - ", or after "feat.": the song's own name. */
+    private fun coreTitle(t: String): String =
+        t.replace(Regex("""\(.*?\)|\[.*?\]"""), " ").substringBefore(" - ").substringBefore(" | ")
+            .replace(Regex("""\b(feat|ft)\.?\s.*$""", RegexOption.IGNORE_CASE), "").trim().ifBlank { t }
 
     private fun CandidateScore.isAcceptableMatch(): Boolean {
         val durationStrong = durationScore?.let { it >= 0.94 } ?: false
@@ -1098,14 +1113,22 @@ object SongPlayer {
         // let that alternate upload win just because its title and length are close.
         // When duration is missing, allow strong title+artist/album matches
         // instead of rejecting every possible candidate.
-        val hasUnexpectedHardAlternate = hardVersionMarkers(unexpectedAlternates).isNotEmpty()
-        return score >= minScore &&
+        // Both ways: no take you didn't ask for, and the take you did ask for (asked for
+        // "Paro (Unplugged)", plain "Paro" isn't it).
+        val hasUnexpectedHardAlternate = hardVersionMarkers(unexpectedAlternates).isNotEmpty() || !sameTake
+        // The title and a singer both match exactly (an edit of a different length, or a
+        // wrong length on file): the same song, as long as it's the same take.
+        val exactSong = titleScore >= 0.95 && artistEvidenceScore >= 0.95
+        return (score >= minScore || exactSong) &&
             !hasUnexpectedHardAlternate &&
-            titleScore >= 0.45 &&
+            // The song's name must really match (a near title is often a different song).
+            titleScore >= 0.6 &&
             (
-                artistEvidenceScore >= 0.32 ||
-                    (albumUseful && artistEvidenceScore >= 0.18) ||
-                    (durationStrong && artistEvidenceScore >= 0.25)
+                // A singer of the song must be among the recording's (a near name is
+                // usually someone else).
+                artistEvidenceScore >= 0.7 ||
+                    (albumUseful && artistEvidenceScore >= 0.5) ||
+                    (durationStrong && artistEvidenceScore >= 0.55)
                 )
     }
 
@@ -1139,11 +1162,49 @@ object SongPlayer {
         return repaired
     }
 
+    /** What YouTube recording each query was matched to ("title — artists"), for checking. */
+    internal val chosenMatch = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** Debug: the YouTube match for [song] without playing it (null = no acceptable match). */
+    internal suspend fun auditMatch(song: com.music.aalap.data.entity.SongsModel): String? {
+        registerDuration(listOfNotNull(if (song.durationMs > 0) song.url to song.durationMs else null))
+        registerExplicit(listOf(song.url to song.explicit))
+        registerLossless(listOf(song.url to song.spotifyTrackId))
+        registerMetadata(listOf(song.url to TrackMatchMetadata(title = song.title, artist = song.singer, album = song.album)))
+        chosenMatch.remove(song.url)
+        val ids = runCatching { resolveVideoCandidates(song.url) }.getOrDefault(emptyList())
+        return if (ids.isEmpty()) null else chosenMatch[song.url]
+    }
+
+    /**
+     * The YouTube recordings for [query], best first, checked against the song's own title,
+     * singers, length and album. When none passes, it looks again with just the song's own
+     * name and main singer (the full listing, "Agar Tum Saath Ho (From "Tamasha")", can miss
+     * the official recording), then with all its singers: a wrong song never plays instead.
+     */
     private suspend fun resolveVideoCandidates(
         query: String,
         filter: YouTube.SearchFilter = YouTube.SearchFilter.FILTER_SONG,
     ): List<String> {
-        val searchText = searchTextForPlayback(query)
+        resolveVideoCandidatesOnce(query, filter, null).takeIf { it.isNotEmpty() }?.let { return it }
+        val meta = metadataRegistry[query] ?: return emptyList()
+        val name = coreTitle(meta.title)
+        val main = meta.artist.split(",", "&", " x ").firstOrNull()?.trim().orEmpty()
+        val retries = listOf("$name $main", "$name ${meta.artist}").map { it.trim() }.distinct()
+            .filter { it.isNotBlank() && it != searchTextForPlayback(query) }
+        for (text in retries) {
+            Log.d(TAG, "resolveVideoId: checking again as '$text'")
+            resolveVideoCandidatesOnce(query, filter, text).takeIf { it.isNotEmpty() }?.let { return it }
+        }
+        return emptyList()
+    }
+
+    private suspend fun resolveVideoCandidatesOnce(
+        query: String,
+        filter: YouTube.SearchFilter,
+        searchAs: String?,
+    ): List<String> {
+        val searchText = searchAs ?: searchTextForPlayback(query)
         // A raw YouTube videoId is 11 chars with no spaces — accept it directly.
         if (searchText.length == 11 && !searchText.contains(' ')) return listOf(searchText)
         val exactMeta = ensureSpotifyMatchMetadata(query)
@@ -1263,6 +1324,7 @@ object SongPlayer {
         if (transferScored.isEmpty() && !verified(chosen)) {
             Log.w(TAG, "resolveVideoId: no verified match for: $searchText (want=${wantSec}s) — best-effort '${chosen.title}'")
         }
+        chosenMatch[query] = chosen.title + " \u2014 " + chosen.artists.joinToString { it.name }
         val chosenScore = transferScored.firstOrNull { it.item.id == chosen.id }
         Log.d(
             TAG,

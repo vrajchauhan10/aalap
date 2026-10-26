@@ -10,18 +10,22 @@ import java.security.MessageDigest
  * Each Aalap user's own library on this phone. Logging out saves it under the account's
  * email and clears it, so the next person starts fresh; logging back in with the same
  * email puts it all back: likes (including songs liked only in Aalap), Aalap playlists,
- * listening history, recently played, followed artists, removed playlists and the
- * cached Spotify / YouTube Music library. Listening stats and taste are already kept
+ * listening history, recently played, followed artists, removed playlists, the cached
+ * Spotify / YouTube Music library, your recommendation settings, Blends and mixes. Listening stats and taste are already kept
  * per email in the recommendation database. Downloads stay on the phone for everyone.
  *
  * Stored in the app's private files (`files/users/<hash of email>.json`), never online.
  */
 object UserVault {
     /** The settings files that hold one person's library. */
-    private val FILES = listOf(
+    internal val FILES = listOf(
         "LikedSongs", "LikedSongsFromSpotify", "LikedSongsFromYouTube", "aalap_likes",
         "aalap_playlists", "ListeningHistory", "RecentItems", "FollowedArtists", "LikedAlbums",
         "hidden_playlists", "favourite_albums", "spotify_taste", "youtube_library",
+        // Your settings for recommendations (discovery, languages, follow my pace), your
+        // Blends and today's mixes made for you: they're yours, so they go and come back
+        // with you too.
+        "reco_prefs", "blend_sync", "blend", "home_mixes", "LibraryCache",
     )
 
     private fun file(c: Context, email: String): File {

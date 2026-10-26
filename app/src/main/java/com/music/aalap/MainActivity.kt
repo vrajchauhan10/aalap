@@ -93,6 +93,7 @@ class MainActivity : ComponentActivity() {
     /** A voice assistant or an aalap://play link asked for music. */
     private fun handlePlayIntent(intent: android.content.Intent?) {
         if (intent?.action == com.music.aalap.di.VoiceAsk.ACTION) { listen(); return }
+        if (intent?.action == com.music.aalap.di.VoicePlay.ACTION_OPEN_PLAYER) { com.music.aalap.di.VoicePlay.openPlayerRequest.value = true; return }
         if (intent?.action == com.music.aalap.data.recommendation.BlendSync.ACTION_OPEN_BLEND) { com.music.aalap.ui.components.BlendUi.open(); return }
         // A friend's Blend message shared to Aalap.
         if (intent?.action == android.content.Intent.ACTION_SEND) {

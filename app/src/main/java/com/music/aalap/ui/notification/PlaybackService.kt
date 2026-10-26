@@ -72,9 +72,10 @@ class PlaybackService : MediaLibraryService() {
         SongPlayer.bindState(currentSongState)
         val base = SongPlayer.exoPlayer ?: return
 
-        // Tapping the notification opens the app (back on the Now Playing screen).
+        // Tapping the notification opens the app on the player (the song that's playing).
         val activityIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            action = com.music.aalap.di.VoicePlay.ACTION_OPEN_PLAYER
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
         }
         val sessionActivity = PendingIntent.getActivity(
             this, 0, activityIntent,
@@ -341,11 +342,17 @@ class PlaybackService : MediaLibraryService() {
         }, 700)
     }
 
+    /** Songs added after the queue ran out: "Playing from" shows their own album, not the old playlist. */
+    private val recommendedIds = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
+
+    private fun playingFrom(song: SongsModel): String =
+        if (song.id in recommendedIds) song.album else currentSongState.album.value
+
     private fun playIndex(index: Int) {
         val song = currentSongState.queue.value.getOrNull(index) ?: return
         currentSongState.updateSongState(
             song.coverUri, song.title, song.singer, true,
-            song.id, index, currentSongState.album.value
+            song.id, index, playingFrom(song)
         )
         SongPlayer.playSong(song.url, applicationContext)
     }
@@ -358,6 +365,10 @@ class PlaybackService : MediaLibraryService() {
         val cur = queue.indexOfFirst { it.id == curId }
             .let { if (it >= 0) it else currentSongState.songIndex.value }
             .coerceIn(0, queue.size - 1)
+        // Next on the last song (from the notification, headphones, the car): like the app's
+        // own Next, it loops only when the loop button says so; otherwise it carries on into
+        // recommendations instead of jumping back to the first song.
+        if (forward && cur >= queue.size - 1 && !currentSongState.loopsQueue) { continueIntoRecommendations(); return }
         val nextIdx = if (forward) {
             if (cur < queue.size - 1) cur + 1 else 0
         } else {
@@ -366,7 +377,7 @@ class PlaybackService : MediaLibraryService() {
         val song = queue[nextIdx]
         currentSongState.updateSongState(
             song.coverUri, song.title, song.singer, true,
-            song.id, nextIdx, currentSongState.album.value
+            song.id, nextIdx, playingFrom(song)
         )
         SongPlayer.playSong(song.url, applicationContext)
     }
@@ -385,6 +396,12 @@ class PlaybackService : MediaLibraryService() {
             cur -> { SongPlayer.seekTo(0); SongPlayer.play(); return }
             else -> { playIndex(next); return }
         }
+        continueIntoRecommendations()
+    }
+
+    /** At the end of the queue: append what's recommended after it and play the first of those. */
+    private fun continueIntoRecommendations() {
+        val queue = currentSongState.queue.value
         serviceScope.launch {
             val seed = queue.lastOrNull()
             val known = queue.mapTo(HashSet()) { it.id }
@@ -394,7 +411,7 @@ class PlaybackService : MediaLibraryService() {
                 runCatching {
                     if (seed != null) repository.provideRecommendations(seed, known).collect { next ->
                         val current = currentSongState.queue.value
-                        if (current.none { it.id == next.id }) currentSongState.updateQueue(current + next)
+                        if (current.none { it.id == next.id }) { recommendedIds += next.id; currentSongState.updateQueue(current + next) }
                         if (!advanced) {
                             advanced = true
                             withContext(Dispatchers.Main) { advance(forward = true) }

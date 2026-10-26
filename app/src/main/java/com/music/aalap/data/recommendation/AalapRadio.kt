@@ -86,7 +86,7 @@ object AalapRadio {
             if (n < fresh.size) out += fresh[n++]
             if (out.size % 5 == 0 && r < redModels.size) out += redModels[r++]
         }
-        return Diversifier.spreadArtists(out.distinctBy { it.id }.take(size)) { it.singer }
+        return Diversifier.spreadArtists(com.music.aalap.data.recommendation.engine.MixClean.songs(out.distinctBy { it.id }).take(size)) { it.singer }
     }
 
     /** A mood station: the mood's songs ranked for you, in a new order every time. */
@@ -96,7 +96,7 @@ object AalapRadio {
         if (mix.isEmpty()) return mix
         // Keep the taste order roughly (top songs early) but shuffle within windows of 6.
         val rnd = Random(salt)
-        return mix.take(50).chunked(6).flatMap { it.shuffled(rnd) }.let { list -> Diversifier.spreadArtists(list) { it.singer } }
+        return com.music.aalap.data.recommendation.engine.MixClean.songs(mix.take(50)).chunked(6).flatMap { it.shuffled(rnd) }.let { list -> Diversifier.spreadArtists(list) { it.singer } }
     }
 
     private fun recordMood(context: Context, mood: Mood) {

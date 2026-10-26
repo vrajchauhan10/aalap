@@ -52,21 +52,26 @@ object QueueEndpoint {
         val line = socket.getInputStream().bufferedReader().readLine().orEmpty() // "GET /queue?… HTTP/1.1"
         val target = line.split(" ").getOrNull(1).orEmpty()
         if (target.startsWith("/vaulttest")) {
-            // Save the library under a test email, restore it, save again: both copies must match.
+            // A log-out and log-in, without touching Spotify: save the library under a test
+            // email, clear it (as log-out does), restore it (as log-in does); every file must
+            // come back exactly as it was.
             val c = context.applicationContext
             val test = "qa-roundtrip@aalap.test"
-            val counts = { listOf("LikedSongs", "aalap_playlists", "ListeningHistory", "LikedSongsFromSpotify")
-                .joinToString(", ") { n -> "$n=" + c.getSharedPreferences(n, Context.MODE_PRIVATE).all.size } }
-            val before = counts()
+            fun snapshot() = com.music.aalap.data.local.UserVault.FILES.associateWith { n ->
+                c.getSharedPreferences(n, Context.MODE_PRIVATE).all.toSortedMap().toString()
+            }
+            val before = snapshot()
             com.music.aalap.data.local.UserVault.save(c, test)
-            val dir = java.io.File(c.filesDir, "users")
-            val f = dir.listFiles().orEmpty().maxByOrNull { it.lastModified() }!!
-            val first = f.readText()
+            com.music.aalap.data.local.UserVault.clear(c)
+            val cleared = snapshot().count { it.value != "{}" }
             val restored = com.music.aalap.data.local.UserVault.restore(c, test)
-            com.music.aalap.data.local.UserVault.save(c, test)
-            val second = f.readText()
-            f.delete()
-            val bytes = "before: $before\nafter:  ${counts()}\nrestored=$restored identical=${first == second} size=${first.length}".toByteArray()
+            val after = snapshot()
+            java.io.File(c.filesDir, "users").listFiles().orEmpty().filter { it.name.startsWith(
+                java.security.MessageDigest.getInstance("SHA-256").digest(test.toByteArray()).joinToString("") { "%02x".format(it) }) }.forEach { it.delete() }
+            val diff = before.keys.filter { before[it] != after[it] }
+            val bytes = ("files=${before.size} nonEmpty=${before.count { it.value != "{}" }} " +
+                "afterLogout=$cleared restored=$restored same=${diff.isEmpty()} differ=$diff\n" +
+                before.entries.joinToString("\n") { (k, v) -> "$k: ${c.getSharedPreferences(k, Context.MODE_PRIVATE).all.size} keys" }).toByteArray()
             socket.getOutputStream().apply {
                 write("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
                 write(bytes); flush()
@@ -267,6 +272,28 @@ object QueueEndpoint {
                     .map { "${it.id} | ${it.name} | ${it.owner?.displayName}" }
             }
             val bytes = JSONArray(out).toString(2).toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
+        if (target.startsWith("/matchaudit")) {
+            // Debug: what YouTube recording today's mixes would play, song by song (nothing plays).
+            val q = target.substringAfter("q=", "").substringBefore("&").let { java.net.URLDecoder.decode(it, "UTF-8") }
+            val out = runBlocking {
+                val songs = if (q.isNotBlank()) {
+                    com.music.aalap.data.api.Api(context).searchTracks(q).toList()
+                        .filterIsInstance<com.music.aalap.data.api.Response.Success<List<com.music.aalap.data.entity.SongsModel>>>()
+                        .lastOrNull()?.data.orEmpty().take(6)
+                } else (com.music.aalap.data.recommendation.HomeMixes.todayCached().map { it.song } +
+                    com.music.aalap.data.recommendation.HomeMixes.yourMixCached(context)).distinctBy { it.id }
+                JSONArray(songs.map { s ->
+                    val m = com.music.aalap.di.SongPlayer.auditMatch(s)
+                    JSONObject().put("shown", "${s.title} \u2014 ${s.singer}").put("plays", m ?: "NO MATCH").put("sec", s.durationMs / 1000)
+                })
+            }
+            val bytes = out.toString(2).toByteArray()
             socket.getOutputStream().apply {
                 write("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
                 write(bytes); flush()

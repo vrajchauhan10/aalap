@@ -39,6 +39,10 @@ object VoicePlay {
     private val _showPlayer = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val showPlayer: SharedFlow<Unit> = _showPlayer
 
+    /** The notification was tapped: show the player (kept until the app's screens are up to see it). */
+    const val ACTION_OPEN_PLAYER = "com.music.aalap.OPEN_PLAYER"
+    val openPlayerRequest = kotlinx.coroutines.flow.MutableStateFlow(false)
+
     /** The last request and what came of it (debug and tests). */
     @Volatile var last: String = ""
         private set
@@ -347,7 +351,7 @@ object VoicePlay {
             picked += com.music.aalap.data.recommendation.engine.Pace.rank(more, pace, { moreVibes[it.id] ?: com.music.aalap.data.recommendation.engine.Vibe.UNKNOWN }, kotlin.random.Random)
         }
         android.util.Log.d("VoicePlay", "$language mix: ${mine.size} of yours in ${pool.size}, ${picked.size} in all, pace ${pace ?: "unknown"}")
-        return picked.map(com.music.aalap.data.recommendation.engine.SongBridge::toSongsModel)
+        return com.music.aalap.data.recommendation.engine.MixClean.songs(picked.map(com.music.aalap.data.recommendation.engine.SongBridge::toSongsModel))
     }
 
     private suspend fun playYourMix(context: Context, state: CurrentSongState): String? {

@@ -83,6 +83,15 @@ fun MyNavHost(
         }
     }
 
+    // The notification was tapped: the player, whether the app was open or not.
+    LaunchedEffect(Unit) {
+        com.music.aalap.di.VoicePlay.openPlayerRequest.collect { want ->
+            if (!want) return@collect
+            com.music.aalap.di.VoicePlay.openPlayerRequest.value = false
+            if (navHostController.currentDestination?.route != Routes.Player.route &&
+                com.music.aalap.data.preferences.isAalapOnboarded(context)) navHostController.navigate(Routes.Player.route)
+        }
+    }
     // A voice request opened the app: show the player once the music starts.
     LaunchedEffect(Unit) {
         com.music.aalap.di.VoicePlay.showPlayer.collect {

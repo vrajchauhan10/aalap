@@ -53,14 +53,19 @@ object ShareCards {
         drawRect(0f, 0f, W.toFloat(), H.toFloat(), p)
     }
 
-    /** Small Aalap mark + name at the bottom of every card. */
+    /** Aalap's own app icon + name at the bottom of every card (the same icon as on the phone). */
     private fun Canvas.footer(ctx: Context) {
-        val cx = 150f; val cy = H - 110f
-        val arc = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 10f; color = GOLD; strokeCap = Paint.Cap.ROUND }
-        drawArc(RectF(cx - 46, cy - 46, cx + 46, cy + 46), 31f, 298f, false, arc)
-        val play = android.graphics.Path().apply { moveTo(cx - 12, cy - 20); lineTo(cx + 20, cy); lineTo(cx - 12, cy + 20); close() }
-        drawPath(play, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = SAFFRON })
-        drawText("Aalap", cx + 80, cy + 18, text(ctx, 52f, 0xFFFFFFFF.toInt(), true))
+        val cx = 150f; val cy = H - 110f; val r = 56f
+        val icon = androidx.core.content.ContextCompat.getDrawable(ctx, com.music.aalap.R.mipmap.ic_launcher)
+        if (icon != null) {
+            save()
+            val box = RectF(cx - r, cy - r, cx + r, cy + r)
+            clipPath(android.graphics.Path().apply { addRoundRect(box, r * 0.46f, r * 0.46f, android.graphics.Path.Direction.CW) })
+            icon.setBounds(box.left.toInt(), box.top.toInt(), box.right.toInt(), box.bottom.toInt())
+            icon.draw(this)
+            restore()
+        }
+        drawText("Aalap", cx + 84, cy + 18, text(ctx, 52f, 0xFFFFFFFF.toInt(), true))
     }
 
     /** A lyric line as a quote card, tinted with the song's artwork colour. */

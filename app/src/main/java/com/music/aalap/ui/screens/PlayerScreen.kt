@@ -802,7 +802,7 @@ fun PlayerEndInfo() {
         Icon(
             modifier = Modifier
                 .size(22.dp),
-            painter = painterResource(id = R.drawable.ic_devices),
+            painter = painterResource(id = R.drawable.ic_output_phone),
             tint = Color.White,
             contentDescription = "Devices")
         Icon(
@@ -1041,15 +1041,15 @@ private fun currentAudioRoute(context: Context): String {
 fun shareSongCard(context: Context, scope: kotlinx.coroutines.CoroutineScope, track: SongsModel?, onDone: () -> Unit = {}) {
     val title = track?.title.orEmpty()
     val artist = track?.singer.orEmpty()
-    val link = track?.spotifyTrackId?.takeIf { it.isNotBlank() }?.let { "https://open.spotify.com/track/$it" }
-    val message = "Listening to $title by $artist on Aalap"
+    // One message for everyone: its links open on Android and iPhone alike.
+    val message = com.music.aalap.ui.share.ShareMessage.forSong(title, artist, track?.spotifyTrackId.orEmpty())
     scope.launch(kotlinx.coroutines.Dispatchers.IO) {
         val art = runCatching {
             com.bumptech.glide.Glide.with(context).asBitmap().load(track?.coverUri.orEmpty()).submit(900, 900).get()
         }.getOrNull()
         val card = com.music.aalap.ui.share.ShareCards.songCard(context, art, title, artist)
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-            com.music.aalap.ui.share.ShareCards.share(context, card, "aalap-song", message, link)
+            com.music.aalap.ui.share.ShareCards.share(context, card, "aalap-song", message)
             onDone()
         }
     }
@@ -1069,10 +1069,11 @@ fun PlayerConnectRow(
             .fillMaxWidth()
             .padding(horizontal = 25.dp, vertical = 4.dp),
     ) {
-        // Device / Spotify Connect indicator (green, like the official app).
+        // Where it's playing: Aalap's own mark (a phone sending out sound), headphones when
+        // they're plugged in or on Bluetooth.
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                painter = painterResource(id = R.drawable.ic_devices),
+                painter = painterResource(id = if (routeName == "This device") R.drawable.ic_output_phone else R.drawable.ic_output_headphones),
                 tint = com.music.aalap.ui.theme.Saffron,
                 modifier = Modifier.size(18.dp),
                 contentDescription = "Device",

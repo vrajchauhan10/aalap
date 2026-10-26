@@ -223,8 +223,14 @@ enum class SongVideos(val label: String, val subtitle: String) {
 
 private const val KEY_SONG_VIDEOS = "song_videos"
 
-fun getSongVideos(c: Context): SongVideos =
-    runCatching { SongVideos.valueOf(prefs(c).getString(KEY_SONG_VIDEOS, null) ?: "ALWAYS") }.getOrDefault(SongVideos.ALWAYS)
+/** Off unless you turn them on (from 6.3; earlier versions had them on, so that's reset once). */
+fun getSongVideos(c: Context): SongVideos {
+    val p = prefs(c)
+    if (!p.getBoolean("song_videos_default_off", false)) {
+        p.edit().putBoolean("song_videos_default_off", true).putString(KEY_SONG_VIDEOS, SongVideos.OFF.name).apply()
+    }
+    return runCatching { SongVideos.valueOf(p.getString(KEY_SONG_VIDEOS, null) ?: "OFF") }.getOrDefault(SongVideos.OFF)
+}
 
 fun setSongVideos(c: Context, v: SongVideos) = prefs(c).edit().putString(KEY_SONG_VIDEOS, v.name).apply()
 

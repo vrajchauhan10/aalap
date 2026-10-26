@@ -114,7 +114,7 @@ object HomeMixes {
         val yt = QueueEngine.rerank(c, fromYouTube, familiar = 0.5f).take(10)
         val mixed = ArrayList<SongsModel>()
         for (i in 0 until 10) { trending.getOrNull(i)?.let(mixed::add); yt.getOrNull(i)?.let(mixed::add); engine.getOrNull(i)?.let(mixed::add) }
-        val result = Diversifier.spreadArtists(mixed.distinctBy { it.id }.take(24)) { it.singer }
+        val result = Diversifier.spreadArtists(com.music.aalap.data.recommendation.engine.MixClean.songs(mixed.distinctBy { it.id }).take(24)) { it.singer }
         writeSongs("quick", stamp, result)
         return result
     }
@@ -235,8 +235,10 @@ object HomeMixes {
         val groups = listOf(taste.map { it to "Your taste" }, trending.map { it to "Trending" }, likes.map { it to "Liked" }, top.map { it to "Top hit" })
         val mixed = ArrayList<Pair<SongsModel, String>>()
         for (i in 0 until 10) groups.forEach { g -> g.getOrNull(i)?.let(mixed::add) }
-        val sameSong: (Pair<SongsModel, String>) -> String = { "${it.first.title.lowercase()}|${key(it.first.singer)}" }
-        val unique = mixed.distinctBy(sameSong).toMutableList()
+        // The same song listed twice ("Kesariya" and "Kesariya (From …)") is one song; a remix or
+        // lofi take of it isn't the song.
+        val sameSong: (Pair<SongsModel, String>) -> String = { com.music.aalap.data.recommendation.engine.MixClean.songKey(it.first.title, it.first.singer) }
+        val unique = mixed.filterNot { com.music.aalap.data.recommendation.engine.MixClean.altered(it.first.title, it.first.album) }.distinctBy(sameSong).toMutableList()
         // Short of 30 (little taste data yet, few likes, or overlaps between groups): top up
         // from the rest of each pool, so the list is always a full 30 when songs exist.
         if (unique.size < 30) {
@@ -423,7 +425,7 @@ object HomeMixes {
                 }.getOrDefault(emptyList())
                 val songs = ArrayList<SongsModel>()
                 for (j in 0 until maxOf(familiar.size, fresh.size)) { familiar.getOrNull(j)?.let(songs::add); fresh.getOrNull(j)?.let(songs::add) }
-                val list = Diversifier.spreadArtists(songs.distinctBy { it.id }.take(30)) { it.singer }
+                val list = Diversifier.spreadArtists(com.music.aalap.data.recommendation.engine.MixClean.songs(songs.distinctBy { it.id }).take(30)) { it.singer }
                 Mix(
                     title = "Daily Mix ${i + 1}",
                     subtitle = group.joinToString(", ") + " and more",
