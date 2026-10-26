@@ -589,6 +589,12 @@ object YTPlayerUtils {
         val isAgeRestricted: Boolean
     )
 
+    /**
+     * Fetches YouTube's player once in the background (it's cached after), so the first song
+     * after the app opens doesn't wait for it: that took 12 s on a slow connection.
+     */
+    fun warmUp() { runCatching { getSignatureTimestampOrNull("zJ0KO4Kec3w") } }
+
     private fun getSignatureTimestampOrNull(videoId: String): SignatureTimestampResult {
         Timber.tag(logTag).d("Getting signature timestamp for videoId: $videoId")
         val result = NewPipeExtractor.getSignatureTimestamp(videoId)

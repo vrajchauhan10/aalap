@@ -278,6 +278,29 @@ object QueueEndpoint {
             }
             return
         }
+        if (target.startsWith("/failtest")) {
+            // Debug: a song nothing can find, then a real one. Reports how long until the real
+            // one is playing (the failed song should be skipped, never played as another song).
+            val state = dagger.hilt.android.EntryPointAccessors.fromApplication(context.applicationContext,
+                com.music.aalap.di.HeyAalapService.StateEntryPoint::class.java).currentSongState()
+            val real = (com.music.aalap.data.recommendation.HomeMixes.todayCached().map { it.song } + com.music.aalap.data.recommendation.HomeMixes.yourMixCached(context)).first()
+            val fake = com.music.aalap.data.entity.SongsModel(-424242, "Zzqxv Plonk Nonexistent", "Nowhere", "Qwertyuiop Nobody", "", "Zzqxv Plonk Nonexistent Qwertyuiop Nobody")
+            val started = System.currentTimeMillis()
+            android.os.Handler(android.os.Looper.getMainLooper()).post { com.music.aalap.di.SmartPlay.playAll(context, state, listOf(fake, real), "Fail test") }
+            var playingReal = -1L
+            while (System.currentTimeMillis() - started < 90_000) {
+                Thread.sleep(500)
+                val playing = java.util.concurrent.CompletableFuture<Boolean>().also { f -> android.os.Handler(android.os.Looper.getMainLooper()).post { f.complete(com.music.aalap.di.SongPlayer.isPlaying()) } }.get()
+                if (state.songId.value == real.id && playing) { playingReal = System.currentTimeMillis() - started; break }
+            }
+            val bytes = JSONObject().put("real", real.title).put("seconds_until_real_plays", if (playingReal < 0) "never (90 s)" else playingReal / 1000.0)
+                .put("now", state.title.value).toString(2).toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
         if (target.startsWith("/matchaudit")) {
             // Debug: what YouTube recording today's mixes would play, song by song (nothing plays).
             val q = target.substringAfter("q=", "").substringBefore("&").let { java.net.URLDecoder.decode(it, "UTF-8") }

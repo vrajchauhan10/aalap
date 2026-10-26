@@ -292,6 +292,12 @@ object SongPlayer {
             }
             Log.w(TAG, "web playback on but no Spotify id for query: $song — using fallback engine")
         }
+        // The next song gets ready at the same time: if this one can't be found anywhere, the
+        // skip to it is quick instead of a second long search.
+        boundState?.queue?.value?.let { q ->
+            val at = q.indexOfFirst { it.url == song }
+            q.getOrNull(at + 1)?.takeIf { at >= 0 }?.let { next -> prefetch(next.url, appContext) }
+        }
         scope.launch {
             try {
                 if (wantsQuickStart(song, appContext)) {
@@ -299,23 +305,18 @@ object SongPlayer {
                     return@launch
                 }
                 val streamUrl = resolveStreamUrl(song, appContext, forPlayback = true) ?: run {
-                    // Tell the user instead of silently leaving the request on.
-                    if (currentRequest == song) withContext(Dispatchers.Main) {
-                        android.widget.Toast.makeText(
-                            appContext, "Couldn't find a playable stream for this track",
-                            android.widget.Toast.LENGTH_SHORT,
-                        ).show()
-                        // Signal failure so the queue can advance past this track
-                        // instead of going silent (issue 3: playlist stalls on bad stream).
-                        onStreamFailed?.invoke(song)
-                    }
+                    // No source has this exact song: say so and play the next one.
+                    streamFailed(song, appContext)
                     return@launch
                 }
                 // A newer tap superseded this one while we were resolving — drop it.
                 if (currentRequest != song) return@launch
                 startStream(song, streamUrl, appContext)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.e(TAG, "playSong failed for query: $song", e)
+                // Finding it went wrong (a network error, say): move on rather than go silent.
+                streamFailed(song, appContext)
             }
         }
     }
@@ -336,6 +337,7 @@ object SongPlayer {
             player!!.playWhenReady = true
             fadeIn(player!!)
         }
+        failedInARow = 0
         startPositionWatch()
         // Quick-start songs trigger it after their own upgrade instead.
         if (!wantsQuickStart(song, appContext)) soulseekLookahead(appContext)
@@ -404,11 +406,30 @@ object SongPlayer {
         }
     }
 
+    /** Songs in a row that couldn't be played (reset when one starts). */
+    @Volatile private var failedInARow = 0
+    private const val MAX_FAILED_IN_A_ROW = 5
+
+    /**
+     * No source has this exact song (or finding it went wrong): say so and move on to the next
+     * one, so the music doesn't stop. After [MAX_FAILED_IN_A_ROW] in a row (the connection is
+     * gone, most likely) it stops instead of skipping through everything.
+     */
     private fun streamFailed(song: String, appContext: Context) {
         if (currentRequest != song) return
         android.os.Handler(android.os.Looper.getMainLooper()).post {
+            if (currentRequest != song) return@post
+            failedInARow++
+            if (failedInARow > MAX_FAILED_IN_A_ROW) {
+                failedInARow = 0
+                boundState?.updatePlayingState(false)
+                android.widget.Toast.makeText(
+                    appContext, "Couldn't play the last few songs. Check your connection", android.widget.Toast.LENGTH_LONG,
+                ).show()
+                return@post
+            }
             android.widget.Toast.makeText(
-                appContext, "Couldn't find a playable stream for this track", android.widget.Toast.LENGTH_SHORT,
+                appContext, "This song isn't available right now. Playing the next one", android.widget.Toast.LENGTH_SHORT,
             ).show()
             onStreamFailed?.invoke(song)
         }

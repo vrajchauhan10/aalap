@@ -4,6 +4,17 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 6.4.0 — 26 Oct 2026 (build 65)
+- **A song no source has never stops the music.** When YouTube, JioSaavn, Gaana and the last
+  resorts all lack the exact song (never another song in its place), Aalap says "This song
+  isn't available right now. Playing the next one" and moves on:
+  - also when finding it goes wrong (a network error used to leave the music silent);
+  - after 5 in a row (the connection is gone, most likely) it stops and says so, instead of
+    skipping through everything.
+- **Faster:** the next song is found while the current one is being found, and YouTube's
+  player is fetched in the background as the app opens. A song that can't be found now
+  costs 2 s before the next plays (9.6 s right after opening), from 21.6 s.
+
 ## 6.3.0 — 26 Oct 2026 (build 64)
 - **The song you see is the song you hear.** Every recording is checked against the song's
   own title, its singers (one by one: "Kinjal Dave" is never "Jinal Chauhan"), its length
