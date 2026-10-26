@@ -1,5 +1,6 @@
 package com.music.aalap.ui.components
 
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -89,19 +90,22 @@ fun MiniPlayer(navController: NavHostController) {
     val songAlbum = miniPlayerViewModel.currentSongAlbum.value
 
 
-    var songProgress by remember { mutableFloatStateOf(0f) }
-
-    songProgress = if (SongPlayer.getDuration() > 0) {
-        SongPlayer.getCurrentPosition().toFloat() / SongPlayer.getDuration().toFloat()
-    } else {
-        0f
+    // Where the song is, set once as the bar appears and then moved by the timer below. (It was
+    // written while drawing, which asks for another drawing: with the song always moving, the
+    // mini player redrew itself every frame, endlessly, open or in the background.)
+    var songProgress by remember(songId) {
+        mutableFloatStateOf(SongPlayer.getDuration().takeIf { it > 0 }?.let { SongPlayer.getCurrentPosition().toFloat() / it } ?: 0f)
     }
 
     val currentRoute = navController.currentBackStackEntry?.destination?.route
 
 
 
-    LaunchedEffect(key1  = songPlayingState) {
+    // The bar moves only while Aalap is on screen: in the background this redrew the mini
+    // player three times a second for nobody (the biggest part of Aalap's background CPU).
+    val miniLifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(songPlayingState, miniLifecycle) {
+        miniLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             while (songPlayingState) {
                 songProgress = SongPlayer.getDuration().toFloat().let { dur ->
                     if (dur > 0f) (SongPlayer.getCurrentPosition().toFloat() / dur).coerceIn(0f, 1f) else 0f
@@ -109,6 +113,7 @@ fun MiniPlayer(navController: NavHostController) {
                 // (The full player used to open by itself when a song ended; the end of a song
                 // is the playback service's job, and opening the player then could jump songs.)
                 delay(300L)
+            }
         }
     }
 
@@ -249,7 +254,7 @@ fun MiniPlayer(navController: NavHostController) {
                         exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(250)),
                     ) {
                         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.38f)), contentAlignment = Alignment.Center) {
-                            CoverEqualizer()
+                            androidx.compose.runtime.key(songId) { CoverEqualizer() }
                         }
                     }
                 }
@@ -454,22 +459,31 @@ fun ConfirmDownloadAllDialog(count: Int, onDismiss: () -> Unit, onConfirm: () ->
 /** Four little saffron bars rising and falling at different speeds, like a beat. */
 @Composable
 private fun CoverEqualizer() {
-    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "eq")
-    val speeds = listOf(520, 380, 610, 450)
-    val bars = speeds.mapIndexed { i, ms ->
-        t.animateFloat(
-            initialValue = 0.25f, targetValue = 1f,
-            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                androidx.compose.animation.core.tween(ms, delayMillis = i * 60, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-                androidx.compose.animation.core.RepeatMode.Reverse,
-            ),
-            label = "bar$i",
-        )
+    // Still bars while no Aalap screen is showing (see ScreenState).
+    if (!com.music.aalap.ui.theme.ScreenState.onScreen) { EqualizerBars(listOf(0.6f, 0.9f, 0.5f, 0.75f)); return }
+    // Steps about six times a second, like a level meter: a smooth animation asked for a new
+    // frame 120 times a second for as long as a song played.
+    // It dances for a few seconds as the song starts (or after play), then holds still: every
+    // step redraws the whole window, shadows and all, and that kept the phone working the
+    // whole time Aalap was open.
+    var heights by remember { mutableStateOf(listOf(0.4f, 0.8f, 0.55f, 0.7f)) }
+    LaunchedEffect(Unit) {
+        val rnd = kotlin.random.Random(System.nanoTime())
+        repeat(25) {
+            kotlinx.coroutines.delay(160)
+            heights = heights.map { h -> (h + (rnd.nextFloat() - 0.5f) * 0.7f).coerceIn(0.25f, 1f) }
+        }
+        heights = listOf(0.55f, 0.9f, 0.6f, 0.75f)
     }
+    EqualizerBars(heights)
+}
+
+@Composable
+private fun EqualizerBars(heights: List<Float>) {
     androidx.compose.foundation.Canvas(Modifier.size(width = 22.dp, height = 16.dp)) {
         val w = 3.dp.toPx(); val gap = (size.width - w * 4) / 3
-        bars.forEachIndexed { i, v ->
-            val h = size.height * v.value
+        heights.forEachIndexed { i, v ->
+            val h = size.height * v
             drawRoundRect(
                 com.music.aalap.ui.theme.Saffron,
                 topLeft = androidx.compose.ui.geometry.Offset(i * (w + gap), size.height - h),

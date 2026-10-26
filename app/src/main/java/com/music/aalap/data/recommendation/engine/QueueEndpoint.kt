@@ -278,6 +278,50 @@ object QueueEndpoint {
             }
             return
         }
+        if (target.startsWith("/availability")) {
+            // Debug: today's charts and Aaj ka Aalap through the player's own source order;
+            // which source each song would play from, and which have none.
+            val out = runBlocking {
+                val q = java.net.URLDecoder.decode(target.substringAfter("q=", ""), "UTF-8")
+                val songs = if (q.isNotBlank()) {
+                    // A singer's or a search's songs: several searches, each song once.
+                    q.split("|").flatMap { one ->
+                        com.music.aalap.data.api.Api(context).searchTracks(one).toList()
+                            .filterIsInstance<com.music.aalap.data.api.Response.Success<List<com.music.aalap.data.entity.SongsModel>>>()
+                            .lastOrNull()?.data.orEmpty()
+                    }.distinctBy { it.id }
+                } else (com.music.aalap.data.recommendation.HomeMixes.trendingSongs(context) +
+                    com.music.aalap.data.recommendation.HomeMixes.todayCached().map { it.song }).distinctBy { it.id }
+                val counts = HashMap<String, Int>(); val missing = JSONArray()
+                songs.forEach { s ->
+                    val src = com.music.aalap.di.SongPlayer.whereFrom(s, context)
+                    counts[src] = (counts[src] ?: 0) + 1
+                    if (src == "none") missing.put("${s.title} \u2014 ${s.singer}")
+                }
+                JSONObject().put("songs", songs.size).put("from", JSONObject(counts as Map<*, *>)).put("not_available", missing)
+            }
+            val bytes = out.toString(2).toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
+        if (target.startsWith("/sourcecheck")) {
+            // Debug: for each searched song, what YouTube, JioSaavn and Gaana each find, and how fast.
+            val q = java.net.URLDecoder.decode(target.substringAfter("q=", ""), "UTF-8")
+            val out = runBlocking {
+                val songs = com.music.aalap.data.api.Api(context).searchTracks(q).toList()
+                    .filterIsInstance<com.music.aalap.data.api.Response.Success<List<com.music.aalap.data.entity.SongsModel>>>().lastOrNull()?.data.orEmpty().take(1)
+                JSONArray(songs.map { s -> JSONObject(com.music.aalap.di.SongPlayer.auditSources(s, context) as Map<*, *>).put("song", "${s.title} \u2014 ${s.singer}") })
+            }
+            val bytes = out.toString(2).toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(bytes); flush()
+            }
+            return
+        }
         if (target.startsWith("/failtest")) {
             // Debug: a song nothing can find, then a real one. Reports how long until the real
             // one is playing (the failed song should be skipped, never played as another song).

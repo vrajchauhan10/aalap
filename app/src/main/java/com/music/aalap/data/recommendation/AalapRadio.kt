@@ -64,9 +64,12 @@ object AalapRadio {
                 (if (s.id in profile.recentIds) 0.3 else 0.0) +
                 (if (pace != null) 0.2 * (Pace.closeness(pace, favVibes[s.id] ?: Vibe.UNKNOWN) - 0.5) else 0.0))
         }.sortedByDescending { it.second }.take(60).toMutableList()
+        // Half the mix from your favourites. (Inside buildList, a bare `size` is the list being
+        // built, always 0 here: the mix's own size is named so it can't be mistaken for it.)
+        val wanted = size
         val favourites = buildList {
-            while (size > 0 && favScored.isNotEmpty() && this.size < size / 2) {
-                val pick = Diversifier.sampleWeighted(favScored, rnd) { it.second.coerceAtLeast(0.01) }!!
+            while (wanted > 0 && favScored.isNotEmpty() && this.size < wanted / 2) {
+                val pick = Diversifier.sampleWeighted(favScored, rnd) { it.second.coerceAtLeast(0.01) } ?: break
                 favScored.remove(pick); add(pick.first)
             }
         }
@@ -81,10 +84,13 @@ object AalapRadio {
         val out = ArrayList<SongsModel>()
         var f = 0; var n = 0; var r = 0
         // Pattern: two favourites, one new, and now and then a rediscovered like.
+        // Every round adds at least one song or stops: a round that added nothing used to spin
+        // forever (a core at 100% in the background) once only rediscovered likes were left.
         while (out.size < size && (f < favModels.size || n < fresh.size || r < redModels.size)) {
+            val before = out.size
             repeat(2) { if (f < favModels.size) out += favModels[f++] }
             if (n < fresh.size) out += fresh[n++]
-            if (out.size % 5 == 0 && r < redModels.size) out += redModels[r++]
+            if ((out.size % 5 == 0 || out.size == before) && r < redModels.size) out += redModels[r++]
         }
         return Diversifier.spreadArtists(com.music.aalap.data.recommendation.engine.MixClean.songs(out.distinctBy { it.id }).take(size)) { it.singer }
     }

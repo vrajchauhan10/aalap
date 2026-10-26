@@ -2,6 +2,7 @@
 
 package com.music.aalap.ui.screens
 
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.toArgb
@@ -97,7 +98,9 @@ private data class LyricsPlayback(val positionMs: Long, val isPlaying: Boolean)
 @Composable
 private fun rememberLyricsPlayback(): State<LyricsPlayback> {
     val playback = remember { mutableStateOf(LyricsPlayback(0L, false)) }
-    LaunchedEffect(Unit) {
+    // Only while on screen: in the background it redrew the lyrics four times a second.
+    val lyricsLifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lyricsLifecycle) { lyricsLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
         while (true) {
             playback.value = LyricsPlayback(
                 positionMs = SongPlayer.getCurrentPosition().coerceAtLeast(0L),
@@ -105,7 +108,7 @@ private fun rememberLyricsPlayback(): State<LyricsPlayback> {
             )
             delay(250L)
         }
-    }
+    } }
     return playback
 }
 

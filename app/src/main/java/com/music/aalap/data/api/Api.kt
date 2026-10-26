@@ -510,7 +510,10 @@ class Api @Inject constructor(
             onSuccess = { res ->
                 // Keep category pages family-friendly: drop adult playlists a plain search can return.
                 val adult = Regex("""\b(sex|sexy|xxx|18\+|adult|erotic|nsfw|porn|nude|hot stories)\b""", RegexOption.IGNORE_CASE)
-                emit(Response.Success(res.playlists?.items.orEmpty().filterNot { adult.containsMatchIn(it.name) || adult.containsMatchIn(it.description.orEmpty()) }.map { p ->
+                // Spotify's own (official, editorial) playlists first, then the most popular
+                // others: official lists hold the original recordings, playable everywhere.
+                emit(Response.Success(res.playlists?.items.orEmpty().filterNot { adult.containsMatchIn(it.name) || adult.containsMatchIn(it.description.orEmpty()) }
+                    .sortedByDescending { it.owner?.displayName.equals("Spotify", ignoreCase = true) }.map { p ->
                     com.music.aalap.data.entity.LibraryEntry(
                         spotifyId = p.id,
                         name = p.name,

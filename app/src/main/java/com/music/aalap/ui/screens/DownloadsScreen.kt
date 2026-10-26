@@ -1,5 +1,6 @@
 package com.music.aalap.ui.screens
 
+import androidx.lifecycle.repeatOnLifecycle
 import android.annotation.SuppressLint
 import androidx.compose.foundation.ExperimentalFoundationApi
 import kotlinx.coroutines.CoroutineScope
@@ -82,14 +83,15 @@ fun DownloadsScreen(navController: NavController) {
     var inProgress by remember {
         mutableStateOf(com.music.aalap.di.Downloads.downloadingSnapshot())
     }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    val downloadsLifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.LaunchedEffect(downloadsLifecycle) { downloadsLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
         while (true) {
             val snap = com.music.aalap.di.Downloads.downloadingSnapshot()
             if (snap.size != inProgress.size) songs = getDownloadedSongs(context)
             inProgress = snap
             kotlinx.coroutines.delay(400)
         }
-    }
+    } }
 
     var menuSong by remember { mutableStateOf<SongsModel?>(null) }
     menuSong?.let { sel ->

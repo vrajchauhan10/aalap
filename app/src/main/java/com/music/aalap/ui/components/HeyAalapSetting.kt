@@ -15,6 +15,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -90,33 +91,79 @@ fun HeyAalapSetting() {
 }
 
 /**
- * Profile → Voice: hold a volume key to ask Aalap (an accessibility shortcut the user switches
- * on in Android's settings), and how to put "Ask Aalap" on the side key.
+ * Profile → Voice: ask Aalap with a button, whichever suits the phone: hold a volume key (up,
+ * down or either), a button of the phone's own (learned by pressing it), or Android's floating
+ * Accessibility button, which can be dragged anywhere. One Accessibility switch covers all.
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun AskKeysSetting() {
     val context = LocalContext.current
+    val K = com.music.aalap.di.AskKeys
     var keysOn by remember { mutableStateOf(com.music.aalap.di.AalapKeyService.isOn(context)) }
+    var trigger by remember { mutableStateOf(K.trigger(context)) }
+    var ownName by remember { mutableStateOf(K.ownKeyName(context)) }
+    var learning by remember { mutableStateOf(false) }
+    val learned by K.learned.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(learned) {
+        if (learned != 0) { learning = false; trigger = K.trigger(context); ownName = K.ownKeyName(context) }
+    }
     val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
     androidx.compose.runtime.DisposableEffect(lifecycle) {
         val o = androidx.lifecycle.LifecycleEventObserver { _, e -> if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) keysOn = com.music.aalap.di.AalapKeyService.isOn(context) }
-        lifecycle.addObserver(o); onDispose { lifecycle.removeObserver(o) }
+        lifecycle.addObserver(o); onDispose { lifecycle.removeObserver(o); K.learning = false }
+    }
+    fun openAccessibility() = runCatching {
+        context.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
     }
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Text("Hold a volume key to ask", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Text("Ask with a button", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         Text(
-            "Hold volume up or down for a moment, over any app, and the bar comes up listening. A quick press still changes the volume.",
+            "From any app, the bar comes up listening. Pick the button that suits your phone.",
             color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp,
         )
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(top = 10.dp),
+        ) {
+            com.music.aalap.di.AskKeys.Trigger.entries.forEach { t ->
+                val label = if (t == com.music.aalap.di.AskKeys.Trigger.OWN && ownName.isNotBlank()) "My button: $ownName" else t.label
+                val sel = trigger == t
+                Text(label, color = if (sel) com.music.aalap.ui.theme.OnSaffron else com.music.aalap.ui.theme.TextPrimary, fontSize = 13.sp,
+                    fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
+                    modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
+                        .background(if (sel) com.music.aalap.ui.theme.Saffron else com.music.aalap.ui.theme.SurfaceHigh)
+                        .clickable {
+                            if (t == com.music.aalap.di.AskKeys.Trigger.OWN && K.ownKey(context) == 0) { learning = true; K.learning = true }
+                            else { trigger = t; K.setTrigger(context, t) }
+                        }.padding(horizontal = 14.dp, vertical = 8.dp))
+            }
+        }
         Text(
-            if (keysOn) "On · change in Accessibility" else "Turn on in Accessibility → Aalap",
+            when {
+                learning -> "Press the button you want to use now…"
+                trigger == com.music.aalap.di.AskKeys.Trigger.OWN -> "Press your button once to ask. Change it: tap here, then press another button."
+                trigger == com.music.aalap.di.AskKeys.Trigger.EITHER -> "Hold volume up or down for a moment. A quick press still changes the volume."
+                else -> "Hold it for a moment. A quick press still changes the volume."
+            },
+            color = if (learning) com.music.aalap.ui.theme.Saffron else com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp,
+            modifier = Modifier.padding(top = 8.dp).clickable(enabled = trigger == com.music.aalap.di.AskKeys.Trigger.OWN) { learning = true; K.learning = true },
+        )
+        Text(
+            "On screen instead: Android's Accessibility button is a small floating icon you can drag anywhere; " +
+                "tap it to ask. Accessibility \u2192 Aalap \u2192 Aalap shortcut \u2192 Accessibility button.",
+            color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp),
+        )
+        Text(
+            if (keysOn) "On \u00B7 change in Accessibility" else "Turn on in Accessibility \u2192 Aalap",
             color = if (keysOn) com.music.aalap.ui.theme.Saffron else com.music.aalap.ui.theme.OnSaffron, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(top = 8.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
                 .background(if (keysOn) com.music.aalap.ui.theme.SurfaceHigh else com.music.aalap.ui.theme.Saffron)
-                .clickable {
-                    runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                }.padding(horizontal = 12.dp, vertical = 8.dp),
+                .clickable { openAccessibility() }.padding(horizontal = 12.dp, vertical = 8.dp),
         )
+        if (learning && !keysOn) Text("Turn it on in Accessibility first, so Aalap can see the button.",
+            color = com.music.aalap.ui.theme.Saffron, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
     }
     // The optional icon: one tap from the app drawer, or the side key's double press.
     var iconOn by remember { mutableStateOf(com.music.aalap.di.AskAalapIcon.isOn(context)) }

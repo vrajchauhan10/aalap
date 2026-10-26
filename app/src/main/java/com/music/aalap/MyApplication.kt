@@ -47,8 +47,13 @@ class MyApplication : Application(), androidx.appfunctions.service.AppFunctionCo
         }
         // Whether any Aalap screen is showing (background starts need a foreground service).
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
-            override fun onActivityStarted(a: android.app.Activity) { visible++ }
-            override fun onActivityStopped(a: android.app.Activity) { visible = (visible - 1).coerceAtLeast(0) }
+            override fun onActivityStarted(a: android.app.Activity) {
+                visible++; com.music.aalap.di.SongPlayer.onAppVisible(true); com.music.aalap.ui.theme.ScreenState.onScreen = true
+            }
+            override fun onActivityStopped(a: android.app.Activity) {
+                visible = (visible - 1).coerceAtLeast(0)
+                if (visible == 0) { com.music.aalap.di.SongPlayer.onAppVisible(false); com.music.aalap.ui.theme.ScreenState.onScreen = false }
+            }
             override fun onActivityCreated(a: android.app.Activity, b: android.os.Bundle?) {}
             override fun onActivityResumed(a: android.app.Activity) {}
             override fun onActivityPaused(a: android.app.Activity) {}

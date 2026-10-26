@@ -1,5 +1,6 @@
 package com.music.aalap.ui.components
 
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -144,7 +145,8 @@ fun BlendDetail(pairId: String, state: CurrentSongState, onClose: () -> Unit) {
     val heardToday = b.listened[today].orEmpty()
     var confirmRemove by remember { mutableStateOf(false) }
     // Your friend's listening comes in while you look (every minute).
-    LaunchedEffect(pairId) { while (true) { BlendSync.pull(context); kotlinx.coroutines.delay(60_000) } }
+    val blendLifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(pairId, blendLifecycle) { blendLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) { while (true) { BlendSync.pull(context); kotlinx.coroutines.delay(60_000) } } }
 
     // The ring fills from where it was to the score.
     val shown = remember { Animatable(0f) }

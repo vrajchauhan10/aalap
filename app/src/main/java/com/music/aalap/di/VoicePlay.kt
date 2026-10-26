@@ -316,11 +316,17 @@ object VoicePlay {
 
     /** Waits (up to ~12 s) for [song] to be the one playing; false if the player moved on or never started. */
     private suspend fun playingNow(state: CurrentSongState, song: SongsModel): Boolean {
-        repeat(24) {
+        // ~12 s for it to start, plus as long as the player is still looking for it (up to a
+        // minute): retrying while it searches cancelled the search before the fallback sources
+        // (JioSaavn, Gaana) had their turn.
+        var waited = 0
+        var searching = 0
+        while (waited < 24 && searching < 120) {
             kotlinx.coroutines.delay(500)
             val (current, playing) = withContext(Dispatchers.Main) { state.songId.value to SongPlayer.isPlaying() }
             if (current != song.id) return false
             if (playing) return true
+            if (SongPlayer.isFinding(song.url)) searching++ else waited++
         }
         return false
     }

@@ -44,8 +44,13 @@ object VibeStore {
 
     // ── a song's own evidence ──────────────────────────────────────────────
 
+    /** A song's words read once (the same songs come up as neighbours of many candidates). */
+    private val words = android.util.LruCache<String, Map<Feel, Double>>(4_000)
+
     private fun direct(s: Song, tags: List<RecoDb.Tag>?): Map<Feel, Double> {
-        val out = HashMap(Vibe.lexicon(s.title, s.info.album))
+        val key = s.title + "\u0000" + s.info.album
+        val read = words.get(key) ?: Vibe.lexicon(s.title, s.info.album).also { words.put(key, it) }
+        val out = HashMap(read)
         tags?.forEach { t ->
             val feel = runCatching { Feel.valueOf(t.tag) }.getOrNull() ?: return@forEach
             out[feel] = minOf(3.0, (out[feel] ?: 0.0) + 1.6 * t.weight)

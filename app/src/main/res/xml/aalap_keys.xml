@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Hold a volume key to ask Aalap: only key events, no screen content. -->
+<!-- Ask Aalap with a button: volume keys, a button of your own, or the floating Accessibility button. Only key events, no screen content. -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeAnnouncement"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagRequestFilterKeyEvents"
+    android:accessibilityFlags="flagRequestFilterKeyEvents|flagRequestAccessibilityButton"
     android:canRequestFilterKeyEvents="true"
     android:canRetrieveWindowContent="false"
     android:notificationTimeout="0"

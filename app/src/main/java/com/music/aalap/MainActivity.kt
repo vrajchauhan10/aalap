@@ -183,7 +183,10 @@ class MainActivity : ComponentActivity() {
         // Experimental Spotify web-player engine: attach its hidden WebView AFTER
         // setContent so the Compose content view doesn't replace/orphan it (an
         // orphaned WebView gets a 0×0 viewport and Spotify won't render/navigate).
-        if (com.music.aalap.data.api.SpotifySession.spDc(this).isNotBlank()) {
+        // Only when web playback is switched on: the hidden page is the whole Spotify site
+        // (430 MB and steady CPU in the background), and nothing else uses it.
+        if (com.music.aalap.data.api.SpotifySession.spDc(this).isNotBlank() &&
+            com.music.aalap.data.preferences.isWebPlaybackEnabled(this)) {
             com.music.aalap.di.SpotifyWebPlayer.attach(this)
         }
         // Opened by a voice request (not when Android rebuilds the screen: it was handled then).

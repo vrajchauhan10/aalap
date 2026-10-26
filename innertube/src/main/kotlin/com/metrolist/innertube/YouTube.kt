@@ -107,6 +107,8 @@ object YouTube {
         val artists: String,
         val durationSec: Int,
         val thumbnail: String,
+        /** MUSIC_VIDEO_TYPE_ATV (official audio), _OMV (official video), _UGC (a user's upload)… */
+        val videoType: String = "",
     )
 
     /**
@@ -140,7 +142,10 @@ object YouTube {
             val length = r["lengthText"].let(::runsText).split(":").mapNotNull { it.trim().toIntOrNull() }
                 .fold(0) { acc, n -> acc * 60 + n }
             val thumb = r["thumbnail"].obj()?.get("thumbnails").arr()?.lastOrNull().obj()?.get("url").str().orEmpty()
-            UpNextSong(id, runsText(r["title"]), artists, length, thumb)
+            val type = r["navigationEndpoint"].obj()?.get("watchEndpoint").obj()
+                ?.get("watchEndpointMusicSupportedConfigs").obj()?.get("watchEndpointMusicConfig").obj()
+                ?.get("musicVideoType").str().orEmpty()
+            UpNextSong(id, runsText(r["title"]), artists, length, thumb, type)
         }.filter { it.videoId != videoId }
     }
 

@@ -224,6 +224,7 @@ object SongPlayer {
     }
 
     fun playSong(song: String, context: Context) {
+        Log.d(TAG, "playSong: $song")
         val appContext = context.applicationContext
         appCtx = appContext
         currentRequest = song
@@ -284,6 +285,7 @@ object SongPlayer {
         ) {
             val spotifyId = trackIdRegistry[song] ?: spotifyTrackIdForPlayback(song)
             if (spotifyId != null) {
+                Log.d(TAG, "playSong: via the Spotify web player")
                 runCatching { player?.pause() }
                 currentSource = "Spotify"
                 currentQuality = ""
@@ -298,6 +300,7 @@ object SongPlayer {
             val at = q.indexOfFirst { it.url == song }
             q.getOrNull(at + 1)?.takeIf { at >= 0 }?.let { next -> prefetch(next.url, appContext) }
         }
+        finding = song
         scope.launch {
             try {
                 if (wantsQuickStart(song, appContext)) {
@@ -338,6 +341,7 @@ object SongPlayer {
             fadeIn(player!!)
         }
         failedInARow = 0
+        if (finding == song) finding = null
         startPositionWatch()
         // Quick-start songs trigger it after their own upgrade instead.
         if (!wantsQuickStart(song, appContext)) soulseekLookahead(appContext)
@@ -345,6 +349,8 @@ object SongPlayer {
 
     /** How long YouTube Music (first choice) gets before the next source is used. */
     private const val YT_FIRST_WAIT_MS = 7_000L
+    /** How long JioSaavn (first choice when it has the song) gets before YouTube is waited for. */
+    private const val SAAVN_FIRST_WAIT_MS = 2_500L
 
     // ── Offline ──
     private const val MAX_OFFLINE_SKIPS = 40
@@ -406,6 +412,62 @@ object SongPlayer {
         }
     }
 
+    /**
+     * Aalap went to the background (or came back). In the background the compressed audio goes
+     * to the phone's own low-power audio chip (audio offload): it decodes and plays it while the
+     * main processor sleeps, which is what keeps a phone cool through an hour of music. At
+     * normal speed only; songs then change with a gapless cut instead of a crossfade. On phones
+     * without it, playback simply carries on as before. Back in Aalap, the usual path (song
+     * measuring, crossfade) returns.
+     */
+    @Volatile private var inBackground = false
+    @Volatile private var offloading = false
+    fun onAppVisible(visible: Boolean) {
+        Log.d(TAG, "app ${if (visible) "visible" else "in the background"}")
+        inBackground = !visible
+        android.os.Handler(android.os.Looper.getMainLooper()).post { applyOffload() }
+    }
+
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    private fun applyOffload() {
+        val p = player ?: return
+        val ctx = appCtx ?: return
+        // In the background a cool phone comes first: songs change with a clean gapless cut
+        // instead of the crossfade (two songs decoding at once), which returns in Aalap.
+        val ok = inBackground && com.music.aalap.data.preferences.getPlaybackSpeed(ctx) == 1f
+        offloading = ok
+        val prefs = androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.Builder()
+            .setAudioOffloadMode(
+                if (ok) androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED
+                else androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED,
+            )
+            .setIsGaplessSupportRequired(false)
+            .setIsSpeedChangeSupportRequired(false)
+            .build()
+        runCatching {
+            p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setAudioOffloadPreferences(prefs).build()
+        }.onFailure { Log.w(TAG, "offload: $it") }
+        Log.d(TAG, "audio offload ${if (ok) "on (in the background)" else "off"} (background=$inBackground crossfade=${com.music.aalap.data.preferences.getCrossfadeMs(ctx)} speed=${com.music.aalap.data.preferences.getPlaybackSpeed(ctx)})")
+    }
+
+    /** The song being looked for right now (null once it starts or is given up). */
+    @Volatile private var finding: String? = null
+    fun isFinding(song: String) = finding == song
+
+    /**
+     * YouTube refusing streams (403, "confirm you're not a bot"): for 10 minutes JioSaavn and
+     * Gaana go first instead of waiting ~7 s for YouTube on every song.
+     */
+    @Volatile private var ytTroubleUntil = 0L
+    @Volatile private var ytFailures = 0
+    private fun youTubeFailed() {
+        if (++ytFailures >= 2 && System.currentTimeMillis() > ytTroubleUntil) {
+            ytTroubleUntil = System.currentTimeMillis() + 10 * 60_000L
+            Log.w(TAG, "YouTube is refusing streams: JioSaavn and Gaana go first for 10 minutes")
+        }
+    }
+    private fun youTubeWorked() { ytFailures = 0; ytTroubleUntil = 0L }
+
     /** Songs in a row that couldn't be played (reset when one starts). */
     @Volatile private var failedInARow = 0
     private const val MAX_FAILED_IN_A_ROW = 5
@@ -416,6 +478,7 @@ object SongPlayer {
      * gone, most likely) it stops instead of skipping through everything.
      */
     private fun streamFailed(song: String, appContext: Context) {
+        if (finding == song) finding = null
         if (currentRequest != song) return
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             if (currentRequest != song) return@post
@@ -845,9 +908,8 @@ object SongPlayer {
             currentQuality = ""
         }
 
-        // Sources in order of preference: YouTube Music → JioSaavn → Gaana. All three are
-        // started together so a fallback is ready the moment it's needed, but YouTube's
-        // answer wins whenever it comes back in time.
+        // Sources in order of preference: JioSaavn (when quick) → YouTube Music → Gaana. All
+        // are started together so a fallback is ready the moment it's needed.
         val saavnOn = com.music.aalap.data.preferences.isJioSaavnEnabled(appContext)
         val info = losslessTrackInfo(song)
         val fullArtist = metadataRegistry[song]?.artist?.ifBlank { null } ?: info.artist
@@ -873,16 +935,25 @@ object SongPlayer {
             }
         } else null
         fun cancelOthers() { ytJob?.cancel(); saavnJob?.cancel(); gaanaJob?.cancel() }
-        fun useYouTube(p: YTPlayerUtils.PlaybackData) = use("YouTube", p.streamUrl, ytQualityLabel(p)).also { cancelOthers() }
+        fun useYouTube(p: YTPlayerUtils.PlaybackData) = use("YouTube", p.streamUrl, ytQualityLabel(p)).also { youTubeWorked(); cancelOthers() }
+        // A fallback won: note whether YouTube had already failed (not just slow).
+        fun ytLost() { if (ytJob?.isCompleted == true && runCatching { ytJob.getCompleted() }.getOrNull() == null) youTubeFailed() }
 
-        // 1) YouTube Music, if it answers within YT_FIRST_WAIT_MS.
-        ytJob?.let { job -> kotlinx.coroutines.withTimeoutOrNull(YT_FIRST_WAIT_MS) { job.await() } }?.let { return useYouTube(it) }
-        // 2) JioSaavn.
-        saavnJob?.await()?.let { m -> return use("JioSaavn", m.url, "AAC ${m.kbps} kbps").also { cancelOthers() } }
-        // 3) Gaana.
-        gaanaJob?.await()?.let { m -> return use("Gaana", m.url, "AAC").also { cancelOthers() } }
+        // 1) JioSaavn, when it has the exact song quickly: the label's own upload at 320 kbps,
+        //    found in ~0.4 s, with no stream decoding (YouTube takes 2–5 s and much more work,
+        //    which warms the phone, and too many YouTube lookups get the phone flagged as a bot).
+        saavnJob?.let { job -> kotlinx.coroutines.withTimeoutOrNull(SAAVN_FIRST_WAIT_MS) { job.await() } }
+            ?.let { m -> ytJob?.cancel(); gaanaJob?.cancel(); return use("JioSaavn", m.url, "AAC ${m.kbps} kbps") }
+        // 2) YouTube Music, if it answers within YT_FIRST_WAIT_MS (briefly, while it's refusing streams).
+        val ytWait = if (System.currentTimeMillis() < ytTroubleUntil) 1_000L else YT_FIRST_WAIT_MS
+        ytJob?.let { job -> kotlinx.coroutines.withTimeoutOrNull(ytWait) { job.await() } }?.let { return useYouTube(it) }
+        // 3) JioSaavn after all (it was slow).
+        saavnJob?.await()?.let { m -> ytLost(); return use("JioSaavn", m.url, "AAC ${m.kbps} kbps").also { cancelOthers() } }
+        // 4) Gaana.
+        gaanaJob?.await()?.let { m -> ytLost(); return use("Gaana", m.url, "AAC").also { cancelOthers() } }
         // YouTube was only slow, not failed: take its answer now.
         ytJob?.await()?.let { return useYouTube(it) }
+        if (ytJob != null) youTubeFailed()
 
         // Nothing yet: every remaining source gets a turn before the song is reported unplayable.
         Log.w(TAG, "YouTube, JioSaavn and Gaana had nothing — last resorts for: $song")
@@ -1186,6 +1257,34 @@ object SongPlayer {
     /** What YouTube recording each query was matched to ("title — artists"), for checking. */
     internal val chosenMatch = java.util.concurrent.ConcurrentHashMap<String, String>()
 
+    /** Debug: the source [song] would play from, in the player's order ("none" = unavailable). */
+    internal suspend fun whereFrom(song: com.music.aalap.data.entity.SongsModel, ctx: Context): String {
+        registerDuration(listOfNotNull(if (song.durationMs > 0) song.url to song.durationMs else null))
+        registerMetadata(listOf(song.url to TrackMatchMetadata(title = song.title, artist = song.singer, album = song.album)))
+        val sec = song.durationMs / 1000
+        runCatching { com.music.aalap.saavn.JioSaavnSource.resolve(song.title, song.singer, sec, song.title) }.getOrNull()?.let { return "jiosaavn" }
+        if (runCatching { resolveVideoCandidates(song.url) }.getOrDefault(emptyList()).isNotEmpty()) return "youtube"
+        runCatching { com.music.aalap.gaana.GaanaSource.resolve(song.title, song.singer, sec, "", song.title) }.getOrNull()?.let { return "gaana" }
+        if (runCatching { resolveVideoCandidates(song.url, YouTube.SearchFilter.FILTER_VIDEO) }.getOrDefault(emptyList()).isNotEmpty()) return "youtube video"
+        runCatching { com.music.aalap.saavn.JioSaavnSource.resolve(song.title, song.singer, sec, song.title, relaxed = true) }.getOrNull()?.let { return "jiosaavn (relaxed)" }
+        return "none"
+    }
+
+    /** Debug: what each source finds for [song] and how long it takes (nothing plays). */
+    internal suspend fun auditSources(song: com.music.aalap.data.entity.SongsModel, ctx: Context): Map<String, String> = kotlinx.coroutines.coroutineScope {
+        registerDuration(listOfNotNull(if (song.durationMs > 0) song.url to song.durationMs else null))
+        registerMetadata(listOf(song.url to TrackMatchMetadata(title = song.title, artist = song.singer, album = song.album)))
+        val sec = song.durationMs / 1000
+        fun <T> timed(block: suspend () -> T?) = async { val t = System.currentTimeMillis(); val r = runCatching { block() }; Triple(r.getOrNull(), r.exceptionOrNull(), System.currentTimeMillis() - t) }
+        val yt = timed { resolveYtPlayback(song.url, com.metrolist.music.constants.AudioQuality.AUTO, ctx)?.streamUrl?.take(40) }
+        val sv = timed { com.music.aalap.saavn.JioSaavnSource.resolve(song.title, song.singer, sec, song.title)?.let { "${it.url.take(30)}" } }
+        val ga = timed { com.music.aalap.gaana.GaanaSource.resolve(song.title, song.singer, sec, "", song.title)?.let { it.title + " — " + it.artists } }
+        listOf("youtube" to yt, "jiosaavn" to sv, "gaana" to ga).associate { (k, d) ->
+            val (r, e, ms) = d.await()
+            k to ("${ms} ms: " + (r?.toString() ?: e?.let { "error ${it.javaClass.simpleName}: ${it.message?.take(80)}" } ?: "nothing"))
+        }
+    }
+
     /** Debug: the YouTube match for [song] without playing it (null = no acceptable match). */
     internal suspend fun auditMatch(song: com.music.aalap.data.entity.SongsModel): String? {
         registerDuration(listOfNotNull(if (song.durationMs > 0) song.url to song.durationMs else null))
@@ -1487,6 +1586,7 @@ object SongPlayer {
         // normalise) follow crossfades and lossless swaps without re-attaching.
         p.audioSessionId = com.music.aalap.audio.AudioEffects.sessionId(context)
         p.setPlaybackSpeed(com.music.aalap.data.preferences.getPlaybackSpeed(context))
+        android.os.Handler(android.os.Looper.getMainLooper()).post { applyOffload() }
         return p to filter
     }
 
@@ -1788,11 +1888,15 @@ object SongPlayer {
     private fun startPositionWatch() {
         positionWatchJob?.cancel()
         positionWatchJob = scope.launch {
+            var nearEnd = false
             while (isActive) {
-                kotlinx.coroutines.delay(250)
+                // Once a second, four times a second only near a song's end (crossfade and the
+                // gapless hand-over need it there): fewer wake-ups, less heat in the background.
+                kotlinx.coroutines.delay(if (nearEnd) 250 else 1_000)
                 val ctx = appCtx ?: continue
-                // Persist the position every ~3s so a relaunch resumes mid-track.
-                if (++posSaveTick % 12 == 0 && !webPlaybackActive()) {
+                nearEnd = player?.let { p -> withContext(Dispatchers.Main) { p.duration > 0 && p.duration - p.currentPosition < 20_000 } } ?: false
+                // Persist the position every few seconds so a relaunch resumes mid-track.
+                if (++posSaveTick % (if (nearEnd) 12 else 4) == 0 && !webPlaybackActive()) {
                     player?.let { p ->
                         val pos = withContext(Dispatchers.Main) {
                             if (p.isPlaying) p.currentPosition else -1L
@@ -1801,7 +1905,8 @@ object SongPlayer {
                     }
                 }
                 if (isCrossfading) continue
-                val crossfadeMs = com.music.aalap.data.preferences.getCrossfadeMs(ctx)
+                // No crossfade while the audio chip plays on its own (see applyOffload).
+                val crossfadeMs = if (offloading) 0 else com.music.aalap.data.preferences.getCrossfadeMs(ctx)
                 managePreload(ctx, crossfadeMs)
                 if (crossfadeMs <= 0) continue
                 val state = boundState ?: continue

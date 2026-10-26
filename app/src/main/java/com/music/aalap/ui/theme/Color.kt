@@ -48,3 +48,14 @@ val AppPalette: Color get() = Saffron
 /** Fixed night canvas for immersive screens (player, lyrics) that keep white text
  *  over artwork colours in both themes. */
 val ImmersiveBackground = Color(0xFF100B1C)
+
+
+/**
+ * Whether any Aalap screen is showing (set by MyApplication as screens start and stop).
+ * Animations that run forever (the cover equalizer, the liked shine, loaders) draw a still
+ * frame while it's false: Android keeps delivering frames to a hidden app, and those
+ * animations kept the processor busy while music played in the background.
+ */
+object ScreenState {
+    var onScreen by androidx.compose.runtime.mutableStateOf(true)
+}

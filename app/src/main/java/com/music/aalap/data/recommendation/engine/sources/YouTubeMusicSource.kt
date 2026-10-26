@@ -21,7 +21,9 @@ object YouTubeMusicSource : NextSongSource {
             ?: return SourceResult(emptyList())
         com.music.aalap.data.recommendation.engine.RecoTrace.log("    YouTube Music: video $videoId" + (if (seed.info.ytId.isBlank()) (" (found by searching '${SongBridge.playQuery(seed)}')") else "") + " → its Up next radio")
         val upNext = YouTube.upNext(videoId).getOrThrow()
-        val ranked = upNext.filter { it.videoId != videoId }.map {
+        // Official recordings only (the artist's own audio or video): a user's upload of a song
+        // is often a cut, a cover or a different take, and not playable everywhere.
+        val ranked = upNext.filter { it.videoId != videoId && it.videoType != "MUSIC_VIDEO_TYPE_UGC" && it.videoType != "MUSIC_VIDEO_TYPE_PODCAST_EPISODE" }.map {
             Candidate(title = it.title, artists = it.artists, durationSec = it.durationSec, cover = it.thumbnail, ytId = it.videoId)
         }
         return SourceResult(ranked, seedUpdate = seed.info.copy(ytId = videoId))

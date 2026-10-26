@@ -1,5 +1,6 @@
 package com.music.aalap.ui.screens
 
+import androidx.lifecycle.repeatOnLifecycle
 import com.music.aalap.ui.components.swipeDownToDismiss
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.filled.Settings
@@ -163,24 +164,15 @@ fun PlayerScreen(navController: NavController) {
 
 
 
-    var songProgress by remember { mutableStateOf(maxOf(0f, SongPlayer.getCurrentPosition().toFloat())) }
-    var songDurationText by remember { mutableStateOf("0") }
-    var songProgressText by remember { mutableStateOf("") }
-
-    songDurationText = if (SongPlayer.getDuration() < 0){
-        "0:00"
+    // Set as the screen appears (and per song), then moved by the timer below. They used to be
+    // rewritten while drawing, which asks for another drawing: a redraw loop while playing.
+    var songProgress by remember(songId) { mutableStateOf(maxOf(0f, SongPlayer.getCurrentPosition().toFloat())) }
+    var songDurationText by remember(songId) {
+        mutableStateOf(SongPlayer.getDuration().let { if (it < 0) "0:00" else playerViewModel.formatDuration(it) })
     }
-    else{
-        playerViewModel.formatDuration(SongPlayer.getDuration())
+    var songProgressText by remember(songId) {
+        mutableStateOf(SongPlayer.getCurrentPosition().let { if (it < 0) "0:00" else playerViewModel.formatDuration(it) })
     }
-    songProgressText = if (SongPlayer.getCurrentPosition() < 0){
-        "0:00"
-    }
-    else{
-        playerViewModel.formatDuration(SongPlayer.getCurrentPosition())
-    }
-
-    Log.d("checkplayer", songTitle)
 
     //playerViewModel.updateSongState(songCoverUri, songTitle, songSinger, songPlayingState)
 
@@ -287,12 +279,11 @@ fun PlayerScreen(navController: NavController) {
     // End of track (repeat / next / radio) is handled by PlaybackService, so it also
     // happens with the screen off.
 
-    Log.d("queueSongaa", songs.toString())
-    Log.d("queueSongc", playerViewModel.currentSongAlbum.value.toString())
-    Log.d("queueSong", queueSongs.toString())
 
-    LaunchedEffect(key1 = songPlayingState) {
-
+    // Only while it's on screen (not with Aalap in the background).
+    val playerLifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(songPlayingState, playerLifecycle) {
+        playerLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             while (songPlayingState) {
 
                     songProgress = SongPlayer.getCurrentPosition().toFloat()
@@ -311,6 +302,7 @@ fun PlayerScreen(navController: NavController) {
 
                 delay(300L) // update every .0 second
             }
+        }
     }
 
 

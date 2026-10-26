@@ -109,7 +109,7 @@ fun SpotifyLoginScreen(navController: NavController) {
     }
 
     val navigateToHome: () -> Unit = {
-        com.music.aalap.di.SpotifyWebPlayer.attach(context as Activity)
+        if (com.music.aalap.data.preferences.isWebPlaybackEnabled(context)) com.music.aalap.di.SpotifyWebPlayer.attach(context as Activity)
         // Back to "Connect your music", where Spotify now shows a tick.
         if (!navController.popBackStack()) {
             navController.navigate(Routes.MusicSource.route) { popUpTo(0) { inclusive = true } }

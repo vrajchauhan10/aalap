@@ -108,11 +108,12 @@ class CrossfadeFilterAudioProcessor : BaseAudioProcessor() {
             dst.limit(size)
             return
         }
-        val pos = src.position()
-        for (i in 0 until size) {
-            dst.put(src.get(pos + i))
-        }
-        src.position(pos + size)
+        // One bulk copy (a native memcpy), not a byte at a time: that loop ran ~350,000 times a
+        // second on every song even with no crossfade or filter, and kept the CPU busy.
+        val limit = src.limit()
+        src.limit(src.position() + size)
+        dst.put(src)
+        src.limit(limit)
     }
 
     private fun processMonoBlock(input: ByteBuffer, output: ByteBuffer) {

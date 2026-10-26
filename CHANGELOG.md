@@ -4,6 +4,28 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 6.5.0 — 26 Oct 2026 (build 66)
+- **The phone stays cool.** Measured on the phone, release build, music playing:
+  - in the background 0–8% of one core (was ~30%, and 100–150% at times); open ~30% (was 40–65%);
+  - Your Mix could loop forever (a core at 100% in the background until Android stopped it): fixed;
+  - the mini player redrew itself every frame while a song played (its progress was written
+    while drawing): fixed, and the full player's time labels the same way;
+  - in the background the phone's own low-power audio chip plays the music (audio offload):
+    playback itself costs ~0.4%. Songs then change with a clean cut; your crossfade returns in Aalap;
+  - progress bars, lyrics, downloads and Blend refresh only while on screen; the cover
+    equalizer and the "Liked" shine rest instead of redrawing forever;
+  - the hidden Spotify web page (430 MB, steady CPU, never used) no longer loads;
+  - audio copied in one go, not a byte at a time; the playback timer ticks once a second;
+  - recommendations read each song's words once instead of again for every pick.
+- **Official songs, almost every song plays.** JioSaavn's official uploads go first (found in
+  ~0.4 s, no heavy decoding), then YouTube, then Gaana: 104 of 105 chart songs and 295 of 298
+  KK results play. Recommendations skip users' YouTube uploads, and playlists come from
+  Spotify's official ones first. When YouTube refuses streams, JioSaavn and Gaana go first for
+  10 minutes, and a voice request no longer stops the search before they get their turn.
+- **Ask with any button.** Profile → Voice: hold either volume key, only up, only down, or
+  "My own button" (press any button of your phone to teach it), or use Android's floating
+  Accessibility button, which can be dragged anywhere on screen.
+
 ## 6.4.0 — 26 Oct 2026 (build 65)
 - **A song no source has never stops the music.** When YouTube, JioSaavn, Gaana and the last
   resorts all lack the exact song (never another song in its place), Aalap says "This song

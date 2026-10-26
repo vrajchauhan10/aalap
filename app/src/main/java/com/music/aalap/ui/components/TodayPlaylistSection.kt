@@ -226,6 +226,21 @@ private fun LikedHeart(songId: String, onDark: Boolean) {
  * settles); songs that were already liked just shine.
  */
 @Composable
+private fun likedSweep(): Float {
+    // Two passes as the tag appears, then it rests (a shine forever on every liked tag kept
+    // the screen redrawing all the time).
+    val a = remember { androidx.compose.animation.core.Animatable(-0.6f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        repeat(2) {
+            a.snapTo(-0.6f)
+            a.animateTo(2.2f, androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.LinearEasing))
+        }
+        a.snapTo(-1f)
+    }
+    return a.value
+}
+
+@Composable
 fun LikedTag(songId: String, onDark: Boolean = !com.music.aalap.ui.theme.AalapPalette.isLight) {
     val gold = if (onDark) Color(0xFFFFC94D) else Color(0xFFB07D05)
     val shine = if (onDark) Color(0xFFFFF7D9) else Color(0xFFFFE08A)
@@ -240,14 +255,9 @@ fun LikedTag(songId: String, onDark: Boolean = !com.music.aalap.ui.theme.AalapPa
             pop.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.35f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
         }
     }
-    // The shine: a bright band crossing the frame, then a pause before the next pass.
-    val sweep by androidx.compose.animation.core.rememberInfiniteTransition(label = "likedShine").animateFloat(
-        initialValue = -0.6f, targetValue = 2.2f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            androidx.compose.animation.core.tween(2400, easing = androidx.compose.animation.core.LinearEasing),
-        ),
-        label = "sweep",
-    )
+    // The shine: a bright band crossing the frame, then a pause before the next pass (none
+    // while no Aalap screen is showing, see ScreenState).
+    val sweep = if (com.music.aalap.ui.theme.ScreenState.onScreen) likedSweep() else -1f
     Text(
         "Liked", color = gold, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold,
         modifier = Modifier
