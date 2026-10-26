@@ -1276,7 +1276,7 @@ object SongPlayer {
         registerMetadata(listOf(song.url to TrackMatchMetadata(title = song.title, artist = song.singer, album = song.album)))
         val sec = song.durationMs / 1000
         fun <T> timed(block: suspend () -> T?) = async { val t = System.currentTimeMillis(); val r = runCatching { block() }; Triple(r.getOrNull(), r.exceptionOrNull(), System.currentTimeMillis() - t) }
-        val yt = timed { resolveYtPlayback(song.url, com.metrolist.music.constants.AudioQuality.AUTO, ctx)?.streamUrl?.take(40) }
+        val yt = timed { resolveYtPlayback(song.url, com.metrolist.music.constants.AudioQuality.AUTO, ctx)?.let { p -> Regex("mime=([^&]+)").find(p.streamUrl)?.groupValues?.get(1) ?: p.streamUrl.take(40) } }
         val sv = timed { com.music.aalap.saavn.JioSaavnSource.resolve(song.title, song.singer, sec, song.title)?.let { "${it.url.take(30)}" } }
         val ga = timed { com.music.aalap.gaana.GaanaSource.resolve(song.title, song.singer, sec, "", song.title)?.let { it.title + " — " + it.artists } }
         listOf("youtube" to yt, "jiosaavn" to sv, "gaana" to ga).associate { (k, d) ->
@@ -1581,6 +1581,9 @@ object SongPlayer {
             .setLoadControl(buildLoadControl(context))
             .setAudioAttributes(buildAudioAttributes(), handleAudioFocus)
             .setHandleAudioBecomingNoisy(handleAudioFocus)
+            // The playback loop sleeps until there's work (it woke every 10 ms while playing,
+            // even for audio only, and with offload it lets the processor sleep for seconds).
+            .experimentalSetDynamicSchedulingEnabled(true)
             .build()
         // One shared session for every player so the Sound effects (EQ, bass,
         // normalise) follow crossfades and lossless swaps without re-attaching.

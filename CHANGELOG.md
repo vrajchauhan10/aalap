@@ -4,6 +4,23 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 6.6.0 — 27 Oct 2026 (build 67)
+- **Lighter still.** Measured on the phone, release build, a minute of music each:
+  open 19–24% of one core (was 29%), background 2–3%; opening Aalap 1 s.
+  - The app is now optimised by R8 (it shipped unoptimised): 2 MB smaller and faster. Nothing
+    is renamed or removed, so YouTube's decoding, the JSON models and the web logins work as
+    before (every playback path, voice, and each screen checked under it).
+  - Debug logging is stripped from the app people install (it built thousands of log lines,
+    ten or more per recommendation pick).
+  - Every phone compiles Aalap ahead of time at install (a profile ships inside the app);
+    shared APKs used to run partly uncompiled, slower and warmer, for days.
+  - ExoPlayer 1.5.1 with dynamic scheduling: the playback loop sleeps until there's work
+    (it woke every 10 ms while playing).
+  - YouTube songs come as AAC rather than Opus, so the phone's audio chip can play those in
+    the background too (it can't play Opus on Samsung phones).
+  - The mini player's progress moves once a second (one screen redraw a second, was three).
+- A demo is a different recording from the finished song ("The Ghost Intervention - Demo").
+
 ## 6.5.0 — 26 Oct 2026 (build 66)
 - **The phone stays cool.** Measured on the phone, release build, music playing:
   - in the background 0–8% of one core (was ~30%, and 100–150% at times); open ~30% (was 40–65%);

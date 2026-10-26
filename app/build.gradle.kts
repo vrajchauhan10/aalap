@@ -24,8 +24,8 @@ android {
         targetSdk = 34
         // Must exceed every published build (1.6 shipped as versionCode 16).
         // 2.0.0 is the first Aalap release.
-        versionCode = 66
-        versionName = "6.5.0"
+        versionCode = 67
+        versionName = "6.6.0"
         // Optional Last.fm key for the similar-tracks source (empty = source off).
         // Blend sync (Firebase, free plan): read from app/google-services.json when it's there;
         // without it Blends still work, on each phone on its own.
@@ -67,7 +67,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Optimised, with debug logging stripped, but nothing renamed or removed (see
+            // proguard-rules.pro): YouTube's decoding, the JSON models and the web logins
+            // look code up by name.
+            isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -149,16 +152,18 @@ dependencies {
 
     //exoplayer
     implementation("androidx.exifinterface:exifinterface:1.3.7")
-    implementation("androidx.media3:media3-exoplayer:1.3.1")
-    implementation("androidx.media3:media3-exoplayer-dash:1.3.1")
+    implementation("androidx.media3:media3-exoplayer:1.5.1")
+    // Installs the compile-ahead profile (src/main/baseline-prof.txt) on any phone, not only via Play.
+    implementation("androidx.profileinstaller:profileinstaller:1.3.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.5.1")
     // HLS: Gaana streams are HLS (m3u8).
-    implementation("androidx.media3:media3-exoplayer-hls:1.3.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
     // Hourly background sync of the Spotify + YouTube Music library.
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     // PlayerView for the Spotify Canvas looping video on the now-playing screen.
-    implementation("androidx.media3:media3-ui:1.3.1")
+    implementation("androidx.media3:media3-ui:1.5.1")
     // media session + system media notification (lock screen / notification center)
-    implementation("androidx.media3:media3-session:1.3.1")
+    implementation("androidx.media3:media3-session:1.5.1")
     // The old-style media session API Google Assistant talks to (debug voice test sends through it).
     implementation("androidx.media:media:1.7.0")
 

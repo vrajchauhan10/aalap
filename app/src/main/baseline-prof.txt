@@ -1,0 +1,8 @@
+# Compiled ahead of time when Aalap is installed, on every phone (Google Play does this with
+# its own profiles; a shared APK gets nothing without one, and the code then runs partly
+# interpreted, slower and warmer, for days). Aalap's own code, the player, and the UI kit.
+HSPLcom/music/aalap/**->**(**)**
+HSPLcom/metrolist/**->**(**)**
+HSPLandroidx/media3/**->**(**)**
+HSPLandroidx/compose/**->**(**)**
+HSPLkotlinx/coroutines/**->**(**)**

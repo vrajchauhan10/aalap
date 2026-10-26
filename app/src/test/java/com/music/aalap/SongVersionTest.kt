@@ -29,5 +29,8 @@ class SongVersionTest {
         assertFalse(SongVersion.same("KALYANI - Remix", "KALYANI"))
         assertFalse(SongVersion.same("Bulleya", "Bulleya (Reprise)"))
         assertTrue(SongVersion.same("Kesariya (From \"Brahmastra\")", "Kesariya"))
+        assertFalse(SongVersion.same("The Ghost Intervention - Demo", "The Ghost Intervention"))
+        assertTrue(SongVersion.same("The Ghost Intervention - Demo", "The Ghost Intervention (Demo)"))
+        assertEquals(emptySet<String>(), SongVersion.of("Democracy"))
     }
 }

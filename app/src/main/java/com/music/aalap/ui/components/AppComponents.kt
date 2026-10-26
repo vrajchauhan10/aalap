@@ -112,7 +112,9 @@ fun MiniPlayer(navController: NavHostController) {
                 }
                 // (The full player used to open by itself when a song ended; the end of a song
                 // is the playback service's job, and opening the player then could jump songs.)
-                delay(300L)
+                // Once a second: the bar moves under half a percent a second, and every step
+                // redraws the screen.
+                delay(1_000L)
             }
         }
     }

@@ -19,6 +19,7 @@ object SongVersion {
         "karaoke" to """karaoke|instrumental|minus one""",
         "mashup" to """mashup|mash\s*up""",
         "8d" to """8d""",
+        "demo" to """demo""",
         "female" to """female version""",
         "male" to """male version""",
     ).mapValues { (_, p) -> Regex("""(^|[^\p{L}\p{N}])($p)([^\p{L}\p{N}]|$)""", RegexOption.IGNORE_CASE) }

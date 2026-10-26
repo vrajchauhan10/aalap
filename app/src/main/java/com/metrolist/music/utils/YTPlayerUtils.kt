@@ -519,14 +519,18 @@ object YTPlayerUtils {
     ): PlayerResponse.StreamingData.Format? {
         Timber.tag(logTag).d("Finding format with audioQuality: $audioQuality, network metered: ${connectivityManager.isActiveNetworkMetered}")
 
-        val format = playerResponse.streamingData?.adaptiveFormats
-            ?.filter { it.isAudio && it.isOriginal }
-            ?.maxByOrNull {
+        // AAC (m4a) first, Opus only when there's no AAC: the phone's own audio chip can play
+        // AAC by itself in the background (audio offload) while the main processor sleeps;
+        // Opus it can't on many phones (Samsung's included), so Opus kept the phone working
+        // and warm for every YouTube song. At these bitrates they sound alike.
+        val audio = playerResponse.streamingData?.adaptiveFormats?.filter { it.isAudio && it.isOriginal }.orEmpty()
+        val format = audio.filter { it.mimeType.startsWith("audio/mp4") }.ifEmpty { audio }
+            .maxByOrNull {
                 it.bitrate * when (audioQuality) {
                     AudioQuality.AUTO -> if (connectivityManager.isActiveNetworkMetered) -1 else 1
                     AudioQuality.HIGH -> 1
                     AudioQuality.LOW -> -1
-                } + (if (it.mimeType.startsWith("audio/webm")) 10240 else 0) // prefer opus stream
+                }
             }
 
         if (format != null) {
