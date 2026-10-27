@@ -4,6 +4,24 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 7.0.0 — 27 Oct 2026 (build 68)
+- **Music keeps playing in the background until you stop it.** It used to stop after 5–10
+  songs: Android's records showed Aalap closed for low memory while it had lost its "playing
+  music" status. Now:
+  - Aalap stays a foreground service between songs (while the next one is found, and while
+    recommendations come in after the queue): checked on the phone with the screen off, song
+    after song, never closed;
+  - the player keeps the processor and Wi-Fi awake while music plays (it had no wake lock), and
+    a short wake lock covers the gap between songs, so songs keep loading with the screen off;
+  - no connection (a tunnel, the phone dozing) isn't the song's fault: Aalap waits for the
+    network and tries the same song again instead of skipping until the music stops;
+  - swiping Aalap out of Recents no longer stops the music (only a paused player goes).
+- **Cooler still.** YouTube's heavy lookup (running YouTube's scrambled JavaScript) runs only
+  when JioSaavn hasn't the song; it ran for every song, and twice (the next song is prepared
+  early). The start-up YouTube warm-up is gone. Each song change now costs 1–5 s of processor
+  time (was 25 s or more); a minute of music costs 14% of one core with Aalap open (was
+  19–24%) and 2–6% in the background.
+
 ## 6.6.0 — 27 Oct 2026 (build 67)
 - **Lighter still.** Measured on the phone, release build, a minute of music each:
   open 19–24% of one core (was 29%), background 2–3%; opening Aalap 1 s.

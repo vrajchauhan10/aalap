@@ -452,7 +452,43 @@ object SongPlayer {
 
     /** The song being looked for right now (null once it starts or is given up). */
     @Volatile private var finding: String? = null
+        set(value) { field = value; holdAwake(value != null || chaining) }
     fun isFinding(song: String) = finding == song
+
+    /** Fetching what comes after the queue (recommendations) before the next song is found. */
+    @Volatile var chaining = false
+        set(value) { field = value; holdAwake(value || finding != null) }
+
+    /** Between two songs (the next one being found): see PlaybackService.onUpdateNotification. */
+    fun isBetweenSongs() = finding != null || chaining
+
+    /**
+     * Awake while the next song is found: with the screen off the phone could doze in that
+     * gap (the player's own wake lock only covers playing), and the lookup stalled.
+     */
+    private var transitionLock: android.os.PowerManager.WakeLock? = null
+    private fun holdAwake(on: Boolean) {
+        val ctx = appCtx ?: return
+        runCatching {
+            if (on) {
+                val l = transitionLock ?: (ctx.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager)
+                    .newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "Aalap:nextSong").also { it.setReferenceCounted(false); transitionLock = it }
+                l.acquire(90_000)
+            } else transitionLock?.takeIf { it.isHeld }?.release()
+        }
+    }
+
+    /** Whether the phone is online right now (a validated connection). */
+    private fun online(ctx: Context): Boolean = runCatching {
+        val cm = ctx.getSystemService(android.net.ConnectivityManager::class.java)
+        cm.getNetworkCapabilities(cm.activeNetwork)?.let {
+            it.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                it.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        } ?: false
+    }.getOrDefault(true)
+
+    /** Songs already retried after waiting for the connection (each gets one wait). */
+    private val waitedFor = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
 
     /**
      * YouTube refusing streams (403, "confirm you're not a bot"): for 10 minutes JioSaavn and
@@ -478,8 +514,24 @@ object SongPlayer {
      * gone, most likely) it stops instead of skipping through everything.
      */
     private fun streamFailed(song: String, appContext: Context) {
+        if (currentRequest != song) { if (finding == song) finding = null; return }
+        // No connection (a tunnel, the phone dozing): that's not the song's fault. Wait for the
+        // network (up to 90 s, staying awake and in the foreground) and try the same song again,
+        // instead of skipping song after song until the music stops.
+        if (!online(appContext) && waitedFor.add(song)) {
+            Log.w(TAG, "offline while finding '$song': waiting for the connection")
+            scope.launch {
+                repeat(45) {
+                    kotlinx.coroutines.delay(2_000)
+                    if (currentRequest != song) { if (finding == song) finding = null; return@launch }
+                    if (online(appContext)) { withContext(Dispatchers.Main) { playSong(song, appContext) }; return@launch }
+                }
+                withContext(Dispatchers.Main) { streamFailed(song, appContext) }
+            }
+            return
+        }
+        waitedFor.remove(song)
         if (finding == song) finding = null
-        if (currentRequest != song) return
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             if (currentRequest != song) return@post
             failedInARow++
@@ -921,9 +973,13 @@ object SongPlayer {
             qualityCache[song] = label
             return url
         }
-        val ytJob = if (youtubeEnabled) scope.async {
+        // YouTube is the heaviest lookup (it runs YouTube's own scrambled JavaScript to unlock
+        // the stream), so it starts only when JioSaavn hasn't the song quickly; it used to run
+        // for every song, alongside, and kept the processor busy after JioSaavn had answered.
+        val ytJob = if (youtubeEnabled) scope.async(start = kotlinx.coroutines.CoroutineStart.LAZY) {
             runCatching { resolveYtPlayback(song, quality.audioQuality, appContext) }.getOrNull()
         } else null
+        if (!saavnOn) ytJob?.start()
         val saavnJob = if (saavnOn) scope.async {
             kotlinx.coroutines.withTimeoutOrNull(9_000L) {
                 com.music.aalap.saavn.JioSaavnSource.resolve(info.title, fullArtist, info.durationSec, searchText)
@@ -945,6 +1001,7 @@ object SongPlayer {
         saavnJob?.let { job -> kotlinx.coroutines.withTimeoutOrNull(SAAVN_FIRST_WAIT_MS) { job.await() } }
             ?.let { m -> ytJob?.cancel(); gaanaJob?.cancel(); return use("JioSaavn", m.url, "AAC ${m.kbps} kbps") }
         // 2) YouTube Music, if it answers within YT_FIRST_WAIT_MS (briefly, while it's refusing streams).
+        ytJob?.start()
         val ytWait = if (System.currentTimeMillis() < ytTroubleUntil) 1_000L else YT_FIRST_WAIT_MS
         ytJob?.let { job -> kotlinx.coroutines.withTimeoutOrNull(ytWait) { job.await() } }?.let { return useYouTube(it) }
         // 3) JioSaavn after all (it was slow).
@@ -1584,6 +1641,9 @@ object SongPlayer {
             // The playback loop sleeps until there's work (it woke every 10 ms while playing,
             // even for audio only, and with offload it lets the processor sleep for seconds).
             .experimentalSetDynamicSchedulingEnabled(true)
+            // Processor and Wi-Fi stay awake while music plays (only then), so a song keeps
+            // loading with the screen off instead of stalling when the phone dozes.
+            .setWakeMode(androidx.media3.common.C.WAKE_MODE_NETWORK)
             .build()
         // One shared session for every player so the Sound effects (EQ, bass,
         // normalise) follow crossfades and lossless swaps without re-attaching.

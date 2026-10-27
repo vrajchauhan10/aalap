@@ -402,6 +402,8 @@ class PlaybackService : MediaLibraryService() {
     /** At the end of the queue: append what's recommended after it and play the first of those. */
     private fun continueIntoRecommendations() {
         val queue = currentSongState.queue.value
+        // Awake and "playing music" while the recommendations come in (see onUpdateNotification).
+        SongPlayer.chaining = true
         serviceScope.launch {
             val seed = queue.lastOrNull()
             val known = queue.mapTo(HashSet()) { it.id }
@@ -419,6 +421,7 @@ class PlaybackService : MediaLibraryService() {
                     }
                 }
             }
+            SongPlayer.chaining = false
             if (!advanced) currentSongState.updatePlayingState(false)
         }
     }
@@ -683,9 +686,19 @@ class PlaybackService : MediaLibraryService() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // Stop playback + tear the service down when the app is swiped away.
-        SongPlayer.pause()
-        stopSelf()
+        // Swiped out of Recents: the music plays on (as in any music app); only a paused,
+        // idle player lets the service go.
+        if (!SongPlayer.isPlaying() && !SongPlayer.isBetweenSongs()) stopSelf()
+    }
+
+    /**
+     * Stays a foreground service ("playing music") between songs too: while the next song is
+     * being found the player is idle for a few seconds, and Media3 then dropped the foreground,
+     * so with the screen off Android cut the network or closed Aalap (LOW_MEMORY at "service"
+     * importance), and the music stopped after a few songs.
+     */
+    override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
+        super.onUpdateNotification(session, startInForegroundRequired || SongPlayer.isBetweenSongs())
     }
 
     override fun onDestroy() {

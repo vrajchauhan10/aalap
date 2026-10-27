@@ -39,8 +39,6 @@ class MyApplication : Application(), androidx.appfunctions.service.AppFunctionCo
     override fun onCreate() {
         super.onCreate()
         instance = this
-        // YouTube's player, fetched before the first song needs it (see YTPlayerUtils.warmUp).
-        Thread { Thread.sleep(2_000); com.metrolist.music.utils.YTPlayerUtils.warmUp() }.apply { isDaemon = true }.start()
         // Each song's tempo and energy, measured as it plays, go to the recommendation engine.
         com.music.aalap.audio.AudioAnalysis.onMeasured = { song, result ->
             com.music.aalap.data.recommendation.engine.VibeStore.saveAudio(this, song, result)
