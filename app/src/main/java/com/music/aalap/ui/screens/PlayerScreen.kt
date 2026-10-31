@@ -166,13 +166,11 @@ fun PlayerScreen(navController: NavController) {
 
     // Set as the screen appears (and per song), then moved by the timer below. They used to be
     // rewritten while drawing, which asks for another drawing: a redraw loop while playing.
-    var songProgress by remember(songId) { mutableStateOf(maxOf(0f, SongPlayer.getCurrentPosition().toFloat())) }
-    var songDurationText by remember(songId) {
-        mutableStateOf(SongPlayer.getDuration().let { if (it < 0) "0:00" else playerViewModel.formatDuration(it) })
-    }
-    var songProgressText by remember(songId) {
-        mutableStateOf(SongPlayer.getCurrentPosition().let { if (it < 0) "0:00" else playerViewModel.formatDuration(it) })
-    }
+    // One reading of the player (SongPlayer.progress) for the bar and both times, so they can't
+    // disagree, and only for this song: the last song's position no longer shows on the new one.
+    var progress by remember(songId) { mutableStateOf(SongPlayer.progress()) }
+    val songProgressText = playerViewModel.formatDuration(progress.positionMs)
+    val songDurationText = playerViewModel.formatDuration(progress.durationMs)
 
     //playerViewModel.updateSongState(songCoverUri, songTitle, songSinger, songPlayingState)
 
@@ -282,26 +280,18 @@ fun PlayerScreen(navController: NavController) {
 
     // Only while it's on screen (not with Aalap in the background).
     val playerLifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(songPlayingState, playerLifecycle) {
+    // Restarted per song too: the values above are new for each song, and a timer left running
+    // from the last song kept moving its old values, so the next one sat at 0:00.
+    LaunchedEffect(songPlayingState, playerLifecycle, songId) {
         playerLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-            while (songPlayingState) {
-
-                    songProgress = SongPlayer.getCurrentPosition().toFloat()
-                    songProgressText = playerViewModel.formatDuration(songProgress.toLong())
-                    // FLAC (and any slow start) learns its length after the screen first
-                    // drew; refresh it here or it stays 0:00 until the screen reopens.
-                    val dur = SongPlayer.getDuration()
-                    songDurationText = if (dur < 0) "0:00" else playerViewModel.formatDuration(dur)
-
-//                if (songProgress >= songDuration ) {
-//                    if (playerViewModel.repeatState.value){
-//                        SongPlayer.seekTo(0) // Restart the song
-//                    }
-//                }
-
-
-                delay(300L) // update every .0 second
-            }
+            // Once while paused (the song may have been loaded or moved meanwhile), then twice a
+            // second while playing: the times change once a second, the bar barely between.
+            // FLAC (and any slow start) learns its length after the screen first drew; it's
+            // picked up here.
+            do {
+                progress = SongPlayer.progress()
+                if (songPlayingState) delay(500L)
+            } while (songPlayingState)
         }
     }
 
@@ -464,9 +454,7 @@ fun PlayerScreen(navController: NavController) {
                 // release.
                 var isDragging by remember { mutableStateOf(false) }
                 var dragValue by remember { mutableStateOf(0f) }
-                val liveFraction = SongPlayer.getDuration().toFloat().let { dur ->
-                    if (dur > 0f) (SongPlayer.getCurrentPosition().toFloat() / dur).coerceIn(0f, 1f) else 0f
-                }
+                val liveFraction = progress.fraction
                 CustomSlider(
                     value = if (isDragging) dragValue else liveFraction,
                     onValueChange = { newValue ->
@@ -474,7 +462,10 @@ fun PlayerScreen(navController: NavController) {
                         dragValue = newValue
                     },
                     onValueChangeFinished = {
-                        SongPlayer.seekTo((dragValue * SongPlayer.getDuration()).toLong())
+                        val target = (dragValue * progress.durationMs).toLong()
+                        SongPlayer.seekTo(target)
+                        // Shown at once, not after the next tick (it jumped back for a moment).
+                        progress = progress.copy(positionMs = target)
                         isDragging = false
                         if (!songPlayingState) {
                             SongPlayer.play()
@@ -512,7 +503,7 @@ fun PlayerScreen(navController: NavController) {
                     Text(
                         // While scrubbing, show the dragged time so the label tracks the finger.
                         text = if (isDragging)
-                            playerViewModel.formatDuration((dragValue * SongPlayer.getDuration()).toLong())
+                            playerViewModel.formatDuration((dragValue * progress.durationMs).toLong())
                         else songProgressText,
                         color = Color.Gray,
                         fontSize = 11.sp,

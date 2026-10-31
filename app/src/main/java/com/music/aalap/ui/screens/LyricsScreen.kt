@@ -103,7 +103,8 @@ private fun rememberLyricsPlayback(): State<LyricsPlayback> {
     LaunchedEffect(lyricsLifecycle) { lyricsLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
         while (true) {
             playback.value = LyricsPlayback(
-                positionMs = SongPlayer.getCurrentPosition().coerceAtLeast(0L),
+                // This song's position only (not the last song's while the next one loads).
+                positionMs = SongPlayer.progress().positionMs,
                 isPlaying = SongPlayer.isPlaying(),
             )
             delay(250L)

@@ -76,6 +76,8 @@ class HomeViewModel @Inject constructor(
         if (_home.value is Response.Error) fetchHome()
         if (today.value.isEmpty()) launch { runCatching { today.value = M.todayPlaylist(appContext) } }
         if (quickPicks.value.isEmpty()) launch { loadQuickPicks(false) }
+        // Picks that came back empty (no connection, Spotify busy) get another go, not a day's wait.
+        if (_dailyPicks.value.isEmpty()) loadDiscovery()
         recentlyPlayed.value = M.recentlyPlayed(appContext)
         _favourites.value = M.allTimeFavourites(appContext)
     }
@@ -119,10 +121,17 @@ class HomeViewModel @Inject constructor(
         // New Quick picks are held back and shown together with the bounce, not before it.
         val feed = fetchHome()
         var fresh: List<com.music.aalap.data.recommendation.HomeMixes.TodaySong>? = null
-        val quick = launch { fresh = runCatching { M.tagged(appContext, M.quickPicks(appContext, force)) }.getOrNull() }
+        // Picks that arrive after the spinner gave up are shown when they come (they were made
+        // and saved, but the page kept the old ones until Home was opened again).
+        val spinnerDone = java.util.concurrent.atomic.AtomicBoolean(false)
+        val quick = launch {
+            fresh = runCatching { M.tagged(appContext, M.quickPicks(appContext, force)) }.getOrNull()
+            if (spinnerDone.get()) fresh?.takeIf { it.isNotEmpty() }?.let { quickPicks.value = it; refreshGen.value++ }
+        }
         loadDiscovery()
         if (force) launch { runCatching { dailyMixes.value = M.dailyMixes(appContext, true) } }
         kotlinx.coroutines.withTimeoutOrNull(6_000) { quick.join(); feed.join() }
+        spinnerDone.set(true)
         _refreshing.value = false
         // One moment: new picks in, bounce starts.
         fresh?.takeIf { it.isNotEmpty() }?.let { quickPicks.value = it }

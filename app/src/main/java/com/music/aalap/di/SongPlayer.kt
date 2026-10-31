@@ -603,9 +603,11 @@ object SongPlayer {
         sourceCache[song]?.startsWith("Lossless") == true || qualityCache[song] == "FLAC"
 
     private suspend fun quickStartThenUpgrade(song: String, ctx: Context) = kotlinx.coroutines.coroutineScope {
-        val quality = com.music.aalap.data.preferences.currentStreamingQuality(ctx)
         val best = async { resolveStreamUrl(song, ctx, allowYouTube = false) }
-        val quick = async { resolveYtPlayback(song, quality.audioQuality, ctx) }
+        // The quick start takes the usual order (JioSaavn, YouTube, Gaana), not YouTube alone:
+        // a song YouTube couldn't match waited for the whole lossless lookup (15 s), and was
+        // skipped when that missed too, though JioSaavn or Gaana had it.
+        val quick = async { resolveStreamUrl(song, ctx, allowLossless = false) }
         val bestFirst = kotlinx.coroutines.selects.select<Boolean> {
             best.onAwait { true }
             quick.onAwait { false }
@@ -619,12 +621,15 @@ object SongPlayer {
             startStream(song, early, ctx, streamMimeType(early, sourceCache[song].orEmpty()))
             return@coroutineScope
         }
+        // Its source and quality, before the lossless lookup can relabel the song.
         val fast = quick.await()
+        val fastSource = sourceCache[song]
+        val fastQuality = qualityCache[song].orEmpty()
         if (currentRequest != song) return@coroutineScope
         if (fast != null) {
-            currentSource = "YouTube"
-            currentQuality = ytQualityLabel(fast)
-            startStream(song, fast.streamUrl, ctx)
+            currentSource = fastSource ?: currentSource
+            currentQuality = fastQuality
+            startStream(song, fast, ctx, streamMimeType(fast, fastSource.orEmpty()))
         }
         val better = best.await()
         // This song's lookup is done; use the time left for the next one.
@@ -635,10 +640,10 @@ object SongPlayer {
             better != null && fast == null -> startStream(song, better, ctx, streamMimeType(better, sourceCache[song].orEmpty()))
             fast == null -> streamFailed(song, ctx)
             else -> {
-                // No lossless copy: remember the YouTube stream so a replay starts at once.
-                streamCache[song] = fast.streamUrl
-                sourceCache[song] = "YouTube"
-                qualityCache[song] = ytQualityLabel(fast)
+                // No lossless copy: remember the quick stream so a replay starts at once.
+                streamCache[song] = fast
+                fastSource?.let { sourceCache[song] = it }
+                qualityCache[song] = fastQuality
             }
         }
     }
@@ -724,13 +729,16 @@ object SongPlayer {
 
     // Build a MediaItem carrying the current track's metadata so the system media
     // notification (MediaSession) shows the right title / artist / artwork.
+    // The title, singers and cover always come from the queue's entry for the song this item
+    // plays (its play query), not from "what the screen showed last": a crossfade or a late
+    // lookup used to put the wrong song on the notification and lock screen.
     private fun buildMediaItem(
         streamUrl: String,
         mimeType: String? = null,
         query: String = currentRequest,
-        title: String = metaTitle,
-        artist: String = metaArtist,
-        cover: String = metaCover,
+        title: String = queuedByQuery(query)?.title ?: metaTitle,
+        artist: String = queuedByQuery(query)?.singer ?: metaArtist,
+        cover: String = queuedByQuery(query)?.coverUri ?: metaCover,
     ): MediaItem {
         val metadata = androidx.media3.common.MediaMetadata.Builder()
             .setTitle(title)
@@ -848,6 +856,7 @@ object SongPlayer {
         appContext: Context,
         forPlayback: Boolean = false,
         allowYouTube: Boolean = true,
+        allowLossless: Boolean = true,
     ): String? {
         // Imported local files: the play query IS the file's content:// / file:// URI.
         // ExoPlayer plays it directly (FLAC/MP3/WAV/… via its built-in extractors).
@@ -932,7 +941,7 @@ object SongPlayer {
             qualityCache[song] = flacQuality
             return r.track.url
         }
-        if (losslessStreaming && quality.lossless) tryLossless()?.let { return it }
+        if (allowLossless && losslessStreaming && quality.lossless) tryLossless()?.let { return it }
 
         // Soulseek (P2P) when the lossless servers have nothing. A peer can take a
         // minute, so only for the background upgrade, while another stream plays.
@@ -1661,10 +1670,15 @@ object SongPlayer {
     private fun buildLoadControl(context: Context): androidx.media3.exoplayer.LoadControl {
         val fast = com.music.aalap.data.preferences.isFastLoading(context)
         playerFastLoading = fast
+        // Up to 10 minutes ahead, but never more than ExoPlayer's audio memory budget (~13 MB):
+        // time came before size, so a FLAC song (40 MB and more) sat whole in memory, twice
+        // during a crossfade, and Android closed Aalap for memory in the background. 13 MB is
+        // the whole song at 320 kbps and over a minute of FLAC. After a stall it waits for
+        // 2.5 s of sound (was 1.5 s), so a weak connection doesn't stutter stop-start.
         return if (fast) {
             androidx.media3.exoplayer.DefaultLoadControl.Builder()
-                .setBufferDurationsMs(60_000, 600_000, 500, 1_500)
-                .setPrioritizeTimeOverSizeThresholds(true)
+                .setBufferDurationsMs(30_000, 600_000, 500, 2_500)
+                .setPrioritizeTimeOverSizeThresholds(false)
                 .build()
         } else {
             androidx.media3.exoplayer.DefaultLoadControl()
@@ -1732,16 +1746,28 @@ object SongPlayer {
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             if (!playWhenReady && switchPause) return
+            // Paused by Android mid-blend (another app took the audio, headphones or Bluetooth
+            // came off): only this player handles that, so the incoming one kept playing, out
+            // of the speaker, while the screen still said playing. Stop the blend too.
+            if (!playWhenReady && isCrossfading) cancelCrossfade()
             if (!isCrossfading) boundState?.updatePlayingState(playWhenReady)
+            // However it was paused (in Aalap, notification, headset, car), keep the resume point.
+            if (!playWhenReady) savePosition()
+        }
+
+        // A call or another app's sound mutes this player for a while (it stays "playing"):
+        // the incoming player of a blend doesn't follow that, so the blend is dropped.
+        override fun onPlaybackSuppressionReasonChanged(reason: Int) {
+            if (reason != Player.PLAYBACK_SUPPRESSION_REASON_NONE && isCrossfading) cancelCrossfade()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             // Mid-crossfade the outgoing player may end first; the blend advances itself.
             // An emptied playlist also reports ENDED (playSong clears it on every tap);
             // treating that as a finished song skipped the track the user just picked.
-            if (playbackState == Player.STATE_ENDED && !isCrossfading &&
-                (player?.mediaItemCount ?: 0) > 0
-            ) onTrackEnded?.invoke()
+            if (playbackState != Player.STATE_ENDED || (player?.mediaItemCount ?: 0) == 0) return
+            // Remembered, so a blend that then can't find the next song still moves on.
+            if (isCrossfading) endedWhileCrossfading = true else onTrackEnded?.invoke()
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -1826,11 +1852,21 @@ object SongPlayer {
 
     fun play() {
         if (webPlaybackActive()) { SpotifyWebPlayer.resume(); return }
-        // Fresh launch: nothing loaded yet — resume the restored session track.
+        // Nothing loaded: a fresh launch (the restored session track), or the player was let go
+        // when Aalap closed while paused. Play then did nothing while the screen said "playing";
+        // start the current song again, from where it stopped.
         if ((player?.mediaItemCount ?: 0) == 0) {
-            val q = restoreQuery
-            val ctx = appCtx
-            if (q != null && ctx != null) { playSong(q, ctx); return }
+            val ctx = appCtx ?: return
+            // Already being found: it starts by itself.
+            if (finding != null) return
+            val q = restoreQuery ?: boundState?.let { s -> s.queue.value.firstOrNull { it.id == s.songId.value }?.url }
+            if (q != null) {
+                if (restoreQuery == null) com.music.aalap.data.preferences.loadLastPlayback(ctx)
+                    ?.takeIf { (song, pos) -> song.url == q && pos > 0 }
+                    ?.let { (_, pos) -> setRestorePoint(q, pos) }
+                playSong(q, ctx)
+                return
+            }
         }
         player?.play()
     }
@@ -1839,13 +1875,21 @@ object SongPlayer {
         cancelCrossfade()
         if (webPlaybackActive()) { SpotifyWebPlayer.pause(); return }
         player?.let {
+            // (The resume point is kept by the player's pause callback, whoever paused.)
             it.playWhenReady = false
-            // Remember where we stopped so a relaunch can resume mid-track.
-            appCtx?.let { ctx ->
-                val pos = it.currentPosition
-                if (pos > 0) com.music.aalap.data.preferences.saveLastPosition(ctx, pos)
-            }
         }
+    }
+
+    /**
+     * Keeps where the song in the player is, as the resume point of the saved song, only when
+     * they're the same song: during a skip the old song's position was saved against the new
+     * one, and a later restore started it 30-odd seconds in. Main thread.
+     */
+    private fun savePosition() {
+        val ctx = appCtx ?: return
+        val p = player ?: return
+        val pos = p.currentPosition
+        if (pos > 0) com.music.aalap.data.preferences.saveLastPosition(ctx, p.currentMediaItem?.mediaId, pos)
     }
 
     fun stop() {
@@ -1877,6 +1921,29 @@ object SongPlayer {
         return (player?.currentPosition ?: 0L).coerceAtLeast(0L)
     }
 
+    /**
+     * Where the song on screen is, read from the player (see [PlaybackSync]): the position only
+     * counts when the player holds that song, and its length falls back to the catalogue's
+     * until the stream gives its own. Call on the main thread (the player lives there).
+     */
+    fun progress(): com.music.aalap.playback.PlaybackSync.Progress {
+        val shown = boundState?.let { s -> s.queue.value.firstOrNull { it.id == s.songId.value } }
+        if (webPlaybackActive()) return com.music.aalap.playback.PlaybackSync.Progress(
+            SpotifyWebPlayer.positionMs.coerceAtLeast(0L), SpotifyWebPlayer.durationMs.coerceAtLeast(0L),
+        )
+        val p = player
+        // Nothing to compare against (no queue yet): the player's own reading.
+        val shownQuery = shown?.url ?: p?.currentMediaItem?.mediaId.orEmpty()
+        return com.music.aalap.playback.PlaybackSync.progress(
+            shownQuery = shownQuery,
+            playerQuery = p?.currentMediaItem?.mediaId,
+            playerPositionMs = p?.currentPosition ?: 0L,
+            playerDurationMs = p?.duration ?: 0L,
+            listedDurationMs = (shown?.durationMs ?: 0).toLong(),
+            resumeAtMs = if (restoreQuery != null && restoreQuery == shownQuery) restorePositionMs else 0L,
+        )
+    }
+
     fun isPrepared(): Boolean {
         val playerState = player?.playbackState
         return playerState != null && playerState != ExoPlayer.STATE_IDLE && playerState != ExoPlayer.STATE_ENDED
@@ -1902,6 +1969,8 @@ object SongPlayer {
     @Volatile private var secondaryPlayer: ExoPlayer? = null
     @Volatile private var secondaryPlayerFilter: com.music.aalap.audio.CrossfadeFilterAudioProcessor? = null
     @Volatile private var isCrossfading = false
+    /** The outgoing song reached its end during a blend (its end is then the blend's job). */
+    @Volatile private var endedWhileCrossfading = false
     @Volatile private var crossfadeJob: kotlinx.coroutines.Job? = null
     @Volatile private var positionWatchJob: kotlinx.coroutines.Job? = null
     @Volatile private var pendingNextSong: com.music.aalap.data.entity.SongsModel? = null
@@ -1914,6 +1983,10 @@ object SongPlayer {
     /** Give the player access to the shared queue/now-playing state so it can advance the
      *  app's notion of "current track" itself when a crossfade fires. Called once at startup. */
     fun bindState(state: CurrentSongState) { boundState = state }
+
+    /** The queue's entry for a play query (null if it isn't queued). */
+    private fun queuedByQuery(query: String): com.music.aalap.data.entity.SongsModel? =
+        if (query.isBlank()) null else runCatching { boundState?.queue?.value?.firstOrNull { it.url == query } }.getOrNull()
 
     /** The queue's copy of a song (title, cover, ids), e.g. to remember a like's details. */
     fun queuedSong(id: Int): com.music.aalap.data.entity.SongsModel? =
@@ -1960,12 +2033,7 @@ object SongPlayer {
                 nearEnd = player?.let { p -> withContext(Dispatchers.Main) { p.duration > 0 && p.duration - p.currentPosition < 20_000 } } ?: false
                 // Persist the position every few seconds so a relaunch resumes mid-track.
                 if (++posSaveTick % (if (nearEnd) 12 else 4) == 0 && !webPlaybackActive()) {
-                    player?.let { p ->
-                        val pos = withContext(Dispatchers.Main) {
-                            if (p.isPlaying) p.currentPosition else -1L
-                        }
-                        if (pos > 0) com.music.aalap.data.preferences.saveLastPosition(ctx, pos)
-                    }
+                    withContext(Dispatchers.Main) { if (player?.isPlaying == true) savePosition() }
                 }
                 if (isCrossfading) continue
                 // No crossfade while the audio chip plays on its own (see applyOffload).
@@ -1992,6 +2060,16 @@ object SongPlayer {
      * starts gaplessly and the session never reports "stopped" between tracks.
      * Crossfade and repeat keep their own paths; a stale preload is removed.
      */
+    @Volatile private var preResolved: String? = null
+
+    private suspend fun preResolveForBlend(next: String, ctx: Context, p: ExoPlayer) {
+        if (preResolved == next || streamCache.containsKey(next)) return
+        val (pos, dur) = withContext(Dispatchers.Main) { p.currentPosition to p.duration }
+        if (dur <= 0 || dur - pos > 30_000L) return
+        preResolved = next // once per song, even if it finds nothing (the blend tries again)
+        scope.launch { runCatching { resolveStreamUrl(next, ctx) } }
+    }
+
     private suspend fun managePreload(ctx: Context, crossfadeMs: Int) {
         val state = boundState ?: return
         val p = player ?: return
@@ -2009,6 +2087,13 @@ object SongPlayer {
                 if (p.mediaItemCount > 1) p.removeMediaItems(1, p.mediaItemCount)
             }
             preloadedNext = null
+        }
+        // Crossfade blends on a second player instead, and used to look the next song up only
+        // in the last seconds: when that took longer (lossless, YouTube), the song ended into
+        // silence. Its stream is found ~30 s ahead instead (only the address, nothing played).
+        if (crossfadeMs > 0 && next != null && !state.repeat.value && !webPlaybackActive()) {
+            preResolveForBlend(next.url, ctx, p)
+            return
         }
         if (wanted == null || preloadedNext != null || preloading) return
         val (pos, dur, ready) = withContext(Dispatchers.Main) {
@@ -2042,10 +2127,15 @@ object SongPlayer {
         if (cur < 0 || cur >= q.size - 1) return // last track ends normally
         val nextSong = q[cur + 1]
         isCrossfading = true
+        endedWhileCrossfading = false
         scope.launch {
             try {
                 val nextUrl = resolveStreamUrl(nextSong.url, ctx, forPlayback = true) ?: run {
-                    isCrossfading = false; return@launch
+                    isCrossfading = false
+                    // The song ran out while the next one was looked for (its end was left to
+                    // the blend): move on now, or the music just stopped.
+                    if (endedWhileCrossfading) withContext(Dispatchers.Main) { onTrackEnded?.invoke() }
+                    return@launch
                 }
                 // Effective duration: never longer than the real time left on the outgoing track.
                 val remaining = withContext(Dispatchers.Main) {
@@ -2060,21 +2150,29 @@ object SongPlayer {
                 // is the sole audio source (not at blend-start while the old track fades).
                 pendingNextSong = nextSong
                 pendingNextSongIdx = cur + 1
-                // Pre-load metadata so buildMediaItem() tags the secondary player correctly.
-                setNowPlayingMeta(nextSong.title, nextSong.singer, nextSong.coverUri)
                 withContext(Dispatchers.Main) {
                     val (sp, sf) = createPlayerWithFilter(ctx, handleAudioFocus = false)
                     secondaryPlayer = sp
                     secondaryPlayerFilter = sf
-                    sp.setMediaItem(buildMediaItem(nextUrl, streamMimeType(nextUrl)))
+                    // Tagged as the next song itself (it carried the outgoing song's id, so an
+                    // error after the blend recovered the wrong song, or nothing).
+                    sp.setMediaItem(buildMediaItem(
+                        nextUrl, streamMimeType(nextUrl, sourceCache[nextSong.url].orEmpty()),
+                        query = nextSong.url, title = nextSong.title, artist = nextSong.singer, cover = nextSong.coverUri,
+                    ))
                     sp.prepare()
                     sp.volume = 0f
                     sp.playWhenReady = true
                 }
                 performCrossfade(effectiveMs, djMode)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 Log.e(TAG, "crossfade failed", e)
-                cancelCrossfade()
+                val ended = endedWhileCrossfading
+                withContext(Dispatchers.Main) {
+                    cancelCrossfade()
+                    if (ended) onTrackEnded?.invoke()
+                }
             }
         }
     }
@@ -2136,6 +2234,9 @@ object SongPlayer {
             incoming.setHandleAudioBecomingNoisy(true)
             // Error recovery and end-of-track detection follow the promoted player.
             incoming.addListener(midPlayErrorListener)
+            // The session moves to the new player before the old one stops: the other way round,
+            // the lock screen, notification and Bluetooth / car saw "stopped" for a moment.
+            onPlayerSwapped?.invoke(incoming)
             runCatching { old?.stop(); old?.release() }
             isCrossfading = false
             // Now that the new track is the sole audio source, switch the in-app UI
@@ -2148,8 +2249,6 @@ object SongPlayer {
                 )
                 pendingNextSong = null
             }
-            // Re-bind the media session to the new player.
-            onPlayerSwapped?.invoke(incoming)
         }
         // Watch the newly-promoted track for its own end.
         startPositionWatch()

@@ -495,6 +495,24 @@ class PlaybackService : MediaLibraryService() {
             return MediaSession.ConnectionResult.accept(commands, base.availablePlayerCommands)
         }
 
+        /**
+         * Play pressed (headset, lock screen, Bluetooth) with nothing loaded. Aalap's songs are found
+         * when they play, so there are no ready items to hand back: bring back the last session
+         * here and let it start through Aalap's own engine. The failed future tells Media3 not to
+         * load items of its own; it then presses play on the player, which is a no-op while the
+         * song is being found (SongPlayer.play).
+         */
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            android.os.Handler(mainLooper).post {
+                resumeLastSessionIfIdle()
+                startWithNetwork { SongPlayer.play() }
+            }
+            return Futures.immediateFailedFuture(IllegalStateException("Aalap resumes through its own player"))
+        }
+
         override fun onCustomCommand(
             session: MediaSession,
             controller: MediaSession.ControllerInfo,

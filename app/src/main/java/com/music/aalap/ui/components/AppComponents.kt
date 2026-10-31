@@ -94,7 +94,7 @@ fun MiniPlayer(navController: NavHostController) {
     // written while drawing, which asks for another drawing: with the song always moving, the
     // mini player redrew itself every frame, endlessly, open or in the background.)
     var songProgress by remember(songId) {
-        mutableFloatStateOf(SongPlayer.getDuration().takeIf { it > 0 }?.let { SongPlayer.getCurrentPosition().toFloat() / it } ?: 0f)
+        mutableFloatStateOf(SongPlayer.progress().fraction)
     }
 
     val currentRoute = navController.currentBackStackEntry?.destination?.route
@@ -104,18 +104,18 @@ fun MiniPlayer(navController: NavHostController) {
     // The bar moves only while Aalap is on screen: in the background this redrew the mini
     // player three times a second for nobody (the biggest part of Aalap's background CPU).
     val miniLifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(songPlayingState, miniLifecycle) {
+    // Restarted per song too (songProgress is new for each song; see PlayerScreen).
+    LaunchedEffect(songPlayingState, miniLifecycle, songId) {
         miniLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-            while (songPlayingState) {
-                songProgress = SongPlayer.getDuration().toFloat().let { dur ->
-                    if (dur > 0f) (SongPlayer.getCurrentPosition().toFloat() / dur).coerceIn(0f, 1f) else 0f
-                }
+            // Once while paused, then each second while playing (same reading as the player screen).
+            do {
+                songProgress = SongPlayer.progress().fraction
                 // (The full player used to open by itself when a song ended; the end of a song
                 // is the playback service's job, and opening the player then could jump songs.)
                 // Once a second: the bar moves under half a percent a second, and every step
                 // redraws the screen.
-                delay(1_000L)
-            }
+                if (songPlayingState) delay(1_000L)
+            } while (songPlayingState)
         }
     }
 

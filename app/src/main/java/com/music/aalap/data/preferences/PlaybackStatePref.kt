@@ -29,11 +29,16 @@ fun saveLastPlayback(context: Context, song: SongsModel) {
     }.apply()
 }
 
-/** Updates just the position of the stored track (called periodically). */
-fun saveLastPosition(context: Context, positionMs: Long) {
+/**
+ * Updates just the position of the stored track (called periodically and on pause), only
+ * when [playingQuery] (the song the position was read from) is the stored track.
+ */
+fun saveLastPosition(context: Context, playingQuery: String?, positionMs: Long) {
     if (positionMs <= 0) return
-    context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
-        .edit().putLong(KEY_POSITION, positionMs).apply()
+    val p = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+    val storedQuery = runCatching { p.getString(KEY_SONG, null)?.let { JSONObject(it).optString("url") } }.getOrNull()
+    if (!com.music.aalap.playback.PlaybackSync.positionBelongsTo(storedQuery, playingQuery)) return
+    p.edit().putLong(KEY_POSITION, positionMs).apply()
 }
 
 /** The last track and position, or null if nothing was ever played. */
