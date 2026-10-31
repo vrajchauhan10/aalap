@@ -46,6 +46,8 @@ class HomeViewModel @Inject constructor(
     private val M = com.music.aalap.data.recommendation.HomeMixes
     /** Quick picks, each tagged with why it's there (Trending, Top hit, Liked, Your taste…). */
     val quickPicks = MutableStateFlow<List<com.music.aalap.data.recommendation.HomeMixes.TodaySong>>(emptyList())
+    /** Loading, ready, nothing found, or failed (with nothing to show): see [PicksStatus]. */
+    val quickPicksStatus = MutableStateFlow(PicksStatus.LOADING)
     val recentlyPlayed = MutableStateFlow<List<com.music.aalap.data.entity.SongsModel>>(emptyList())
     val jumpBackIn = MutableStateFlow<List<com.music.aalap.data.entity.HomeItem>>(emptyList())
     val dailyMixes = MutableStateFlow<List<com.music.aalap.data.recommendation.HomeMixes.Mix>>(emptyList())
@@ -68,8 +70,19 @@ class HomeViewModel @Inject constructor(
     }
 
     private suspend fun loadQuickPicks(force: Boolean) {
-        runCatching { quickPicks.value = M.tagged(appContext, M.quickPicks(appContext, force)) }
+        if (quickPicks.value.isEmpty()) quickPicksStatus.value = PicksStatus.LOADING
+        val result = runCatching { M.tagged(appContext, M.quickPicks(appContext, force)) }
+        result.exceptionOrNull()?.let { android.util.Log.w("HomeViewModel", "quick picks failed: $it") }
+        applyQuickPicks(result)
     }
+
+    private fun applyQuickPicks(result: Result<List<com.music.aalap.data.recommendation.HomeMixes.TodaySong>>) {
+        quickPicksStatus.value = PicksStatus.after(quickPicks.value.size, result)
+        if (PicksStatus.replaces(result)) quickPicks.value = result.getOrThrow()
+    }
+
+    /** "Try again" on an empty or failed Quick picks section. */
+    fun retryQuickPicks() = viewModelScope.launch(Dispatchers.IO) { loadQuickPicks(force = true) }
 
     /** Home came back on screen: Recently played and favourites change with every play. */
     fun onResumeRefresh() = viewModelScope.launch(Dispatchers.IO) {
@@ -125,8 +138,10 @@ class HomeViewModel @Inject constructor(
         // and saved, but the page kept the old ones until Home was opened again).
         val spinnerDone = java.util.concurrent.atomic.AtomicBoolean(false)
         val quick = launch {
-            fresh = runCatching { M.tagged(appContext, M.quickPicks(appContext, force)) }.getOrNull()
-            if (spinnerDone.get()) fresh?.takeIf { it.isNotEmpty() }?.let { quickPicks.value = it; refreshGen.value++ }
+            val result = runCatching { M.tagged(appContext, M.quickPicks(appContext, force)) }
+            fresh = result.getOrNull()
+            if (spinnerDone.get()) { applyQuickPicks(result); if (PicksStatus.replaces(result)) refreshGen.value++ }
+            else if (!PicksStatus.replaces(result)) applyQuickPicks(result)
         }
         loadDiscovery()
         if (force) launch { runCatching { dailyMixes.value = M.dailyMixes(appContext, true) } }
@@ -134,7 +149,7 @@ class HomeViewModel @Inject constructor(
         spinnerDone.set(true)
         _refreshing.value = false
         // One moment: new picks in, bounce starts.
-        fresh?.takeIf { it.isNotEmpty() }?.let { quickPicks.value = it }
+        fresh?.takeIf { it.isNotEmpty() }?.let { quickPicks.value = it; quickPicksStatus.value = PicksStatus.READY }
         refreshGen.value++
         loadUnified(force = false, skipQuickPicks = true)
     }

@@ -193,8 +193,11 @@ object YouTubeLibrary {
             SongMatcher.artistKeys(s.singer).firstOrNull()?.let { byArtist.getOrPut(it) { ArrayList() } += s }
             byTitle.getOrPut(SongMatcher.titleKey(s.title, s.singer)) { ArrayList() } += s
         }
+        // The same song and the same take: "Paro (Unplugged)" liked on YouTube Music isn't
+        // "Paro" liked on Spotify, and used to vanish from Liked Songs.
         fun same(a: SongsModel, b: SongsModel) =
-            SongMatcher.sameSong(SongBridge.toCandidate(a).copy(spotifyId = ""), SongBridge.toCandidate(b).copy(spotifyId = ""))
+            com.music.aalap.data.recommendation.engine.SongVersion.same(a.title, b.title) &&
+                SongMatcher.sameSong(SongBridge.toCandidate(a).copy(spotifyId = ""), SongBridge.toCandidate(b).copy(spotifyId = ""))
         val ytOnly = youtube.filter { y ->
             if (y.id in spotifyIds) return@filter false
             val sameArtist = SongMatcher.artistKeys(y.singer).flatMap { byArtist[it].orEmpty() }

@@ -42,6 +42,7 @@ fun Mood.craft(): Craft = when (this) {
     Mood.DEVOTIONAL -> Craft.LOTUS
     Mood.FOCUS -> Craft.JAALI
     Mood.ROAD_TRIP -> Craft.TORAN
+    Mood.GYM -> Craft.DHOKRA
 }
 
 /** Motif colour for a card colour: a light tint of it. */

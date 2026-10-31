@@ -60,7 +60,9 @@ fun MoodScreen(navController: NavController, moodName: String) {
     val mood = remember(moodName) { runCatching { Mood.valueOf(moodName) }.getOrDefault(Mood.HAPPY) }
     val playerViewModel: PlayerViewModel = hiltViewModel()
     val songs by produceState<List<SongsModel>?>(initialValue = null, mood) {
-        value = withContext(Dispatchers.IO) { Discover.moodMix(context, mood) }
+        value = withContext(Dispatchers.IO) {
+            com.music.aalap.data.recommendation.AalapRadio.forMood(context, mood, Discover.moodMix(context, mood))
+        }
     }
     val yourArtists = remember { Discover.topArtists(context).map { it.lowercase() }.toSet() }
     val top = Color(mood.colors.first)

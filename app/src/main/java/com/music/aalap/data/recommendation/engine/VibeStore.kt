@@ -152,6 +152,13 @@ object VibeStore {
     }
 
     /** Saves a song's measured tempo and energy (from [com.music.aalap.audio.AudioAnalysis]). */
+    /** The tempo measured for [song] when it played before (null: not measured yet). IO thread. */
+    fun tempoOf(context: Context, song: SongsModel): Double? = runCatching {
+        val db = RecoDb.get(context)
+        val id = db.resolve(SongBridge.toCandidate(song)).id
+        db.audio(listOf(id))[id]?.bpm
+    }.getOrNull()
+
     fun saveAudio(context: Context, song: SongsModel, r: com.music.aalap.audio.AudioFeatures.Result) {
         scope.launch {
             runCatching {

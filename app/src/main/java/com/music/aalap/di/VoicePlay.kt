@@ -94,7 +94,8 @@ object VoicePlay {
     private val GENERIC = setOf("", "music", "some music", "songs", "some songs", "something", "anything", "my music", "aalap", "a song", "any song")
 
     private val MOODS = listOf(
-        com.music.aalap.data.api.Mood.ENERGETIC to listOf("energetic", "workout", "gym", "high energy", "pump up", "running", "motivational"),
+        com.music.aalap.data.api.Mood.GYM to listOf("gym", "gym freaks", "gym freak", "gym radio", "lifting", "weightlifting", "bodybuilding"),
+        com.music.aalap.data.api.Mood.ENERGETIC to listOf("energetic", "workout", "high energy", "pump up", "running", "motivational"),
         com.music.aalap.data.api.Mood.PARTY to listOf("party", "dance", "club", "dj", "bollywood party", "wedding"),
         com.music.aalap.data.api.Mood.HEARTBROKEN to listOf("heartbreak", "heartbroken", "breakup"),
         com.music.aalap.data.api.Mood.SAD to listOf("sad", "emotional", "dard bhare", "crying"),

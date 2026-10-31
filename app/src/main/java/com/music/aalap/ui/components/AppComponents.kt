@@ -256,7 +256,7 @@ fun MiniPlayer(navController: NavHostController) {
                         exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(250)),
                     ) {
                         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.38f)), contentAlignment = Alignment.Center) {
-                            androidx.compose.runtime.key(songId) { CoverEqualizer() }
+                            CoverEqualizer(songId)
                         }
                     }
                 }
@@ -458,34 +458,62 @@ fun ConfirmDownloadAllDialog(count: Int, onDismiss: () -> Unit, onConfirm: () ->
 }
 
 
-/** Four little saffron bars rising and falling at different speeds, like a beat. */
+/**
+ * Four little saffron bars that move with the music: only while sound is really coming out
+ * ([SongPlayer.audible]: not while paused, loading, stalled or muted by a call), gliding to a
+ * new height on every beat of the song's measured tempo ([BeatBars]) for a few seconds, then
+ * holding still; only while Aalap is on screen. Paused or loading, they settle low. The heights are read only while drawing,
+ * so each frame redraws these bars alone, not the mini player around them.
+ */
 @Composable
-private fun CoverEqualizer() {
-    // Still bars while no Aalap screen is showing (see ScreenState).
-    if (!com.music.aalap.ui.theme.ScreenState.onScreen) { EqualizerBars(listOf(0.6f, 0.9f, 0.5f, 0.75f)); return }
-    // Steps about six times a second, like a level meter: a smooth animation asked for a new
-    // frame 120 times a second for as long as a song played.
-    // It dances for a few seconds as the song starts (or after play), then holds still: every
-    // step redraws the whole window, shadows and all, and that kept the phone working the
-    // whole time Aalap was open.
-    var heights by remember { mutableStateOf(listOf(0.4f, 0.8f, 0.55f, 0.7f)) }
-    LaunchedEffect(Unit) {
-        val rnd = kotlin.random.Random(System.nanoTime())
-        repeat(25) {
-            kotlinx.coroutines.delay(160)
-            heights = heights.map { h -> (h + (rnd.nextFloat() - 0.5f) * 0.7f).coerceIn(0.25f, 1f) }
+private fun CoverEqualizer(songId: Int) {
+    val audible = SongPlayer.audible.value
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    val context = LocalContext.current
+    var bpm by remember(songId) { mutableStateOf<Double?>(null) }
+    LaunchedEffect(songId) {
+        val song = SongPlayer.queuedSong(songId) ?: return@LaunchedEffect
+        bpm = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.music.aalap.data.recommendation.engine.VibeStore.tempoOf(context.applicationContext, song)
         }
-        heights = listOf(0.55f, 0.9f, 0.6f, 0.75f)
     }
-    EqualizerBars(heights)
+    // The bars glide (eased) to a new height each beat, but the screen is redrawn only
+    // BeatBars.FRAME_MS apart (25 a second): at the display's 60–120 a second every frame
+    // redraws the whole window (see BeatBars.FRAME_MS for the measured cost).
+    val now = remember { FloatArray(4) { BeatBars.REST[it] } }
+    var frame by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    LaunchedEffect(audible, bpm, songId) {
+        suspend fun glide(target: List<Float>, ms: Long) {
+            val from = now.copyOf()
+            val steps = (ms / BeatBars.FRAME_MS).coerceAtLeast(1)
+            for (k in 1..steps) {
+                val e = androidx.compose.animation.core.FastOutSlowInEasing.transform(k.toFloat() / steps)
+                for (i in 0 until 4) now[i] = from[i] + (target[i] - from[i]) * e
+                frame++
+                kotlinx.coroutines.delay(BeatBars.FRAME_MS)
+            }
+        }
+        // Settle gently instead of freezing mid-movement.
+        if (!audible) { glide(BeatBars.REST, 350); return@LaunchedEffect }
+        // A few seconds of gliding each time music starts, resumes, changes song or Aalap comes
+        // back on screen, then a still "playing" pose: gliding all the time cost a third of a core.
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            val step = BeatBars.stepMs(bpm)
+            repeat(BeatBars.glideBeats(step)) { n -> glide(BeatBars.heights(n, seed = songId), step) }
+            glide(BeatBars.HOLD, step)
+            kotlinx.coroutines.awaitCancellation()
+        }
+    }
+    // Read only while drawing: a new frame redraws these bars, not the mini player.
+    EqualizerBars { i -> frame.let { now[i] } }
 }
 
 @Composable
-private fun EqualizerBars(heights: List<Float>) {
+private fun EqualizerBars(height: (Int) -> Float) {
     androidx.compose.foundation.Canvas(Modifier.size(width = 22.dp, height = 16.dp)) {
         val w = 3.dp.toPx(); val gap = (size.width - w * 4) / 3
-        heights.forEachIndexed { i, v ->
-            val h = size.height * v
+        for (i in 0 until 4) {
+            val h = size.height * height(i)
             drawRoundRect(
                 com.music.aalap.ui.theme.Saffron,
                 topLeft = androidx.compose.ui.geometry.Offset(i * (w + gap), size.height - h),

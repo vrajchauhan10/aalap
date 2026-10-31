@@ -102,8 +102,23 @@ object AalapRadio {
         if (mix.isEmpty()) return mix
         // Keep the taste order roughly (top songs early) but shuffle within windows of 6.
         val rnd = Random(salt)
-        return com.music.aalap.data.recommendation.engine.MixClean.songs(mix.take(50)).chunked(6).flatMap { it.shuffled(rnd) }.let { list -> Diversifier.spreadArtists(list) { it.singer } }
+        val ordered = forMood(context, mood, mix)
+        return com.music.aalap.data.recommendation.engine.MixClean.songs(ordered.take(50)).chunked(6).flatMap { it.shuffled(rnd) }.let { list -> Diversifier.spreadArtists(list) { it.singer } }
     }
+
+    /** A mood's songs in the order its station plays them (the same on Home, Search and voice). */
+    fun forMood(context: Context, mood: Mood, mix: List<SongsModel>): List<SongsModel> =
+        if (mood == Mood.GYM) workoutOrder(context, mix) else mix
+
+    /** Gym Freaks: songs known to be high energy or fast first, slow or calm ones out ([GymFit]). */
+    private fun workoutOrder(context: Context, mix: List<SongsModel>): List<SongsModel> = runCatching {
+        val canon = RecoDb.get(context).resolveAll(mix.map(com.music.aalap.data.recommendation.engine.SongBridge::toCandidate))
+        val vibes = com.music.aalap.data.recommendation.engine.VibeStore.vibes(context, canon)
+        GymFit.order(mix.zip(canon).map { (song, c) ->
+            val v = vibes[c.id]
+            GymFit.Track(song, energy = v?.takeIf { it.energyKnown }?.energy, bpm = v?.bpm)
+        })
+    }.getOrDefault(mix)
 
     private fun recordMood(context: Context, mood: Mood) {
         val p = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
@@ -115,8 +130,8 @@ object AalapRadio {
         val p = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         val timeFit: List<Mood> = when (Personalizer.dayPart(System.currentTimeMillis())) {
             0 -> listOf(Mood.CHILL, Mood.SAD, Mood.HEARTBROKEN, Mood.ROMANTIC, Mood.FOCUS)
-            1 -> listOf(Mood.DEVOTIONAL, Mood.HAPPY, Mood.ENERGETIC, Mood.FOCUS, Mood.ROAD_TRIP)
-            2 -> listOf(Mood.FOCUS, Mood.HAPPY, Mood.ROAD_TRIP, Mood.ENERGETIC, Mood.CHILL)
+            1 -> listOf(Mood.DEVOTIONAL, Mood.GYM, Mood.HAPPY, Mood.ENERGETIC, Mood.FOCUS, Mood.ROAD_TRIP)
+            2 -> listOf(Mood.FOCUS, Mood.HAPPY, Mood.ROAD_TRIP, Mood.ENERGETIC, Mood.GYM, Mood.CHILL)
             else -> listOf(Mood.ROMANTIC, Mood.PARTY, Mood.CHILL, Mood.HAPPY, Mood.SAD)
         }
         return Mood.entries.sortedWith(

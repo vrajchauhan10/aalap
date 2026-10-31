@@ -1739,6 +1739,8 @@ object SongPlayer {
         // mirror it so the in-app button doesn't keep showing the old state.
         // Real listening time (History minutes) counts only while audio is coming out.
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            // (The outgoing song of a blend ends while the incoming one already sounds.)
+            audible.value = isPlaying || (isCrossfading && secondaryPlayer?.isPlaying == true)
             com.music.aalap.data.preferences.ListenClock.playingChanged(isPlaying)
             // Music is playing: Media3's own notification keeps the foreground from here.
             if (isPlaying) appCtx?.let { com.music.aalap.ui.notification.StartupService.stop(it) }
@@ -1811,6 +1813,13 @@ object SongPlayer {
             }
         }
     }
+
+    /**
+     * Sound is really coming out: the player is playing, not paused, loading, stalled, failed or
+     * muted by a call / another app. The "play" button follows what was asked for; things that
+     * show music moving (the cover's bars) follow this. Main thread, Compose-observable.
+     */
+    val audible = androidx.compose.runtime.mutableStateOf(false)
 
     /** The live ExoPlayer instance (may be null before first play). */
     val exoPlayer: ExoPlayer? get() = player
@@ -1908,6 +1917,7 @@ object SongPlayer {
         cancelCrossfade()
         player?.release()
         player = null
+        audible.value = false
     }
 
     fun getDuration(): Long {
@@ -2229,6 +2239,8 @@ object SongPlayer {
             secondaryPlayer = null
             secondaryPlayerFilter = null
             incoming.volume = 1f
+            // Already playing when it takes over, so its listener won't say so by itself.
+            audible.value = incoming.isPlaying
             // The promoted player now owns audio focus / becoming-noisy handling.
             incoming.setAudioAttributes(buildAudioAttributes(), /* handleAudioFocus = */ true)
             incoming.setHandleAudioBecomingNoisy(true)

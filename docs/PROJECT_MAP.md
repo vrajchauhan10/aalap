@@ -24,6 +24,7 @@ name. Line counts are approximate (as of 7.0.0) to flag the big files.
 | `di/SmartPlay.kt` | Tap-in-list behaviour (song + fitting recommendations interleaved with list). |
 | `di/SongVideo.kt`, `ui/screens/PlayerScreen.kt` (`SyncedVideo` ~l.1560) | Music video / Spotify Canvas synced to playback. |
 | `playback/ChunkedDataSource.kt` | 2 MiB ranged reads for googlevideo. |
+| `ui/components/BeatBars.kt`, `CoverEqualizer` in `AppComponents.kt` | Cover bars: move only while `SongPlayer.audible`, glide per beat of the stored tempo. |
 | `playback/PlaybackSync.kt` | Pure rules for what the screen shows: position/length only for the song in the player, resume point, save guard. Used via `SongPlayer.progress()` by PlayerScreen, MiniPlayer, Lyrics. Tests: `app/src/test/.../playback/PlaybackSyncTest.kt`. |
 | `audio/AudioEffects.kt` | Equalizer / bass boost / loudness on a shared audio session id. |
 | `audio/CrossfadeFilterAudioProcessor.kt`, `audio/BiquadFilter.kt` | DJ-style crossfade filters. |
@@ -62,7 +63,7 @@ name. Line counts are approximate (as of 7.0.0) to flag the big files.
 `Recommender` (entry) → `engine/QueueEngine` (resolve → fetch → fuse → score → pick →
 chain) using `engine/sources/*`, `Fusion`, `QueuePicker`, `Personalizer`, `TasteProfile`,
 `Diversifier`, `Vibe`/`VibeStore` (LruCaches 8000/8000/4000), `SongMatcher`, `RecoDb`
-(SQLite). Home: `HomeMixes`, `AalapRadio`. Blend: `Blend`, `BlendScore`, `BlendSync`
+(SQLite). Home: `HomeMixes`, `AalapRadio` (`moodRadio`, `forMood`; Gym Freaks = `Mood.GYM` ranked by `GymFit`). Blend: `Blend`, `BlendScore`, `BlendSync`
 (Firestore REST via `FirestoreRest`, pull every 60 s while a Blend is on screen).
 
 ## UI (`ui/`)
@@ -91,3 +92,4 @@ chain) using `engine/sources/*`, `Fusion`, `QueuePicker`, `Personalizer`, `Taste
 | Notification / widget | `PlaybackService.customLayout`, `pushWidgets`, `ui/widget/AalapWidgets.kt`, `res/layout/widget_*.xml` |
 | Voice | `di/VoicePlay.kt` (parse/plan), `VoiceAsk`, `HeyAalap`, `VoiceListener`, `VoiceUi` |
 | Release | `app/build.gradle.kts` version, `CHANGELOG.md`, `scripts/sign-release.sh` |
+| Providers / sources | read `docs/PROVIDERS.md` first (what is and isn't an official integration) |

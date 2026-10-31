@@ -142,9 +142,10 @@ fun SettingsScreen(navController: NavController) {
             var fastLoading by remember { mutableStateOf(com.music.aalap.data.preferences.isFastLoading(context)) }
             SettingsSwitchRow(
                 title = "Fast loading",
-                subtitle = "Start songs sooner, load the whole song ahead and prepare the next two. Uses more data when you skip a lot.",
+                subtitle = "Start songs sooner, load well ahead and prepare the next two. Uses more data when you skip a lot.",
                 checked = fastLoading,
             ) { fastLoading = it; com.music.aalap.data.preferences.setFastLoading(context, it) }
+            BackgroundPlaybackRow()
             SubTitle("Song videos")
             var songVideos by remember { mutableStateOf(com.music.aalap.data.preferences.getSongVideos(context)) }
             com.music.aalap.data.preferences.SongVideos.entries.forEach { mode ->
@@ -480,6 +481,44 @@ private fun SourceSettingRow(
         }
         if (selected) {
             Icon(Icons.Filled.Check, contentDescription = "Selected", tint = AppPalette, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+/**
+ * Shown only while Android may stop Aalap in the background (battery optimisation, or the
+ * phone's own "restricted" setting): music then stops after a while with the screen off on
+ * some phones (ColorOS, Samsung, Xiaomi...). It opens Aalap's page in the phone's settings,
+ * where each maker keeps its own "allow background activity" switch. Re-checked on return.
+ */
+@Composable
+private fun BackgroundPlaybackRow() {
+    val context = LocalContext.current
+    fun restricted(): Boolean {
+        val power = context.getSystemService(android.os.PowerManager::class.java)
+        val optimised = power?.isIgnoringBatteryOptimizations(context.packageName) == false
+        val userRestricted = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P &&
+            context.getSystemService(android.app.ActivityManager::class.java)?.isBackgroundRestricted == true
+        return optimised || userRestricted
+    }
+    var show by remember { mutableStateOf(restricted()) }
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val o = androidx.lifecycle.LifecycleEventObserver { _, e -> if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) show = restricted() }
+        lifecycle.addObserver(o)
+        onDispose { lifecycle.removeObserver(o) }
+    }
+    if (!show) return
+    NavRow(
+        "Keep music playing in the background",
+        "Your phone may pause Aalap to save battery. Open Aalap's settings → Battery and allow background use (\"Unrestricted\" or \"Allow background activity\").",
+    ) {
+        runCatching {
+            context.startActivity(
+                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(android.net.Uri.fromParts("package", context.packageName, null))
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
         }
     }
 }

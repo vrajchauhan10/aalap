@@ -85,17 +85,9 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
     val likeState = currentSongState.likeState
 
 
-    private val _songs : MutableStateFlow<Response<List<SongsModel>>> = MutableStateFlow(Response.Loading())
-    val songs : StateFlow<Response<List<SongsModel>>> = _songs
-
     val playingArtist by mutableStateOf(currentSongSinger.value)
 
-    init {
-        fetchSongs()
-    }
 
-
-    //val songsResponse = (songs.value as Response.Success).data
 
     // Resolve where we currently are in the queue. The stored index can be stale
     // (e.g. queue swapped out), so match by song id first and fall back to the index.
@@ -317,13 +309,6 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
         SongPlayer.playSong(previousSong.url, context)
     }
 
-    private fun fetchSongs() = viewModelScope.launch(Dispatchers.IO) {
-
-        repository.provideSongs().collect { songs ->
-            _songs.value = songs as Response<List<SongsModel>>
-
-        }
-    }
     fun formatDuration(durationMillis: Long): String {
         // Unknown/unset lengths arrive as large negatives; never print those.
         if (durationMillis <= 0L) return "0:00"

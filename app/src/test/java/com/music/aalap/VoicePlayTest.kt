@@ -40,6 +40,8 @@ class VoicePlayTest {
     @Test fun moods() {
         assertEquals(Plan.Mood(Mood.PARTY), plan("play party songs"))
         assertEquals(Plan.Mood(Mood.ENERGETIC), plan("play some workout music on aalap"))
+        assertEquals(Plan.Mood(Mood.GYM), plan("play gym songs"))
+        assertEquals(Plan.Mood(Mood.GYM), plan("play gym freaks on aalap"))
         assertEquals(Plan.Mood(Mood.SAD), plan("sad songs"))
         assertEquals(Plan.Mood(Mood.DEVOTIONAL), plan("play bhajans"))
         assertEquals(Plan.Mood(Mood.CHILL), plan("play lofi"))

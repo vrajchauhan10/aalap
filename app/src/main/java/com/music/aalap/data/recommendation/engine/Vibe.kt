@@ -189,6 +189,7 @@ class Vibe(
             "DEVOTIONAL" -> mapOf(Feel.DEVOTIONAL to 1.0)
             "FOCUS" -> mapOf(Feel.FOCUS to 1.0)
             "ROAD_TRIP" -> mapOf(Feel.HAPPY to 0.5, Feel.ENERGETIC to 0.5)
+            "GYM" -> mapOf(Feel.ENERGETIC to 0.8, Feel.PARTY to 0.2)
             else -> emptyMap()
         }
     }

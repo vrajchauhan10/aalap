@@ -12,6 +12,7 @@ Detailed docs (read only what the task needs):
 - `docs/ARCHITECTURE.md` — flows, state, storage, background, lifecycle
 - `docs/PERFORMANCE_BASELINE.md` — known hot spots, risks, ranked optimisations
 - `docs/CHANGELOG_TECHNICAL.md` — technical change log (update for significant changes)
+- `docs/PROVIDERS.md` — each music source: how it's used, official status, what official APIs allow
 - `docs/recommendation/README.md` — recommendation engine pipeline and weights
 - `CHANGELOG.md` — user-facing release notes (one entry per version)
 

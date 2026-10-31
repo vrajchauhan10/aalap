@@ -186,15 +186,8 @@ fun PlayerScreen(navController: NavController) {
         }
     }
 
-    val songsResponse by playerViewModel.songs.collectAsState()
     val shuffle = playerViewModel.shuffleState.value
     val repeat = playerViewModel.repeatState.value
-
-    val songs = if (songsResponse is Response.Success){
-        (songsResponse as Response.Success).data
-    } else {
-        emptyList<SongsModel>()
-    }
 
     // The queue is whatever list the user actually started playing (album tracks,
     // search results, liked songs) — stored when the song was tapped. Falling back

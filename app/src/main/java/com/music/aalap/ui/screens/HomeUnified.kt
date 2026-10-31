@@ -78,8 +78,31 @@ fun HomeHeader(title: String, subtitle: String? = null) {
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalGlideComposeApi::class)
 @Composable
-fun QuickPicksSection(picks: List<HomeMixes.TodaySong>) {
-    if (picks.isEmpty()) return
+fun QuickPicksSection(
+    picks: List<HomeMixes.TodaySong>,
+    status: com.music.aalap.ui.viewmodel.PicksStatus = com.music.aalap.ui.viewmodel.PicksStatus.READY,
+    onRetry: () -> Unit = {},
+) {
+    if (picks.isEmpty()) {
+        // Nothing to show: say why, instead of the section quietly missing.
+        val (line, retry) = when (status) {
+            com.music.aalap.ui.viewmodel.PicksStatus.LOADING -> "Finding songs for you…" to false
+            com.music.aalap.ui.viewmodel.PicksStatus.FAILED -> "Couldn't load your picks. Check your connection." to true
+            com.music.aalap.ui.viewmodel.PicksStatus.EMPTY -> "No picks yet. Play a few songs and they'll show up here." to true
+            com.music.aalap.ui.viewmodel.PicksStatus.READY -> return
+        }
+        HomeHeader("Quick picks")
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+        ) {
+            Text(line, color = TextMuted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            if (retry) androidx.compose.material3.TextButton(onClick = onRetry) {
+                Text("Try again", color = com.music.aalap.ui.theme.Saffron, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        return
+    }
     val context = LocalContext.current
     val player: PlayerViewModel = hiltViewModel()
     HomeHeader("Quick picks")

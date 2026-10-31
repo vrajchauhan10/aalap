@@ -24,6 +24,8 @@ enum class Mood(val label: String, val query: String, val blurb: String, val col
     DEVOTIONAL("Devotional", "bhakti devotional songs", "Bhajans, aartis and spiritual songs", 0xFFFFB347 to 0xFFB86E00),
     FOCUS("Focus", "focus instrumental indian", "Instrumentals to help you concentrate", 0xFF6E8B74 to 0xFF2F4A36),
     ROAD_TRIP("Road trip", "road trip hindi songs", "Windows down, volume up", 0xFF3BA55C to 0xFF1E5E33),
+    // Spotify's gym playlists for the songs, then only high energy first (AalapRadio.moodRadio).
+    GYM("Gym Freaks", "gym workout", "Heavy beats and high tempo for lifting and cardio", 0xFFE53935 to 0xFF5A0F0F),
 }
 
 /** Spotify's daily-updated chart playlists. */

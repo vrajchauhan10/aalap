@@ -187,6 +187,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
     val carousels = sections.filter { it.title.isNotBlank() && !personal.containsMatchIn(it.title) }
     val homeViewModel: HomeViewModel = hiltViewModel()
     val quick by homeViewModel.quickPicks.collectAsState()
+    val quickStatus by homeViewModel.quickPicksStatus.collectAsState()
     val recent by homeViewModel.recentlyPlayed.collectAsState()
     val jump by homeViewModel.jumpBackIn.collectAsState()
     val mixes by homeViewModel.dailyMixes.collectAsState()
@@ -212,7 +213,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
         // Order: today's poster (opens the 30), Quick picks to choose from, then moods.
         // After a refresh, every section drops in one after another, top to bottom.
         item { BounceIn(1, gen) { com.music.aalap.ui.components.TodayPlaylistSection(today) { navController.navigate(com.music.aalap.ui.navigation.Routes.Today.route) } } }
-        item { BounceIn(2, gen) { QuickPicksSection(quick) } }
+        item { BounceIn(2, gen) { QuickPicksSection(quick, quickStatus) { homeViewModel.retryQuickPicks() } } }
         item { BounceIn(3, gen) { com.music.aalap.ui.components.AalapRadioSection() } }
         item { BounceIn(4, gen) { ChartsRow(navController) } }
         item { BounceIn(5, gen) { MadeForYouSection(mixes) } }

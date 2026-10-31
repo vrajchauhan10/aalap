@@ -4,6 +4,61 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-01 (4) — 7.3.0 (71): Gym Freaks radio; smooth cover bars measured
+- **Decision:** keep current sources (owner, 2026-11-01); Phase 5 stays the assessment in
+  `docs/PROVIDERS.md`. Gym Freaks uses the same sources as every other mood station.
+- **Gym Freaks:** `Mood.GYM` ("gym workout" Spotify category), `Vibe.forMoodName("GYM")` =
+  Energetic 0.8 + Party 0.2, `Craft.DHOKRA`, voice words (gym, gym freaks, lifting…; "workout"
+  stays Energetic), morning/afternoon ordering, `AalapRadio.forMood` → `GymFit.order` on Home,
+  Search (`MoodScreen`) and voice. `GymFit`: energy < 0.55 or < 95 bpm (unless ≥ 0.75 energy)
+  left out unless fewer than 15 remain; unknown songs after known fits.
+- **Device:** Search → Moods → Gym Freaks page listed workout songs; `aalap://play?q=gym`
+  started the station in ~2 s ("Playing from Gym Freaks"), skips gave Highway to Hell, On My
+  Way, Thunderstruck, Ignite. Cold start: Spotify 429s 4 → 1 (remaining: top artists, single
+  request). Quick picks shown on Home.
+- **Cover bars cost (settled 60 s, Home open, playing, `gfxinfo` + `/proc/<pid>/stat`):**
+  still 3.7 fps / 14–19% of a core; 60 fps glide 63 fps / 67–69%; 25 fps glide 28 fps /
+  49–53% (shipped). Paused: 0 frames / ~5%. RenderThread dominates (~15 ms CPU a frame, GPU
+  3 ms): each frame repaints the whole window.
+- **Owner chose brief motion:** glide `BeatBars.GLIDE_MS` (8 s, `glideBeats`) after each start,
+  resume, song change or return to the screen, then ease to `HOLD` and stop. Device: in-app Play
+  → ~30 fps for ~7 s, then ~1 fps; settled holding while playing 10 frames/10 s, 17% of a core
+  (vs 49–53% continuous). A mid-song player swap (lossless upgrade) also restarts the glide.
+- **Tests:** 125/125 (`GymFitTest` 8, 2 voice cases, `BeatBarsTest` +2).
+
+## 2026-11-01 (3) — 7.1.0 / 7.2.0: notification + background, cover animation, picks, liked merge
+- **Versions:** 7.1.0 (69) = playback fixes of (1)/(2) + Phase 4; 7.2.0 (70) = Phase 6.
+  `CHANGELOG.md` has both entries; the build carries 7.2.0.
+- **Phase 4 changes:**
+  - `SongPlayer.audible` (Compose state from `onIsPlayingChanged`, incl. blend's incoming
+    player, set on promotion, cleared on release): "sound is really coming out".
+  - `CoverEqualizer` (`AppComponents.kt`): animates only while `audible` and STARTED; four
+    `Animatable`s glide to new heights each beat, read in the Canvas draw lambda (draw-only
+    invalidation). Tempo from `VibeStore.tempoOf` (stored `song_audio.bpm`, no new analysis);
+    unmeasured songs use a neutral 600 ms pace. Pure rules in `ui/components/BeatBars.kt`.
+  - Manifest: `androidx.media3.session.MediaButtonReceiver` (Play after the process is gone).
+  - `PlaybackService`: recent root (`params.isRecent` → `NODE_RECENT` = last song) for
+    Android's media-resumption controls.
+  - Settings → Playback: `BackgroundPlaybackRow`, shown only when battery-optimised or
+    background-restricted; opens app details settings (no special permission).
+- **Phase 6 changes:**
+  - `Api.HomeCache`: per-feed mutex, 60 s freshness, 20 s backoff after a failure, cleared by
+    pull-to-refresh; `PlayerViewModel` no longer fetches unused Spotify top tracks.
+  - `PicksStatus` (LOADING/READY/EMPTY/FAILED) + `retryQuickPicks`; `QuickPicksSection`
+    shows a line and "Try again" instead of disappearing.
+  - `YouTubeLibrary.mergeLiked`: also requires `SongVersion.same` (different takes kept).
+- **Tests:** 115/115 (`BeatBarsTest` 6, `PicksStatusTest` 5, `LikedMergeTest` 8 new). The
+  liked-merge test found the take bug before the fix.
+- **Device (S24 FE, Android 17):** cover bars move while playing, overlay hidden and frames
+  identical when paused from the system key; screen off (Dozing): playback continued, and
+  pause / play / next / previous via the system media keys all worked; system now records
+  `MediaButtonReceiver` as Aalap's receiver; cold start Spotify "Rate limited" errors 4 → 2
+  before the backoff (after it: not measured, phone locked).
+- **Not verified:** smooth-animation CPU cost; Home/picks on screen after the last build;
+  true process death (no root; force-stop blocks media buttons); Android's resumption card;
+  battery saver / Doze forcing (not changed: system settings); ColorOS (no device); Bluetooth
+  and wired output (none connected).
+
 ## 2026-11-01 (2) — One source of truth for progress; crossfade, lossless and interruption fixes
 - **Root causes (device: S24 FE, Android 17; settings: Lossless on Wi-Fi + cellular,
   crossfade 1 s, Fast loading on):**

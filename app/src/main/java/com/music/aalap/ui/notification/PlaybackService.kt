@@ -460,6 +460,7 @@ class PlaybackService : MediaLibraryService() {
         @Volatile var refreshNotificationButtons: (() -> Unit)? = null
         @Volatile var debugCompatToken: android.support.v4.media.session.MediaSessionCompat.Token? = null
         const val ROOT = "root"
+        const val NODE_RECENT = "recent"
         const val NODE_LIKED = "liked"
         const val NODE_DOWNLOADS = "downloads"
         const val NODE_PLAYLISTS = "playlists"
@@ -533,6 +534,9 @@ class PlaybackService : MediaLibraryService() {
             params: LibraryParams?,
         ): ListenableFuture<LibraryResult<MediaItem>> =
             if (!trusted(browser)) Futures.immediateFuture(LibraryResult.ofError(LibraryResult.RESULT_ERROR_PERMISSION_DENIED))
+            // Android's "resume" controls (after Aalap was closed or the phone restarted) ask
+            // for the recent song only; play there comes back through onPlaybackResumption.
+            else if (params?.isRecent == true) Futures.immediateFuture(LibraryResult.ofItem(folder(NODE_RECENT, "Recent"), params))
             else Futures.immediateFuture(LibraryResult.ofItem(folder(ROOT, "Aalap"), params))
 
         override fun onGetChildren(
@@ -608,6 +612,9 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private suspend fun childrenOf(parentId: String): List<MediaItem> = when {
+        parentId == NODE_RECENT ->
+            com.music.aalap.data.preferences.loadLastPlayback(applicationContext)?.first
+                ?.let { registerTracks(NODE_RECENT, listOf(it)) }.orEmpty()
         parentId == ROOT -> listOf(
             folder(NODE_LIKED, "Liked Songs"),
             folder(NODE_DOWNLOADS, "Downloads"),

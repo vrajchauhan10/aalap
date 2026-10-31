@@ -70,7 +70,25 @@ class Api @Inject constructor(
         /** Drop all cached feeds (e.g. on logout / account switch). */
         fun clear() {
             albums = null; artists = null; home = null; library = null
+            fetchedAt.clear(); failedAt.clear()
         }
+
+        // One request per feed at a time, and none again within a minute of the last good one:
+        // at launch the app warm-up and Home asked for the same three feeds at once (and Home
+        // asks again each time it opens), and Spotify answered "rate limited", which left Home
+        // and the picks empty.
+        private const val FRESH_MS = 60_000L
+        private val locks = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.sync.Mutex>()
+        private val fetchedAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+        internal fun lock(key: String) = locks.getOrPut(key) { kotlinx.coroutines.sync.Mutex() }
+        internal fun fresh(key: String) = (fetchedAt[key] ?: 0L) > System.currentTimeMillis() - FRESH_MS
+        internal fun fetched(key: String) { fetchedAt[key] = System.currentTimeMillis(); failedAt.remove(key) }
+        // A request that just failed (Spotify busy, no connection) isn't sent again by whoever
+        // was waiting for it; the next screen visit after a short pause tries again.
+        private const val BACKOFF_MS = 20_000L
+        private val failedAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+        internal fun failed(key: String) { failedAt[key] = System.currentTimeMillis() }
+        internal fun backingOff(key: String) = (failedAt[key] ?: 0L) > System.currentTimeMillis() - BACKOFF_MS
     }
 
     private fun SpotifyTrack.toSongModel(): SongsModel {
@@ -111,21 +129,32 @@ class Api @Inject constructor(
 
     suspend fun getAlbums(): Flow<Response<List<AlbumsModel>>> = flow {
         HomeCache.albums?.let { emit(Response.Success(it)) } ?: emit(Response.Loading())
-        if (!SpotifyTokenProvider.ensureToken(context)) {
-            if (HomeCache.albums == null) emit(Response.Error("Spotify not authenticated — set sp_dc cookie"))
-            return@flow
-        }
-        Spotify.newReleases(limit = 20).fold(
-            onSuccess = { resp ->
-                val list = resp.albums?.items.orEmpty().map { it.toAlbumModel() }
-                HomeCache.albums = list
-                emit(Response.Success(list))
-            },
-            onFailure = {
-                Log.e("Api", "getAlbums failed", it)
-                if (HomeCache.albums == null) emit(Response.Error(it.message ?: "error"))
-            },
-        )
+        if (HomeCache.fresh("albums") && HomeCache.albums != null) return@flow
+        HomeCache.lock("albums").lock()
+        try {
+            if (HomeCache.fresh("albums") && HomeCache.albums != null) { emit(Response.Success(HomeCache.albums!!)); return@flow }
+            if (HomeCache.backingOff("albums")) {
+                if (HomeCache.albums == null) emit(Response.Error("Spotify is busy. Try again in a moment."))
+                return@flow
+            }
+            if (!SpotifyTokenProvider.ensureToken(context)) {
+                if (HomeCache.albums == null) emit(Response.Error("Spotify not authenticated — set sp_dc cookie"))
+                return@flow
+            }
+            Spotify.newReleases(limit = 20).fold(
+                onSuccess = { resp ->
+                    val list = resp.albums?.items.orEmpty().map { it.toAlbumModel() }
+                    HomeCache.albums = list
+                    HomeCache.fetched("albums")
+                    emit(Response.Success(list))
+                },
+                onFailure = {
+                    Log.e("Api", "getAlbums failed", it)
+                    HomeCache.failed("albums")
+                    if (HomeCache.albums == null) emit(Response.Error(it.message ?: "error"))
+                },
+            )
+        } finally { HomeCache.lock("albums").unlock() }
     }
 
     /**
@@ -189,21 +218,32 @@ class Api @Inject constructor(
 
     suspend fun getArtists(): Flow<Response<List<ArtistsModel>>> = flow {
         HomeCache.artists?.let { emit(Response.Success(it)) } ?: emit(Response.Loading())
-        if (!SpotifyTokenProvider.ensureToken(context)) {
-            if (HomeCache.artists == null) emit(Response.Error("Spotify not authenticated — set sp_dc cookie"))
-            return@flow
-        }
-        Spotify.topArtists(limit = 20).fold(
-            onSuccess = { paging ->
-                val list = paging.items.map { it.toArtistModel() }
-                HomeCache.artists = list
-                emit(Response.Success(list))
-            },
-            onFailure = {
-                Log.e("Api", "getArtists failed", it)
-                if (HomeCache.artists == null) emit(Response.Error(it.message ?: "error"))
-            },
-        )
+        if (HomeCache.fresh("artists") && HomeCache.artists != null) return@flow
+        HomeCache.lock("artists").lock()
+        try {
+            if (HomeCache.fresh("artists") && HomeCache.artists != null) { emit(Response.Success(HomeCache.artists!!)); return@flow }
+            if (HomeCache.backingOff("artists")) {
+                if (HomeCache.artists == null) emit(Response.Error("Spotify is busy. Try again in a moment."))
+                return@flow
+            }
+            if (!SpotifyTokenProvider.ensureToken(context)) {
+                if (HomeCache.artists == null) emit(Response.Error("Spotify not authenticated — set sp_dc cookie"))
+                return@flow
+            }
+            Spotify.topArtists(limit = 20).fold(
+                onSuccess = { paging ->
+                    val list = paging.items.map { it.toArtistModel() }
+                    HomeCache.artists = list
+                    HomeCache.fetched("artists")
+                    emit(Response.Success(list))
+                },
+                onFailure = {
+                    Log.e("Api", "getArtists failed", it)
+                    HomeCache.failed("artists")
+                    if (HomeCache.artists == null) emit(Response.Error(it.message ?: "error"))
+                },
+            )
+        } finally { HomeCache.lock("artists").unlock() }
     }
 
     suspend fun getSongs(): Flow<Response<List<SongsModel>>> = flow {
@@ -224,32 +264,43 @@ class Api @Inject constructor(
      */
     suspend fun getHomeFeed(): Flow<Response<HomeFeedModel>> = flow {
         HomeCache.home?.let { emit(Response.Success(it)) } ?: emit(Response.Loading())
-        if (!SpotifyTokenProvider.ensureToken(context)) {
-            if (HomeCache.home == null) emit(Response.Error("Spotify not authenticated — set sp_dc cookie"))
-            return@flow
-        }
-        Spotify.home(sectionItemsLimit = 20).fold(
-            onSuccess = { feed ->
-                val sections = feed.sections.mapNotNull { section ->
-                    // The GQL feed can repeat an item inside one section (and
-                    // repeat whole sections, e.g. two "New releases" rows) —
-                    // that showed up as duplicated album cards on Home.
-                    val items = section.items
-                        .distinctBy { it.uri }
-                        .mapNotNull { it.toHomeItem() }
-                        .distinctBy { it::class.simpleName + "|" + it.name.lowercase() }
-                    if (items.isEmpty()) null
-                    else HomeSection(title = section.title ?: "", items = items)
-                }.distinctBy { it.title.lowercase().ifBlank { it.hashCode().toString() } }
-                val model = HomeFeedModel(greeting = feed.greeting ?: "", sections = sections)
-                HomeCache.home = model
-                emit(Response.Success(model))
-            },
-            onFailure = {
-                Log.e("Api", "getHomeFeed failed", it)
-                if (HomeCache.home == null) emit(Response.Error(it.message ?: "error"))
-            },
-        )
+        if (HomeCache.fresh("home") && HomeCache.home != null) return@flow
+        HomeCache.lock("home").lock()
+        try {
+            if (HomeCache.fresh("home") && HomeCache.home != null) { emit(Response.Success(HomeCache.home!!)); return@flow }
+            if (HomeCache.backingOff("home")) {
+                if (HomeCache.home == null) emit(Response.Error("Spotify is busy. Try again in a moment."))
+                return@flow
+            }
+            if (!SpotifyTokenProvider.ensureToken(context)) {
+                if (HomeCache.home == null) emit(Response.Error("Spotify not authenticated — set sp_dc cookie"))
+                return@flow
+            }
+            Spotify.home(sectionItemsLimit = 20).fold(
+                onSuccess = { feed ->
+                    val sections = feed.sections.mapNotNull { section ->
+                        // The GQL feed can repeat an item inside one section (and
+                        // repeat whole sections, e.g. two "New releases" rows) —
+                        // that showed up as duplicated album cards on Home.
+                        val items = section.items
+                            .distinctBy { it.uri }
+                            .mapNotNull { it.toHomeItem() }
+                            .distinctBy { it::class.simpleName + "|" + it.name.lowercase() }
+                        if (items.isEmpty()) null
+                        else HomeSection(title = section.title ?: "", items = items)
+                    }.distinctBy { it.title.lowercase().ifBlank { it.hashCode().toString() } }
+                    val model = HomeFeedModel(greeting = feed.greeting ?: "", sections = sections)
+                    HomeCache.home = model
+                    HomeCache.fetched("home")
+                    emit(Response.Success(model))
+                },
+                onFailure = {
+                    Log.e("Api", "getHomeFeed failed", it)
+                    HomeCache.failed("home")
+                    if (HomeCache.home == null) emit(Response.Error(it.message ?: "error"))
+                },
+            )
+        } finally { HomeCache.lock("home").unlock() }
     }
 
     private fun SpotifyHomeFeedItem.toHomeItem(): HomeItem? = when (this) {

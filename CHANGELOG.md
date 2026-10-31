@@ -4,6 +4,45 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 7.3.0 — 1 Nov 2026 (build 71)
+- **Gym Freaks radio.** A new station for lifting and cardio: songs from gym playlists, with
+  the ones Aalap knows are high-energy or fast first and calm or slow ones left out. In Search
+  → Moods, on Home's mood stations (mornings and afternoons, or once you use it), and by voice:
+  "play gym songs on Aalap". When there's nothing to play it says so.
+- **The cover's bars glide smoothly** for a few seconds whenever music starts, resumes, changes
+  song or you come back to Aalap, then hold still: gliding all the time measured a third of a
+  processor core more (a warm phone); holding costs nothing.
+
+## 7.2.0 — 1 Nov 2026 (build 70)
+- **Home and your picks load again.** At start-up Aalap asked Spotify for the same lists
+  twice at once (and again every time Home opened, plus your top tracks from every player
+  screen, never shown): Spotify answered "too many requests" and Home and the picks stayed
+  empty. Each list is now asked for once, and not again within a minute.
+- **Quick picks say what's happening.** Finding songs, nothing yet, or couldn't load, with
+  "Try again", instead of the section quietly missing. New picks that take a while still
+  arrive after a refresh, and a failed refresh keeps the picks you had.
+- **Liked Songs keeps every take.** "Paro (Unplugged)" liked on YouTube Music no longer
+  disappears because "Paro" is liked on Spotify; the same song liked on both still shows once.
+
+## 7.1.0 — 1 Nov 2026 (build 69)
+- **The song shown is the song playing.** The time and bar follow the song that's actually
+  playing: they no longer freeze at 0:00 after a song changes by itself, jump to 30–40 s,
+  or show the last song's time while the next one loads. A song you come back to shows
+  where it will carry on from.
+- **Play always plays.** After closing Aalap while paused, from the notification, or from
+  headphones, Bluetooth or the car (also after Android closed Aalap), Play starts the right
+  song from where it stopped, instead of showing "playing" in silence.
+- **The notification and lock screen show the right song** during and after a crossfade,
+  and no longer flash "stopped" at the end of each crossfade.
+- **Fewer gaps and stops.** With Lossless on, a song starts from JioSaavn, YouTube or Gaana
+  at once (it waited up to 15 s, or was skipped); with crossfade on, the next song is found
+  half a minute early; a call, another app or unplugged headphones pause the crossfade too.
+- **The cover's bars move with the music**, gliding on the beat of each song once Aalap has
+  heard it, and only while sound is really playing (still while paused, loading or
+  interrupted).
+- **Keep music playing in the background:** if your phone limits Aalap to save battery
+  (common on ColorOS, Samsung, Xiaomi), Profile → Playback shows how to allow it.
+
 ## 7.0.0 — 27 Oct 2026 (build 68)
 - **Music keeps playing in the background until you stop it.** It used to stop after 5–10
   songs: Android's records showed Aalap closed for low memory while it had lost its "playing
