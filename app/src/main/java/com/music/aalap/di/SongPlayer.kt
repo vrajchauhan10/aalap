@@ -1839,6 +1839,8 @@ object SongPlayer {
     fun setOutput(device: android.media.AudioDeviceInfo?) {
         preferredOutput = device
         listOfNotNull(player, secondaryPlayer).forEach { runCatching { it.setPreferredAudioDevice(device) } }
+        // The picked output may have its own sound settings.
+        com.music.aalap.audio.AudioEffects.refreshOutput(com.music.aalap.MyApplication.instance)
     }
 
     /** The picked output, or null if none is picked or it has gone away. */
@@ -1880,6 +1882,9 @@ object SongPlayer {
     // re-resolves the track instead of doing nothing.
     @Volatile private var restoreQuery: String? = null
     @Volatile private var restorePositionMs: Long = 0L
+
+    /** Where the restored song will resume, while it hasn't been played yet since launch (Home's Continue card). */
+    fun pendingResumeMs(query: String): Long? = restorePositionMs.takeIf { restoreQuery != null && restoreQuery == query }
 
     fun setRestorePoint(query: String, positionMs: Long) {
         if (query.isBlank()) return

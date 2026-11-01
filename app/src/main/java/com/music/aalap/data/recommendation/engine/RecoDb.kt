@@ -86,6 +86,79 @@ class RecoDb private constructor(context: Context) :
         )
     }
 
+    // ── backup ──────────────────────────────────────────────────────────────
+
+    /**
+     * What a backup keeps of the database: what Aalap learned about you and your songs.
+     * The source cache isn't kept (it's only a 24-hour shortcut and refills by itself).
+     */
+    private val backupTables = listOf("songs", "play_history", "transitions", "user_taste", "song_tags", "song_audio", "feedback")
+
+    /** Every row of [backupTables] as JSON (play ids left out: they're only local row numbers). */
+    fun exportRows(): org.json.JSONObject {
+        val out = org.json.JSONObject()
+        for (t in backupTables) {
+            val rows = org.json.JSONArray()
+            readableDatabase.rawQuery("SELECT * FROM $t", null).use { c ->
+                while (c.moveToNext()) {
+                    val row = org.json.JSONObject()
+                    for (i in 0 until c.columnCount) {
+                        val col = c.getColumnName(i)
+                        if (t == "play_history" && col == "id") continue
+                        when (c.getType(i)) {
+                            Cursor.FIELD_TYPE_INTEGER -> row.put(col, c.getLong(i))
+                            Cursor.FIELD_TYPE_FLOAT -> row.put(col, c.getDouble(i))
+                            Cursor.FIELD_TYPE_STRING -> row.put(col, c.getString(i))
+                            else -> {}
+                        }
+                    }
+                    rows.put(row)
+                }
+            }
+            out.put(t, rows)
+        }
+        return out
+    }
+
+    /**
+     * Adds a backup's rows to this database in one transaction. Rows already here are
+     * replaced by the backup's; plays already here (same song at the same moment) aren't
+     * added twice, so restoring the same backup again changes nothing.
+     */
+    fun importRows(json: org.json.JSONObject) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (t in backupTables) {
+                val rows = json.optJSONArray(t) ?: continue
+                for (i in 0 until rows.length()) {
+                    val row = rows.getJSONObject(i)
+                    val v = android.content.ContentValues()
+                    row.keys().forEach { k ->
+                        when (val x = row.get(k)) {
+                            is Int -> v.put(k, x.toLong())
+                            is Long -> v.put(k, x)
+                            is Double -> v.put(k, x)
+                            is String -> v.put(k, x)
+                        }
+                    }
+                    if (t == "play_history") {
+                        val dup = db.rawQuery(
+                            "SELECT 1 FROM play_history WHERE user_id = ? AND song_id = ? AND played_at = ? LIMIT 1",
+                            arrayOf(row.optString("user_id"), row.optString("song_id"), row.optLong("played_at").toString()),
+                        ).use { it.moveToFirst() }
+                        if (!dup) db.insert(t, null, v)
+                    } else {
+                        db.insertWithOnConflict(t, null, v, SQLiteDatabase.CONFLICT_REPLACE)
+                    }
+                }
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     override fun onCreate(db: SQLiteDatabase) = SCHEMA.forEach(db::execSQL)
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = SCHEMA.forEach(db::execSQL)
 

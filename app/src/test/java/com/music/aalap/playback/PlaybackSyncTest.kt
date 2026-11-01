@@ -75,4 +75,11 @@ class PlaybackSyncTest {
         assertFalse(PlaybackSync.positionBelongsTo(null, "song b"))
         assertFalse(PlaybackSync.positionBelongsTo("", ""))
     }
+
+    @Test fun continueOnlyWhenPartWayThrough() {
+        assertFalse(PlaybackSync.worthContinuing(5_000, 240_000)) // barely started
+        assertTrue(PlaybackSync.worthContinuing(81_000, 240_000))
+        assertFalse(PlaybackSync.worthContinuing(235_000, 240_000)) // practically over
+        assertTrue(PlaybackSync.worthContinuing(81_000, 0)) // length unknown
+    }
 }

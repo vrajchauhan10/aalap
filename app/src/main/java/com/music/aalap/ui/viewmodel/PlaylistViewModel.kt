@@ -42,7 +42,10 @@ class PlaylistViewModel @Inject constructor(
     fun playAll(list: List<SongsModel>, name: String, context: android.content.Context, index: Int = 0) =
         com.music.aalap.di.SmartPlay.playAll(context, currentSongState, list, name, index)
 
-    fun startShuffled(songs: List<SongsModel>) = currentSongState.startShuffled(songs)
+    /** Shuffle that plays what you haven't heard lately first ([com.music.aalap.data.preferences.SmartShuffle]). */
+    fun startShuffled(songs: List<SongsModel>) = currentSongState.startShuffled(
+        songs, com.music.aalap.data.preferences.smartShuffled(com.music.aalap.MyApplication.instance, songs),
+    )
 
     /** Pause/resume global playback (the header play button stays visible while playing). */
     fun setPlaying(playing: Boolean) {

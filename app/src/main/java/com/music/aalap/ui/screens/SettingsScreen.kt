@@ -171,6 +171,9 @@ fun SettingsScreen(navController: NavController) {
                 navController.navigate(com.music.aalap.ui.navigation.Routes.ArtistPicker.route)
             }
 
+            SectionTitle("Backup")
+            BackupRows()
+
             SectionTitle("Notifications")
             var notifButtons by remember { mutableStateOf(com.music.aalap.data.preferences.isNotificationExtraButtons(context)) }
             SettingsSwitchRow(
@@ -446,7 +449,7 @@ private fun ProfileQuickTiles(navController: NavController) {
             Tile("Blend", "Mix tastes with a friend", androidx.compose.ui.res.painterResource(com.music.aalap.R.drawable.ic_blend), Modifier.weight(1f)) {
                 com.music.aalap.ui.components.BlendUi.open()
             }
-            Tile("Wrapped", "Your month in music", androidx.compose.ui.graphics.vector.rememberVectorPainter(androidx.compose.material.icons.Icons.Default.Star), Modifier.weight(1f)) {
+            Tile("Wrapped", "Your week and month in music", androidx.compose.ui.graphics.vector.rememberVectorPainter(androidx.compose.material.icons.Icons.Default.Star), Modifier.weight(1f)) {
                 navController.navigate(com.music.aalap.ui.navigation.Routes.Wrapped.route)
             }
         }
@@ -521,6 +524,75 @@ private fun BackgroundPlaybackRow() {
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         }
+    }
+}
+
+/**
+ * Back up the library to a file the user picks, or put one back (after a confirmation that
+ * says what's in it). Sign-ins and downloads aren't part of it.
+ */
+@Composable
+private fun BackupRows() {
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var status by remember { mutableStateOf<String?>(null) }
+    var pending by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    val save = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        status = "Backing up…"
+        scope.launch {
+            val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { com.music.aalap.data.local.Backup.write(context, uri) }.isSuccess
+            }
+            status = if (ok) "Backed up." else "Couldn't save the backup there. Try another place."
+        }
+    }
+    val open = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val json = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.music.aalap.data.local.Backup.read(context, uri) }
+            if (json == null) status = "That file isn't an Aalap backup." else pending = json
+        }
+    }
+    NavRow("Back up your library", "Likes, playlists, history, taste and sound settings, to a file you choose (not sign-ins or downloads)") {
+        save.launch("Aalap backup ${java.time.LocalDate.now()}.json")
+    }
+    NavRow("Restore from a backup", "Puts a backup's library back on this phone") {
+        open.launch(arrayOf("application/json", "application/octet-stream", "text/plain"))
+    }
+    status?.let { Text(it, color = com.music.aalap.ui.theme.TextMuted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 4.dp)) }
+    pending?.let { json ->
+        val info = com.music.aalap.data.local.Backup.summary(json)
+        val made = java.time.Instant.ofEpochMilli(info.madeAt).atZone(java.time.ZoneId.systemDefault())
+            .format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm"))
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pending = null },
+            title = { Text("Restore this backup?") },
+            text = {
+                Text(
+                    "Made $made" + (if (info.appVersion.isNotBlank()) " with Aalap ${info.appVersion}" else "") +
+                        ", with ${info.plays} plays. Your likes, playlists, history and settings on this phone are replaced by the backup's; " +
+                        "what Aalap learned about your taste is added to.",
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    pending = null
+                    status = "Restoring…"
+                    scope.launch {
+                        val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            runCatching { com.music.aalap.data.local.Backup.restore(context, json) }.isSuccess
+                        }
+                        status = if (ok) "Restored." else "Couldn't restore that backup."
+                    }
+                }) { Text("Restore") }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { pending = null }) { Text("Cancel") } },
+        )
     }
 }
 

@@ -148,9 +148,9 @@ class CurrentSongState @Inject constructor() {
      * playlist/album/liked screens): the queue becomes a shuffled copy, shuffle
      * turns on, and the caller plays the returned first track.
      */
-    fun startShuffled(songs: List<SongsModel>): SongsModel? {
+    fun startShuffled(songs: List<SongsModel>, order: List<SongsModel> = songs.shuffled()): SongsModel? {
         if (songs.isEmpty()) return null
-        updateQueue(songs.shuffled())
+        updateQueue(order)
         unshuffledQueue = songs
         shuffle.value = true
         return _queue.value.firstOrNull()

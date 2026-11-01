@@ -26,6 +26,7 @@ class TasteProfile(
     val dayPart: Map<String, Double>,
     val playCount: Int,
     val recentIds: Set<String>,
+    /** Songs left out of queues and radio for now: see [SkipMemory]. */
     val recentSkips: Set<String>,
     /** 0..1 per feel: the feels you finish (vs skip). Empty until there's enough history. */
     val feelPref: Map<Feel, Double> = emptyMap(),

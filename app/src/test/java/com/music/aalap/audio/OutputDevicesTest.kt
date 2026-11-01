@@ -50,4 +50,19 @@ class OutputDevicesTest {
     @Test fun nothingConnected() {
         assertNull(OutputDevices.defaultOf(emptyList<Pair<OutputDevices.Output, Unit>>()))
     }
+
+    @Test fun soundSettingsKeyPerOutput() {
+        assertEquals("", OutputDevices.soundKey(null))
+        assertEquals("", OutputDevices.soundKey(OutputDevices.Output(1, "This phone", OutputDevices.Kind.PHONE)))
+        assertEquals("BLUETOOTH:Galaxy Buds", OutputDevices.soundKey(OutputDevices.Output(7, "Galaxy Buds", OutputDevices.Kind.BLUETOOTH)))
+    }
+
+    @Test fun anOutputReadsThePhonesSettingsUntilItHasItsOwn() {
+        val SO = com.music.aalap.data.preferences.SoundOutput
+        assertEquals("eq_preset", SO.readKey("eq_preset", "") { true })
+        assertEquals("eq_preset", SO.readKey("eq_preset", "BLUETOOTH:Buds") { false })
+        assertEquals("eq_preset@BLUETOOTH:Buds", SO.readKey("eq_preset", "BLUETOOTH:Buds") { it == "eq_preset@BLUETOOTH:Buds" })
+        assertEquals("eq_preset", SO.writeKey("eq_preset", ""))
+        assertEquals("eq_preset@BLUETOOTH:Buds", SO.writeKey("eq_preset", "BLUETOOTH:Buds"))
+    }
 }

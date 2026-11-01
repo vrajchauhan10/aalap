@@ -51,6 +51,10 @@ object OutputDevices {
     /** Where Android sends music when nothing is chosen: the best connected output. Pure. */
     fun <T> defaultOf(outputs: List<Pair<Output, T>>): Output? = outputs.firstOrNull()?.first
 
+    /** Which sound settings an output uses: its own name, or "" for the phone itself. Pure. */
+    fun soundKey(output: Output?): String =
+        if (output == null || output.kind == Kind.PHONE) "" else "${output.kind}:${output.name}"
+
     fun connected(context: Context): List<Pair<Output, AudioDeviceInfo>> {
         val am = context.getSystemService(AudioManager::class.java) ?: return emptyList()
         return pick(

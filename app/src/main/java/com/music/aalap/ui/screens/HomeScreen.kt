@@ -208,6 +208,8 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
             .background(com.music.aalap.ui.theme.AppBackground)
     ) {
         item { BounceIn(0, gen) { HomeHeaderRow(navController) } }
+        item { ContinueCard() }
+        item { LastWeekCard(navController) }
         // Moods live in Aalap Radio below (and in Search), not as a second row of pills.
         // Aalap Radio replaces the feed's featured playlist (whose art carried another brand).
         // Order: today's poster (opens the 30), Quick picks to choose from, then moods.
@@ -436,6 +438,105 @@ private fun FeaturedBanner(item: HomeItem, onClick: () -> Unit) {
                 .size(122.dp)
                 .clip(if (item is HomeItem.Artist) CircleShape else RoundedCornerShape(18.dp)),
         )
+    }
+}
+
+/**
+ * "Continue listening": the song you were in the middle of when Aalap was closed, with how
+ * far you got. Shown only until it's played again (the mini player has it too, but it's
+ * easy to miss that tapping play there picks up where you left off).
+ */
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun ContinueCard() {
+    val player: com.music.aalap.ui.viewmodel.PlayerViewModel = hiltViewModel()
+    val playing by player.currentSongPlayingState
+    val songId by player.currentSongId
+    val song = player.queue.value.firstOrNull { it.id == songId } ?: return
+    var used by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    val atMs = com.music.aalap.di.SongPlayer.pendingResumeMs(song.url) ?: return
+    if (used || playing || !com.music.aalap.playback.PlaybackSync.worthContinuing(atMs, song.durationMs.toLong())) return
+    fun clock(ms: Long) = "%d:%02d".format(ms / 60_000, ms / 1000 % 60)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(com.music.aalap.ui.theme.SurfaceHigh)
+            .clickable {
+                used = true
+                com.music.aalap.di.SongPlayer.play()
+                player.updateSongState(song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
+            }
+            .padding(10.dp),
+    ) {
+        GlideImage(
+            model = song.coverUri, contentDescription = null, contentScale = ContentScale.Crop,
+            loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+            modifier = Modifier.size(56.dp).clip(RoundedCornerShape(12.dp)),
+        )
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text("CONTINUE LISTENING", color = com.music.aalap.ui.theme.Saffron, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text(song.title, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            val total = song.durationMs.toLong()
+            Text(
+                if (total > 0) "${clock(atMs)} of ${clock(total)} · ${song.singer}" else "From ${clock(atMs)} · ${song.singer}",
+                color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            if (total > 0) {
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { (atMs.toFloat() / total).coerceIn(0f, 1f) },
+                    color = com.music.aalap.ui.theme.Saffron, trackColor = com.music.aalap.ui.theme.Hairline,
+                    modifier = Modifier.padding(top = 6.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
+                )
+            }
+        }
+        androidx.compose.material3.Icon(
+            painter = painterResource(R.drawable.play_svgrepo_com), contentDescription = "Continue",
+            tint = com.music.aalap.ui.theme.Saffron, modifier = Modifier.size(30.dp),
+        )
+    }
+}
+
+/**
+ * Mondays and Tuesdays: last week in one line (minutes and top artist), opening Wrapped.
+ * Read once per Home visit from the local history (500 entries, a few milliseconds).
+ */
+@Composable
+private fun LastWeekCard(navController: NavController) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val summary = remember {
+        val today = java.time.LocalDate.now()
+        if (today.dayOfWeek.value > 2) return@remember null
+        val week = com.music.aalap.data.preferences.ListeningPeriod.week(today.minusDays(7))
+        val plays = com.music.aalap.data.preferences.ListeningStats.plays(com.music.aalap.data.preferences.getListeningHistory(context))
+            .filter { java.time.Instant.ofEpochMilli(it.entry.ts).atZone(java.time.ZoneId.systemDefault()).toLocalDate() in week }
+        val finished = plays.filter { !it.skipped }
+        if (finished.size < 5) return@remember null
+        val top = finished.map { it.entry.singer.substringBefore(",").trim() }.filter { it.isNotBlank() }
+            .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
+        (plays.sumOf { it.listenedMs } / 60_000) to top
+    } ?: return
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Brush.horizontalGradient(listOf(Color(0xFF7A3A12), Color(0xFF2A1636))))
+            .clickable { navController.navigate(Routes.Wrapped.route) }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("YOUR WEEK IN MUSIC", color = Color(0xFFFFC56B), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text(
+                "${summary.first} minutes" + (summary.second?.let { " · most of all $it" } ?: ""),
+                color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        }
+        Text("›", color = Color.White, fontSize = 24.sp)
     }
 }
 

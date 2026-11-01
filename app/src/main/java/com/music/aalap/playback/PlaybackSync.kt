@@ -55,4 +55,11 @@ object PlaybackSync {
      */
     fun positionBelongsTo(savedQuery: String?, playerQuery: String?): Boolean =
         !savedQuery.isNullOrBlank() && savedQuery == playerQuery
+
+    /**
+     * Whether Home offers "Continue" for a restored song: you were at least 15 s in and
+     * not in its last 10 s (a song that was basically over isn't worth resuming).
+     */
+    fun worthContinuing(positionMs: Long, durationMs: Long): Boolean =
+        positionMs >= 15_000L && (durationMs <= 0L || positionMs < durationMs - 10_000L)
 }

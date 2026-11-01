@@ -4,6 +4,24 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 7.6.0 — 1 Nov 2026 (build 74)
+- **Continue listening.** Home shows the song you were in the middle of when Aalap was
+  closed, how far you got, and picks up right there with one tap.
+- **Smarter shuffle.** Shuffling Liked Songs or a playlist plays what you haven't heard in
+  the last two days first; songs you just heard come later and songs you keep skipping come
+  last. Nothing is left out.
+- **Skips teach Aalap for longer.** A song you skip in the first 10 seconds twice stays out
+  of radio and queues for three months instead of two weeks, unless you play it through.
+- **Your week in music.** Wrapped now covers this week and last week as well as months,
+  with how your listening compares with the week before. On Mondays and Tuesdays, Home
+  shows last week in one line.
+- **Sound for each device.** The equalizer, bass boost and volume normalisation are kept
+  separately for each speaker or pair of headphones, and switch by themselves when you
+  connect or pick another one. Your current settings stay as the phone's.
+- **Back up your library.** Profile → Backup saves your likes, playlists, history, taste and
+  sound settings to a file you choose, and puts them back on this phone or a new one.
+  Sign-ins and downloads aren't included.
+
 ## 7.5.0 — 1 Nov 2026 (build 73)
 - **Lighter while paused.** The playback timer and the home-screen widget's progress
   timer no longer wake the phone every second (and twice a second) while nothing plays; they

@@ -153,7 +153,7 @@ object Personalizer {
             dayPart = dayPartPref,
             playCount = plays.size,
             recentIds = (plays.take(30) + plays.filter { it.playedAt >= recentCut }).mapTo(HashSet()) { it.songId },
-            recentSkips = plays.filter { it.skipped && now - it.playedAt < 14 * 86_400_000L }.mapTo(HashSet()) { it.songId },
+            recentSkips = SkipMemory.tiredOf(plays.map { SkipMemory.Heard(it.songId, it.playedAt, it.listenedMs, it.skipped) }, now),
             feelPref = feelPref,
             dayPartFeel = partFeel.values.sum().takeIf { it > 0 }?.let { t -> partFeel.mapValues { it.value / t } }.orEmpty(),
             familiarTarget = familiarTarget,

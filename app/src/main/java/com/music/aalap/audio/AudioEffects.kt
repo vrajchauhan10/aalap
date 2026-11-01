@@ -37,9 +37,36 @@ object AudioEffects {
         if (session == 0) {
             val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             session = am.generateAudioSessionId()
+            refreshOutput(context, push = false)
+            // Told by Android when headphones or speakers come and go; nothing polls.
+            am.registerAudioDeviceCallback(object : android.media.AudioDeviceCallback() {
+                val app = context.applicationContext
+                override fun onAudioDevicesAdded(added: Array<out android.media.AudioDeviceInfo>?) = refreshOutput(app)
+                override fun onAudioDevicesRemoved(removed: Array<out android.media.AudioDeviceInfo>?) = refreshOutput(app)
+            }, android.os.Handler(android.os.Looper.getMainLooper()))
             apply(context)
         }
         return session
+    }
+
+    /** The name of the output the Sound settings are for now ("This phone", "Galaxy Buds", …). */
+    val outputName = kotlinx.coroutines.flow.MutableStateFlow("This phone")
+
+    /**
+     * Works out where music is going (the output picked on the player, else the best
+     * connected one) and switches to that output's sound settings when it changed.
+     */
+    @Synchronized
+    fun refreshOutput(context: Context, push: Boolean = true) {
+        val ctx = context.applicationContext
+        val all = OutputDevices.connected(ctx)
+        val pickedId = com.music.aalap.di.SongPlayer.preferredOutput?.id
+        val now = all.firstOrNull { it.first.id == pickedId }?.first ?: OutputDevices.defaultOf(all)
+        outputName.value = now?.name ?: "This phone"
+        val key = OutputDevices.soundKey(now)
+        if (key == com.music.aalap.data.preferences.SoundOutput.current) return
+        com.music.aalap.data.preferences.SoundOutput.current = key
+        if (push) apply(ctx)
     }
 
     /** Equalizer band centre frequencies (Hz) on this phone, low to high. */

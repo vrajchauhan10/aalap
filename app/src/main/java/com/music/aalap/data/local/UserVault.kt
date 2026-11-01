@@ -39,8 +39,17 @@ object UserVault {
     /** Saves [email]'s library from the app's settings files. */
     fun save(c: Context, email: String) {
         if (email.isBlank()) return
+        val out = dump(c, FILES)
+        val f = file(c, email)
+        val tmp = File(f.path + ".tmp")
+        tmp.writeText(out.toString())
+        tmp.renameTo(f)
+    }
+
+    /** The settings files [files] as JSON, every value with its type (also used by [Backup]). */
+    internal fun dump(c: Context, files: List<String>): JSONObject {
         val out = JSONObject()
-        for (name in FILES) {
+        for (name in files) {
             val values = JSONObject()
             c.getSharedPreferences(name, Context.MODE_PRIVATE).all.forEach { (k, v) ->
                 values.put(k, when (v) {
@@ -55,10 +64,7 @@ object UserVault {
             }
             out.put(name, values)
         }
-        val f = file(c, email)
-        val tmp = File(f.path + ".tmp")
-        tmp.writeText(out.toString())
-        tmp.renameTo(f)
+        return out
     }
 
     /** Empties the library (after saving it), so the next person starts fresh. */
@@ -72,7 +78,14 @@ object UserVault {
         val f = file(c, email)
         if (!f.exists()) return false
         val saved = runCatching { JSONObject(f.readText()) }.getOrNull() ?: return false
-        for (name in FILES) {
+        load(c, saved, FILES)
+        refreshScreens()
+        return true
+    }
+
+    /** Writes [saved] (from [dump]) back into the settings files [files] that it has. */
+    internal fun load(c: Context, saved: JSONObject, files: List<String>) {
+        for (name in files) {
             val values = saved.optJSONObject(name) ?: continue
             val e = c.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear()
             values.keys().forEach { k ->
@@ -88,12 +101,10 @@ object UserVault {
             }
             e.commit()
         }
-        refreshScreens()
-        return true
     }
 
     /** In-memory copies of the library are dropped, so every screen reads the new one. */
-    private fun refreshScreens() {
+    internal fun refreshScreens() {
         com.music.aalap.data.api.YouTubeLibrary.invalidateUnified()
         com.music.aalap.data.recommendation.engine.Personalizer.invalidate()
         com.music.aalap.data.api.Api.HomeCache.clear()

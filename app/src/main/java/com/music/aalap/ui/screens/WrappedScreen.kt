@@ -47,6 +47,8 @@ import com.bumptech.glide.integration.compose.GlideImage
 import com.bumptech.glide.integration.compose.placeholder
 import com.music.aalap.R
 import com.music.aalap.data.preferences.HistoryEntry
+import com.music.aalap.data.preferences.ListeningPeriod
+import androidx.compose.foundation.horizontalScroll
 import com.music.aalap.data.preferences.getListeningHistory
 import com.music.aalap.ui.share.ShareCards
 import java.time.Instant
@@ -75,13 +77,17 @@ private data class WrappedData(
     val streakDays: Int,
 )
 
+/** Minutes listened in [period] (for the comparison with the one before). */
+private fun minutesIn(all: List<HistoryEntry>, period: ListeningPeriod): Long =
+    com.music.aalap.data.preferences.ListeningStats.plays(all).filter { it.entry.date() in period }.sumOf { it.listenedMs } / 60_000
+
 private fun HistoryEntry.date(): LocalDate = Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault()).toLocalDate()
 private fun HistoryEntry.hour(): Int = Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault()).hour
 private fun HistoryEntry.artist() = singer.substringBefore(",").trim()
 
-private fun buildWrapped(all: List<HistoryEntry>, month: YearMonth): WrappedData {
+private fun buildWrapped(all: List<HistoryEntry>, period: ListeningPeriod): WrappedData {
     // Counted exactly like History (ListeningStats): real listening time, skips left out.
-    val timed = com.music.aalap.data.preferences.ListeningStats.plays(all).filter { YearMonth.from(it.entry.date()) == month }
+    val timed = com.music.aalap.data.preferences.ListeningStats.plays(all).filter { it.entry.date() in period }
     val plays = timed.map { it.entry }
     val finished = timed.filter { !it.skipped }.map { it.entry }
     val listenedMs = timed.sumOf { it.listenedMs }
@@ -106,7 +112,7 @@ private fun buildWrapped(all: List<HistoryEntry>, month: YearMonth): WrappedData
         best = maxOf(best, run)
     }
     return WrappedData(
-        periodLabel = "${month.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${month.year}",
+        periodLabel = period.label,
         plays = finished.size,
         minutes = listenedMs / 60_000,
         topArtist = artists.firstOrNull()?.let { (a, p) -> a to p.first().image },
@@ -118,15 +124,30 @@ private fun buildWrapped(all: List<HistoryEntry>, month: YearMonth): WrappedData
     )
 }
 
-/** "Aalap Wrapped": a month of listening as a story you can share. */
+/** "Aalap Wrapped": a week or a month of listening as a story you can share. */
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun WrappedScreen(navController: NavController) {
     val context = LocalContext.current
     val history = remember { getListeningHistory(context) }
-    val thisMonth = remember { YearMonth.now() }
-    var month by remember { mutableStateOf(thisMonth) }
-    val data = remember(month) { buildWrapped(history, month) }
+    // This week first: a week fills up fast enough to be worth a look every few days.
+    val periods = remember {
+        val today = LocalDate.now()
+        listOf(
+            ListeningPeriod.week(today) to "This week",
+            ListeningPeriod.week(today.minusDays(7)) to "Last week",
+            ListeningPeriod.month(YearMonth.now()) to "This month",
+            ListeningPeriod.month(YearMonth.now().minusMonths(1)) to "Last month",
+        )
+    }
+    // Early in the week there's little to show yet: open on last week instead.
+    var period by remember {
+        val thisWeek = periods[0].first
+        val few = com.music.aalap.data.preferences.ListeningStats.plays(history).count { it.entry.date() in thisWeek && !it.skipped } < 5
+        mutableStateOf(if (few) periods[1].first else thisWeek)
+    }
+    val data = remember(period) { buildWrapped(history, period) }
+    val before = remember(period) { minutesIn(history, period.previous()) }
 
     Box(
         Modifier
@@ -140,24 +161,26 @@ fun WrappedScreen(navController: NavController) {
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 14.dp)) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White,
-                    modifier = Modifier.size(26.dp).clickable { navController.navigateUp() },
-                )
-                Spacer(Modifier.weight(1f))
-                listOf(thisMonth.minusMonths(1) to "Last month", thisMonth to "This month").forEach { (m, label) ->
-                    val sel = m == month
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White,
+                modifier = Modifier.padding(top = 14.dp).size(26.dp).clickable { navController.navigateUp() },
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 14.dp).horizontalScroll(rememberScrollState()),
+            ) {
+                periods.forEach { (m, label) ->
+                    val sel = m == period
                     Text(
                         label,
                         color = if (sel) Color(0xFF1A0E05) else Color.White,
                         fontSize = 13.sp,
                         fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
                         modifier = Modifier
-                            .padding(start = 8.dp)
+                            .padding(end = 8.dp)
                             .clip(RoundedCornerShape(50))
                             .background(if (sel) SaffronC else Color.White.copy(alpha = 0.12f))
-                            .clickable { month = m }
+                            .clickable { period = m }
                             .padding(horizontal = 14.dp, vertical = 7.dp),
                     )
                 }
@@ -169,7 +192,10 @@ fun WrappedScreen(navController: NavController) {
             if (data.plays == 0) {
                 Spacer(Modifier.height(40.dp))
                 Text("Nothing yet", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Bold)
-                Text("Play some music this month and your Wrapped fills itself in.", color = MutedC, fontSize = 15.sp)
+                Text(
+                    "Play some music this ${if (period.isWeek) "week" else "month"} and your Wrapped fills itself in.",
+                    color = MutedC, fontSize = 15.sp,
+                )
                 return@Column
             }
 
@@ -178,6 +204,18 @@ fun WrappedScreen(navController: NavController) {
                 "minutes · ${data.plays} plays · ${data.streakDays}-day streak",
                 color = MutedC, fontSize = 15.sp,
             )
+            if (before > 0) {
+                val diff = data.minutes - before
+                val span = if (period.isWeek) "the week" else "the month"
+                Text(
+                    when {
+                        diff > 0 -> "$diff minutes more than $span before"
+                        diff < 0 -> "${-diff} minutes less than $span before"
+                        else -> "Same as $span before"
+                    },
+                    color = GoldC, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp),
+                )
+            }
 
             data.topArtist?.let { (name, image) ->
                 WrappedLabel("Top artist")

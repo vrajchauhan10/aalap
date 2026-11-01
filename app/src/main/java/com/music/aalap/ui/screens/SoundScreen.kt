@@ -32,6 +32,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -79,11 +80,14 @@ private const val EQ_RANGE_DB = 12f
 @Composable
 fun SoundScreen(navController: NavController) {
     val context = LocalContext.current
-    var eqOn by remember { mutableStateOf(isEqEnabled(context)) }
-    var preset by remember { mutableStateOf(getEqPreset(context)) }
-    var gains by remember { mutableStateOf(currentEqGains(context)) }
-    var bass by remember { mutableStateOf(getBassBoost(context) / 1000f) }
-    var normalize by remember { mutableStateOf(isNormalizeVolume(context)) }
+    remember { AudioEffects.refreshOutput(context) }
+    val output by AudioEffects.outputName.collectAsState()
+    // Each output has its own settings: re-read them when the output changes.
+    var eqOn by remember(output) { mutableStateOf(isEqEnabled(context)) }
+    var preset by remember(output) { mutableStateOf(getEqPreset(context)) }
+    var gains by remember(output) { mutableStateOf(currentEqGains(context)) }
+    var bass by remember(output) { mutableStateOf(getBassBoost(context) / 1000f) }
+    var normalize by remember(output) { mutableStateOf(isNormalizeVolume(context)) }
     var speed by remember { mutableStateOf(getPlaybackSpeed(context)) }
 
     fun push() = AudioEffects.apply(context)
@@ -104,6 +108,10 @@ fun SoundScreen(navController: NavController) {
             Spacer(Modifier.width(16.dp))
             Text("Sound", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         }
+        Text(
+            "Settings for $output. Each speaker or pair of headphones keeps its own, and they switch when you change what's connected.",
+            color = TextMuted, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp),
+        )
 
         ToggleRow("Equalizer", "Shape the sound with a preset or your own curve", eqOn) {
             eqOn = it; setEqEnabled(context, it); push()

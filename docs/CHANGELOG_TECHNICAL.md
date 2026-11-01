@@ -4,6 +4,36 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-01 (6) — 7.6.0 (74) continue card, smart shuffle, skip memory, weekly Wrapped, per-output sound, backup
+- **Continue card:** `HomeScreen.ContinueCard` shows while `SongPlayer.pendingResumeMs(query)`
+  exists and `PlaybackSync.worthContinuing` (≥15 s in, not in the last 10 s). Verified: played
+  to 0:18, paused, force-stopped, relaunched → "Continue listening · From 0:18"; tap resumed at
+  18.4 s and the card went away. With a 0:00 resume point it correctly stays hidden.
+- **Skip memory:** `engine/SkipMemory.tiredOf` replaces the 14-day `recentSkips` rule: two
+  skips under 10 s within 90 days keep a song out for 90 days; finishing it later forgives
+  earlier skips (behaviour change: a skip followed by a full play no longer excludes the song).
+- **Smart shuffle:** `SmartShuffle.order` / `smartShuffled(context, songs)` (history: last 500
+  plays) for Liked and playlist shuffle via `CurrentSongState.startShuffled(songs, order)`.
+  Album shuffle unchanged. Not exercised on the phone (unit tests only).
+- **Weekly Wrapped:** `ListeningPeriod` (Mon–Sun weeks, months); Wrapped chips This/Last week,
+  This/Last month, comparison with the previous period; opens on last week when this week has
+  <5 finished plays. `HomeScreen.LastWeekCard` on Mon/Tue only (not seen yet: tested on a Sunday).
+  Verified on phone: week of 26 Oct, 439 min, 148 plays, "+330 minutes".
+- **Per-output sound:** `SoundPref` keys `key@KIND:name` per output (phone = plain keys, so
+  existing settings are the phone's; a new output starts from the phone's and copies them on
+  first change). `AudioEffects.refreshOutput` on `AudioDeviceCallback` (no polling) and
+  `SongPlayer.setOutput`. Verified only "Settings for This phone"; switching untested (no
+  Bluetooth device connected).
+- **Backup:** `data/local/Backup` = `UserVault.dump` of `UserVault.FILES + sound_prefs` +
+  `RecoDb.exportRows` (all tables but `source_cache`; play ids dropped). Restore replaces the
+  library prefs, adds DB rows (plays de-duplicated by user/song/time) and adopts the backup's
+  user id into the current one. Verified: 6.4 MB file, 516 plays, 11,375 songs, no cookies;
+  restore into the debug variant brought back 215 likes. The adopt-into-another-email path
+  compiled but was not exercised (the test install ended up with the same email).
+- Tests: `:app:testDebugUnitTest` 146/146 (16 new: SkipMemory, SmartShuffle,
+  ListeningPeriod, worthContinuing, sound keys). Installed 73 → 74 with `adb install -r`; data kept.
+- Performance: no background work added; Home cards read local prefs once per visit.
+
 ## 2026-11-01 (5) — 7.4.0 (72) compatibility/sign-in/output; 7.5.0 (73) timers; release process
 - **Startup (ColorOS/Android 17):** not reproduced (no device/log). Same Android 17 on Samsung:
   cold start 0.92–0.99 s, no crash. Added `CrashReport` (installed first in
