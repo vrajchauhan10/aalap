@@ -146,6 +146,7 @@ fun SettingsScreen(navController: NavController) {
                 checked = fastLoading,
             ) { fastLoading = it; com.music.aalap.data.preferences.setFastLoading(context, it) }
             BackgroundPlaybackRow()
+            CrashReportRow()
             SubTitle("Song videos")
             var songVideos by remember { mutableStateOf(com.music.aalap.data.preferences.getSongVideos(context)) }
             com.music.aalap.data.preferences.SongVideos.entries.forEach { mode ->
@@ -520,6 +521,20 @@ private fun BackgroundPlaybackRow() {
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         }
+    }
+}
+
+/** Shown only after Aalap closed unexpectedly: share the report (text), or dismiss it. */
+@Composable
+private fun CrashReportRow() {
+    val context = LocalContext.current
+    var has by remember { mutableStateOf(com.music.aalap.CrashReport.last(context) != null) }
+    if (!has) return
+    NavRow("Aalap closed unexpectedly", "Tap to share what happened (phone, Android version and the error), e.g. by email.") {
+        com.music.aalap.CrashReport.share(context)
+    }
+    androidx.compose.material3.TextButton(onClick = { com.music.aalap.CrashReport.clear(context); has = false }) {
+        Text("Dismiss crash report", color = com.music.aalap.ui.theme.TextMuted)
     }
 }
 

@@ -4,6 +4,40 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-01 (5) — 7.4.0 (72) compatibility/sign-in/output; 7.5.0 (73) timers; release process
+- **Startup (ColorOS/Android 17):** not reproduced (no device/log). Same Android 17 on Samsung:
+  cold start 0.92–0.99 s, no crash. Added `CrashReport` (installed first in
+  `MyApplication.onCreate`) + Settings row to share it. See `docs/COMPATIBILITY.md`.
+- **Lint (focused):** fixed API 28/29 calls in `FirestoreRest.signingSha1` and
+  `SongPlayer.anyLatinTransliterator`; full lint crashes (Compose lint vs Kotlin 2.2 metadata).
+- **Sign-in optional:** `ConnectServicesScreen` Start always enabled ("Start without signing
+  in"), Spotify "Optional"; `MyNavHost` start route shows it only until passed once.
+  `Api.searchEverything` → `youTubeSongSearch` (InnerTube FILTER_SONG → RecoDb → SongBridge)
+  without Spotify or when Spotify search fails. Verified on a fresh debug install with no
+  account: onboarding, Home (empty-state picks), search "kesariya", playback of Kesariya.
+- **Output picker:** `audio/OutputDevices` (pure rules, tested) + `SongPlayer.setOutput`
+  (`ExoPlayer.setPreferredAudioDevice`, applied to new players) + `OutputPicker` dialog with
+  `AudioDeviceCallback` live list, Bluetooth settings, API 34 `MediaRouter2.showSystemOutputSwitcher`.
+  Verified: dialog lists "This phone · Playing", system switcher opens. Not verified: Bluetooth,
+  wired (none connected).
+- **Debug variant:** `applicationIdSuffix ".debug"` so a fresh install can be tested beside the
+  real app.
+- **7.5.0 timers:** `SongPlayer.startPositionWatch` waits on `playerPlaying` while not playing;
+  `PlaybackService` widget ticker waits on `playingState` and checks widgets every 10 s.
+  Measured, paused in background (60 s, /proc ticks): before 1.0% (1 run), after 0.5% (2 runs).
+  Regression checks after: pause/play/next/previous on the lock screen OK; automatic song
+  changes kept happening with the screen off; crossfade vs cut after the change not verified.
+- **Measured, not changed:** playing with the screen off, Lossless: 14–16% of a core steady,
+  ~21% in a minute with a song change; ExoPlayer playback thread dominates (FLAC decoded on the
+  CPU, no offload for FLAC on this phone). No same-settings baseline, so no claim either way.
+  PSS while playing 176 MB (one sample).
+- **Release process:** `scripts/release.sh` (tests, id, signer SHA-256 vs
+  `scripts/release-signer.sha256`, versionCode > dist/, changelog entry, `--install` with
+  `adb install -r`); `docs/RELEASING.md`. Verified: 7.3.0→7.4.0 and 7.4.0→7.5.0 updates kept
+  first-install date, Liked 215 / Artists 84 / Plays 510, Lossless and crossfade 1 s; guards
+  refused an unraised versionCode and a wrong signer.
+- **Tests:** 130/130 (`OutputDevicesTest` 5 new).
+
 ## 2026-11-01 (4) — 7.3.0 (71): Gym Freaks radio; smooth cover bars measured
 - **Decision:** keep current sources (owner, 2026-11-01); Phase 5 stays the assessment in
   `docs/PROVIDERS.md`. Gym Freaks uses the same sources as every other mood station.

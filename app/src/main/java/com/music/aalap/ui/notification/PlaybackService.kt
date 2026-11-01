@@ -31,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -116,13 +117,25 @@ class PlaybackService : MediaLibraryService() {
             }.collect { pushWidgets() }
         }
         // While playing with the screen on, move the widget progress bar twice a second.
+        // Paused (or no widget on the home screen), it waits instead of waking twice a second
+        // for as long as the service lives; with the screen off it checks every few seconds.
         serviceScope.launch {
             val power = getSystemService(POWER_SERVICE) as android.os.PowerManager
+            val playing = androidx.compose.runtime.snapshotFlow { currentSongState.playingState.value }
+            var placed = false
+            var placedAt = 0L
             while (true) {
+                if (!currentSongState.playingState.value) playing.first { it }
+                // Whether a widget is on the home screen asks Android each time: every 10 s.
+                if (android.os.SystemClock.elapsedRealtime() - placedAt > 10_000) {
+                    placed = com.music.aalap.ui.widget.AalapWidgets.anyPlaced(this@PlaybackService)
+                    placedAt = android.os.SystemClock.elapsedRealtime()
+                }
+                if (!power.isInteractive || !placed) {
+                    kotlinx.coroutines.delay(5_000); continue
+                }
+                pushWidgets()
                 kotlinx.coroutines.delay(500)
-                if (currentSongState.playingState.value && power.isInteractive &&
-                    com.music.aalap.ui.widget.AalapWidgets.anyPlaced(this@PlaybackService)
-                ) pushWidgets()
             }
         }
 

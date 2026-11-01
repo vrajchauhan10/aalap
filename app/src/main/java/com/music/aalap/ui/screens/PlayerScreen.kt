@@ -990,28 +990,6 @@ private fun RepeatButton(playerViewModel: PlayerViewModel, context: Context) {
     }
 }
 
-/** The current audio output route name for the Connect indicator (BT name if
- *  connected, else Headphones / This device). Uses AudioDeviceInfo.productName
- *  which needs no Bluetooth permission. */
-private fun currentAudioRoute(context: Context): String {
-    return try {
-        val am = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        val outs = am.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS)
-        val bt = outs.firstOrNull {
-            it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO
-        }
-        if (bt != null) return bt.productName?.toString()?.takeIf { it.isNotBlank() } ?: "Bluetooth"
-        val wired = outs.firstOrNull {
-            it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-                it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET ||
-                it.type == android.media.AudioDeviceInfo.TYPE_USB_HEADSET
-        }
-        if (wired != null) "Headphones" else "This device"
-    } catch (e: Exception) {
-        "This device"
-    }
-}
 
 /** Shares a story-sized "now listening" image card plus the Spotify link. */
 fun shareSongCard(context: Context, scope: kotlinx.coroutines.CoroutineScope, track: SongsModel?, onDone: () -> Unit = {}) {
@@ -1037,7 +1015,32 @@ fun PlayerConnectRow(
     context: Context,
     currentTrack: SongsModel?,
 ) {
-    val routeName = remember(currentTrack?.id) { currentAudioRoute(context) }
+    // Connected outputs and the one in use, kept up to date as devices come and go.
+    var outputs by remember { mutableStateOf(com.music.aalap.audio.OutputDevices.connected(context)) }
+    var pickedId by remember { mutableStateOf(SongPlayer.pickedOutputId(context)) }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val am = context.getSystemService(android.media.AudioManager::class.java)
+        val cb = object : android.media.AudioDeviceCallback() {
+            fun refresh() { outputs = com.music.aalap.audio.OutputDevices.connected(context); pickedId = SongPlayer.pickedOutputId(context) }
+            override fun onAudioDevicesAdded(added: Array<out android.media.AudioDeviceInfo>?) = refresh()
+            override fun onAudioDevicesRemoved(removed: Array<out android.media.AudioDeviceInfo>?) = refresh()
+        }
+        am?.registerAudioDeviceCallback(cb, android.os.Handler(android.os.Looper.getMainLooper()))
+        onDispose { am?.unregisterAudioDeviceCallback(cb) }
+    }
+    val current = outputs.firstOrNull { it.first.id == pickedId }?.first ?: com.music.aalap.audio.OutputDevices.defaultOf(outputs)
+    val routeName = current?.name ?: "This phone"
+    var showOutputs by remember { mutableStateOf(false) }
+    if (showOutputs) OutputPicker(
+        outputs = outputs.map { it.first },
+        currentId = current?.id,
+        onPick = { id ->
+            SongPlayer.setOutput(outputs.firstOrNull { it.first.id == id }?.second)
+            pickedId = SongPlayer.pickedOutputId(context)
+            showOutputs = false
+        },
+        onDismiss = { showOutputs = false },
+    )
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1045,11 +1048,13 @@ fun PlayerConnectRow(
             .fillMaxWidth()
             .padding(horizontal = 25.dp, vertical = 4.dp),
     ) {
-        // Where it's playing: Aalap's own mark (a phone sending out sound), headphones when
-        // they're plugged in or on Bluetooth.
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // Where it's playing (tap to choose): the phone, headphones or a Bluetooth device.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.clip(RoundedCornerShape(50)).clickable { showOutputs = true }.padding(vertical = 4.dp, horizontal = 2.dp),
+        ) {
             Icon(
-                painter = painterResource(id = if (routeName == "This device") R.drawable.ic_output_phone else R.drawable.ic_output_headphones),
+                painter = painterResource(id = if (current == null || current.kind == com.music.aalap.audio.OutputDevices.Kind.PHONE) R.drawable.ic_output_phone else R.drawable.ic_output_headphones),
                 tint = com.music.aalap.ui.theme.Saffron,
                 modifier = Modifier.size(18.dp),
                 contentDescription = "Device",
@@ -1590,6 +1595,62 @@ private fun CanvasVideo(url: String, synced: Boolean = false, onFail: () -> Unit
                 setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
                 setKeepContentOnPlayerReset(true)
             }
+        },
+    )
+}
+
+/** Choose where the music comes out, from the devices connected now. */
+@Composable
+private fun OutputPicker(
+    outputs: List<com.music.aalap.audio.OutputDevices.Output>,
+    currentId: Int?,
+    onPick: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Play on") },
+        text = {
+            Column {
+                outputs.forEach { o ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onPick(o.id) }.padding(vertical = 12.dp, horizontal = 4.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(id = if (o.kind == com.music.aalap.audio.OutputDevices.Kind.PHONE) R.drawable.ic_output_phone else R.drawable.ic_output_headphones),
+                            tint = if (o.id == currentId) com.music.aalap.ui.theme.Saffron else com.music.aalap.ui.theme.TextPrimary,
+                            modifier = Modifier.size(20.dp), contentDescription = null,
+                        )
+                        Text(
+                            o.name, modifier = Modifier.padding(start = 12.dp).weight(1f),
+                            color = if (o.id == currentId) com.music.aalap.ui.theme.Saffron else com.music.aalap.ui.theme.TextPrimary,
+                            fontWeight = if (o.id == currentId) FontWeight.SemiBold else FontWeight.Normal,
+                        )
+                        if (o.id == currentId) Text("Playing", color = com.music.aalap.ui.theme.Saffron, fontSize = 12.sp)
+                    }
+                }
+                Text(
+                    "Not listed? Connect it in Bluetooth settings first.",
+                    color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                onDismiss()
+                runCatching {
+                    context.startActivity(android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            }) { Text("Bluetooth settings", color = com.music.aalap.ui.theme.Saffron) }
+        },
+        dismissButton = {
+            // Android 14+: its own switcher, which also lists cast and nearby devices.
+            if (android.os.Build.VERSION.SDK_INT >= 34) androidx.compose.material3.TextButton(onClick = {
+                onDismiss()
+                runCatching { android.media.MediaRouter2.getInstance(context).showSystemOutputSwitcher() }
+            }) { Text("More devices", color = com.music.aalap.ui.theme.TextMuted) }
         },
     )
 }

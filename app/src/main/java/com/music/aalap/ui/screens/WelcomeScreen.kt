@@ -231,7 +231,7 @@ fun ConnectServicesScreen(navController: NavController) {
         Spacer(Modifier.height(28.dp))
         Text("Connect your music", color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Text(
-            "Sign in once. Aalap stays connected and brings it all together.",
+            "Sign in to bring your library and likes, or start without an account: songs play either way.",
             color = TextMuted, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp, bottom = 18.dp),
         )
 
@@ -239,7 +239,7 @@ fun ConnectServicesScreen(navController: NavController) {
         SignInRow(
             logo = R.drawable.ic_brand_spotify,
             name = "Spotify",
-            tag = "Required",
+            tag = "Optional",
             role = "Your library, playlists and likes",
             connected = spotifyOk,
         ) { navController.navigate(Routes.SpotifyConnect.route) }
@@ -282,8 +282,9 @@ fun ConnectServicesScreen(navController: NavController) {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(50))
-                .background(if (spotifyOk) Saffron else SurfaceHigh)
-                .clickable(enabled = spotifyOk) {
+                // No account is required: songs play from JioSaavn, YouTube and Gaana either way.
+                .background(Saffron)
+                .clickable {
                     com.music.aalap.data.preferences.setPrimaryMusicSource(
                         context, com.music.aalap.data.preferences.MusicSource.YOUTUBE_MUSIC,
                     )
@@ -292,13 +293,14 @@ fun ConnectServicesScreen(navController: NavController) {
                 .padding(vertical = 16.dp),
         ) {
             Text(
-                if (spotifyOk) "Start listening" else "Sign in to Spotify to continue",
-                color = if (spotifyOk) OnSaffron else TextMuted, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                if (spotifyOk || youtubeOk) "Start listening" else "Start without signing in",
+                color = OnSaffron, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
             )
         }
-        if (spotifyOk && !youtubeOk) {
+        if (!youtubeOk) {
             Text(
-                "You can sign in to YouTube Music later from Profile.",
+                if (spotifyOk) "You can sign in to YouTube Music later from Profile."
+                else "You can sign in to YouTube Music or Spotify later from Profile.",
                 color = TextMuted, fontSize = 12.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
             )

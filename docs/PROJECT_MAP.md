@@ -25,6 +25,8 @@ name. Line counts are approximate (as of 7.0.0) to flag the big files.
 | `di/SongVideo.kt`, `ui/screens/PlayerScreen.kt` (`SyncedVideo` ~l.1560) | Music video / Spotify Canvas synced to playback. |
 | `playback/ChunkedDataSource.kt` | 2 MiB ranged reads for googlevideo. |
 | `ui/components/BeatBars.kt`, `CoverEqualizer` in `AppComponents.kt` | Cover bars: move only while `SongPlayer.audible`, glide per beat of the stored tempo. |
+| `audio/OutputDevices.kt`, `OutputPicker` in `PlayerScreen.kt`, `SongPlayer.setOutput` | Choosing the audio output (connected devices only). |
+| `CrashReport.kt` | Saves the last crash; shared from Settings ("Aalap closed unexpectedly"). |
 | `playback/PlaybackSync.kt` | Pure rules for what the screen shows: position/length only for the song in the player, resume point, save guard. Used via `SongPlayer.progress()` by PlayerScreen, MiniPlayer, Lyrics. Tests: `app/src/test/.../playback/PlaybackSyncTest.kt`. |
 | `audio/AudioEffects.kt` | Equalizer / bass boost / loudness on a shared audio session id. |
 | `audio/CrossfadeFilterAudioProcessor.kt`, `audio/BiquadFilter.kt` | DJ-style crossfade filters. |

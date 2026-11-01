@@ -167,8 +167,15 @@ class FirestoreRest(private val context: Context) {
 
     private fun signingSha1(): String? = runCatching {
         val pm = context.packageManager
-        val info = pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
-        val sig = info.signingInfo!!.apkContentsSigners.first().toByteArray()
+        // Android 9+ has signingInfo; Android 8 only the older signatures field (it threw there,
+        // quietly, so Blend sync went without its app check).
+        val sig = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+                .signingInfo!!.apkContentsSigners.first().toByteArray()
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_SIGNATURES).signatures!!.first().toByteArray()
+        }
         java.security.MessageDigest.getInstance("SHA-1").digest(sig).joinToString("") { "%02X".format(it) }
     }.getOrNull()
 }

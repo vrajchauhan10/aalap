@@ -66,7 +66,9 @@ fun MyNavHost(
     // recommended, not required (JioSaavn/Gaana play without any login).
     val startDestination = when {
         !com.music.aalap.data.preferences.isAalapOnboarded(context) -> Routes.Login.route
-        SpotifySession.spDc(context).isBlank() -> Routes.MusicSource.route
+        // Until "Connect your music" was passed once (signing in is optional), not on every launch.
+        SpotifySession.spDc(context).isBlank() && !com.music.aalap.data.preferences.isYoutubeLoggedIn(context) &&
+            com.music.aalap.data.preferences.getPrimaryMusicSource(context) == null -> Routes.MusicSource.route
         else -> Routes.Home.route
     }
 

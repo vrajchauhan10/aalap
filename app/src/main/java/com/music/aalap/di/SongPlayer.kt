@@ -19,6 +19,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.text.Normalizer
@@ -1080,10 +1081,10 @@ object SongPlayer {
             .replace(Regex("""\s+"""), " ")
             .trim()
 
+    // Android 10+ only; before that names in other scripts are matched without it.
     private val anyLatinTransliterator by lazy {
-        runCatching {
-            android.icu.text.Transliterator.getInstance("Any-Latin; Latin-ASCII")
-        }.getOrNull()
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) null
+        else runCatching { android.icu.text.Transliterator.getInstance("Any-Latin; Latin-ASCII") }.getOrNull()
     }
 
     private fun foldLatinDiacritics(value: String): String =
@@ -1657,6 +1658,8 @@ object SongPlayer {
         // One shared session for every player so the Sound effects (EQ, bass,
         // normalise) follow crossfades and lossless swaps without re-attaching.
         p.audioSessionId = com.music.aalap.audio.AudioEffects.sessionId(context)
+        // The output picked in the player (Bluetooth, headphones, the phone), for every player.
+        preferredOutput?.let { runCatching { p.setPreferredAudioDevice(it) } }
         p.setPlaybackSpeed(com.music.aalap.data.preferences.getPlaybackSpeed(context))
         android.os.Handler(android.os.Looper.getMainLooper()).post { applyOffload() }
         return p to filter
@@ -1741,6 +1744,7 @@ object SongPlayer {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             // (The outgoing song of a blend ends while the incoming one already sounds.)
             audible.value = isPlaying || (isCrossfading && secondaryPlayer?.isPlaying == true)
+            playerPlaying.value = isPlaying
             com.music.aalap.data.preferences.ListenClock.playingChanged(isPlaying)
             // Music is playing: Media3's own notification keeps the foreground from here.
             if (isPlaying) appCtx?.let { com.music.aalap.ui.notification.StartupService.stop(it) }
@@ -1820,6 +1824,30 @@ object SongPlayer {
      * show music moving (the cover's bars) follow this. Main thread, Compose-observable.
      */
     val audible = androidx.compose.runtime.mutableStateOf(false)
+
+    /** The main player is playing (for the position watch, which sleeps otherwise). */
+    private val playerPlaying = kotlinx.coroutines.flow.MutableStateFlow(false)
+
+    /**
+     * Where the music comes out, picked in the player (null: where Android sends it). Applies to
+     * the playing player and any made after (crossfade, lossless upgrade). If that device
+     * disconnects, Android plays where it normally would and the choice is forgotten.
+     */
+    @Volatile var preferredOutput: android.media.AudioDeviceInfo? = null
+        private set
+
+    fun setOutput(device: android.media.AudioDeviceInfo?) {
+        preferredOutput = device
+        listOfNotNull(player, secondaryPlayer).forEach { runCatching { it.setPreferredAudioDevice(device) } }
+    }
+
+    /** The picked output, or null if none is picked or it has gone away. */
+    fun pickedOutputId(context: Context): Int? {
+        val id = preferredOutput?.id ?: return null
+        val still = com.music.aalap.audio.OutputDevices.connected(context).any { it.first.id == id }
+        if (!still) setOutput(null)
+        return if (still) id else null
+    }
 
     /** The live ExoPlayer instance (may be null before first play). */
     val exoPlayer: ExoPlayer? get() = player
@@ -1918,6 +1946,7 @@ object SongPlayer {
         player?.release()
         player = null
         audible.value = false
+        playerPlaying.value = false
     }
 
     fun getDuration(): Long {
@@ -2036,6 +2065,9 @@ object SongPlayer {
         positionWatchJob = scope.launch {
             var nearEnd = false
             while (isActive) {
+                // Paused, stopped or loading: nothing to watch (a pause saves the position by
+                // itself). It woke every second for as long as the player existed.
+                if (!playerPlaying.value) { playerPlaying.first { it }; nearEnd = false }
                 // Once a second, four times a second only near a song's end (crossfade and the
                 // gapless hand-over need it there): fewer wake-ups, less heat in the background.
                 kotlinx.coroutines.delay(if (nearEnd) 250 else 1_000)
@@ -2241,6 +2273,7 @@ object SongPlayer {
             incoming.volume = 1f
             // Already playing when it takes over, so its listener won't say so by itself.
             audible.value = incoming.isPlaying
+            playerPlaying.value = incoming.isPlaying
             // The promoted player now owns audio focus / becoming-noisy handling.
             incoming.setAudioAttributes(buildAudioAttributes(), /* handleAudioFocus = */ true)
             incoming.setHandleAudioBecomingNoisy(true)

@@ -12,6 +12,8 @@ Detailed docs (read only what the task needs):
 - `docs/ARCHITECTURE.md` — flows, state, storage, background, lifecycle
 - `docs/PERFORMANCE_BASELINE.md` — known hot spots, risks, ranked optimisations
 - `docs/CHANGELOG_TECHNICAL.md` — technical change log (update for significant changes)
+- `docs/RELEASING.md` — signing key, updates without uninstalling, data compatibility, rollback
+- `docs/COMPATIBILITY.md` — what's verified on which device, known limitations
 - `docs/PROVIDERS.md` — each music source: how it's used, official status, what official APIs allow
 - `docs/recommendation/README.md` — recommendation engine pipeline and weights
 - `CHANGELOG.md` — user-facing release notes (one entry per version)
@@ -32,7 +34,8 @@ create `local.properties` with `sdk.dir=`) or Gradle fails with "SDK location no
 ```
 ./gradlew :app:assembleDebug
 ./gradlew :app:testDebugUnitTest :innertube:testDebugUnitTest :spotify:test
-./gradlew :app:assembleRelease && scripts/sign-release.sh   # needs ~/.aalap-signing keys
+scripts/release.sh [--install]   # release: tests, signer/version/changelog checks, dist/, adb install -r
+./gradlew :app:assembleDebug     # com.music.aalap.debug: installs beside the real app (fresh-install tests)
 ```
 Unit tests (JUnit4, `app/src/test`, ~85 + 6 + 2) cover the pure logic: recommendation
 picking/fusion/vibe, song version matching, voice parsing, audio features, Soulseek/Tidal

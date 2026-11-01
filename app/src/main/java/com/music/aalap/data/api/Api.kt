@@ -351,8 +351,9 @@ class Api @Inject constructor(
         if (query.isBlank()) {
             emit(Response.Success(SearchResults())); return@flow
         }
+        // Without Spotify (it's optional), YouTube Music finds the songs.
         if (!SpotifyTokenProvider.ensureToken(context)) {
-            emit(Response.Error("Spotify not authenticated — set sp_dc cookie")); return@flow
+            emit(youTubeSongSearch(query)); return@flow
         }
         Spotify.search(query, types = listOf("track", "album", "artist"), limit = 20).fold(
             onSuccess = { res ->
@@ -376,8 +377,32 @@ class Api @Inject constructor(
                     episodes = podcasts?.episodes?.items.orEmpty().map { it.toEpisodeSongModel(null) },
                 )))
             },
-            onFailure = { Log.e("Api", "searchEverything failed", it); emit(Response.Error(it.message ?: "error")) },
+            onFailure = {
+                // Spotify busy or down: YouTube Music's songs rather than an empty page.
+                Log.e("Api", "searchEverything failed", it)
+                emit(youTubeSongSearch(query).let { r -> if (r is Response.Success) r else Response.Error(it.message ?: "error") })
+            },
         )
+    }
+
+    /**
+     * Songs from YouTube Music's search (no albums, artists or podcasts: those pages are
+     * Spotify's). Each song plays the exact recording found, like a YouTube Music like does.
+     */
+    private suspend fun youTubeSongSearch(query: String): Response<SearchResults> {
+        val items = com.metrolist.innertube.YouTube.search(query, com.metrolist.innertube.YouTube.SearchFilter.FILTER_SONG)
+            .onFailure { Log.e("Api", "YouTube search failed", it) }
+            .getOrNull()?.items.orEmpty()
+            .filterIsInstance<com.metrolist.innertube.models.SongItem>()
+        if (items.isEmpty()) return Response.Error("Nothing found. Check your connection and try again.")
+        val db = com.music.aalap.data.recommendation.engine.RecoDb.get(context)
+        val songs = db.resolveAll(items.map {
+            com.music.aalap.data.recommendation.engine.Candidate(
+                title = it.title, artists = it.artists.joinToString { a -> a.name }, durationSec = it.duration ?: 0,
+                album = it.album?.name.orEmpty(), cover = it.thumbnail, ytId = it.id, explicit = it.explicit,
+            )
+        }).map(com.music.aalap.data.recommendation.engine.SongBridge::toSongsModel).filter { it.title.isNotBlank() }.distinctBy { it.id }
+        return Response.Success(SearchResults(songs = songs))
     }
 
     /** A podcast show's episodes, as playable [SongsModel] (url = "episode:<id>"). */

@@ -4,6 +4,27 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 7.5.0 — 1 Nov 2026 (build 73)
+- **Lighter while paused.** The playback timer and the home-screen widget's progress
+  timer no longer wake the phone every second (and twice a second) while nothing plays; they
+  wait for the music to start again.
+- Updates: releases are built and checked with `scripts/release.sh` (same signing key,
+  higher version, changelog entry) and install over the old app without losing anything.
+
+## 7.4.0 — 1 Nov 2026 (build 72)
+- **No account needed.** Spotify is optional: start without signing in, or with YouTube
+  Music only. Search uses YouTube Music when Spotify isn't connected (or is busy), and songs
+  play from JioSaavn, YouTube and Gaana as before. Spotify still adds your Spotify library,
+  playlists, mood stations and its home feed.
+- **Choose where it plays.** Tap the output name in the player ("This phone", your Bluetooth
+  device, headphones) to pick from what's connected; Bluetooth settings and, on Android 14+,
+  Android's own device switcher are one tap away. The media notification's own output button
+  (Android 11+) works as before.
+- **If Aalap ever closes unexpectedly**, Profile shows "Aalap closed unexpectedly" with a
+  report to share (phone, Android version and the error), to find problems on phones we
+  can't test.
+- Android 8 and 9: Blend's app check and name matching no longer rely on newer Android calls.
+
 ## 7.3.0 — 1 Nov 2026 (build 71)
 - **Gym Freaks radio.** A new station for lifting and cardio: songs from gym playlists, with
   the ones Aalap knows are high-energy or fast first and calm or slow ones left out. In Search

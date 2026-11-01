@@ -38,6 +38,8 @@ class MyApplication : Application(), androidx.appfunctions.service.AppFunctionCo
 
     override fun onCreate() {
         super.onCreate()
+        // First, so a crash anywhere below (or later) leaves a report to share from Settings.
+        CrashReport.install(this)
         instance = this
         // Each song's tempo and energy, measured as it plays, go to the recommendation engine.
         com.music.aalap.audio.AudioAnalysis.onMeasured = { song, result ->
