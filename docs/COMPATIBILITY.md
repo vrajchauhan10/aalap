@@ -38,3 +38,17 @@ That report (or `adb logcat -b crash`) is what's needed to find the cause.
   trampoline rules). Android 11+ media notifications include the system output switcher.
 - Without Spotify: search returns songs only (no albums/artists/podcasts); mood stations,
   Spotify home rows, Canvas and Spotify lyrics are unavailable.
+
+## OPPO CPH2797, ColorOS 17 (Android 17, API 37) — tested 2026-11-02
+- **7.0.0 installed:** cold start 1.0 s, no crash (the earlier "doesn't start" report did not
+  reproduce). Tapping play on the restored song did nothing for 60 s: the 7.0.0 bug where
+  play() with an empty player did nothing (fixed in 7.1.0, `SongPlayer.play()` reloads). The
+  YouTube lookup for it also failed ("Missing stream expire time": every client answered OK
+  without streaming data); JioSaavn has the song and its link answers 200.
+- **7.6.0 / 7.6.1 over it** (`adb install -r`, data kept): the same songs start in ~4 s and play
+  continuously; AudioFlinger shows 0 underruns on Aalap's track. Music volume on the phone's
+  speaker was 10/160, so it sounds very quiet; that's the phone's setting.
+- **Mini player:** at 360 dp width (1080 px, density 480) the fixed 260 dp title area squeezed
+  the play button to ~26 dp wide; fixed in 7.6.1 (title area takes the remaining width).
+- USB installs on ColorOS need "Disable permission monitoring" on and "Verify apps over USB"
+  off in Developer options, or `adb install` fails with INSTALL_FAILED_VERIFICATION_FAILURE.

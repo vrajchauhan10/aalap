@@ -227,8 +227,10 @@ fun MiniPlayer(navController: NavHostController) {
 
             Row(horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically,
+                // Takes what the buttons leave (a fixed 260 dp squeezed the play button into a
+                // sliver on screens under ~396 dp wide, e.g. an OPPO at 360 dp).
                 modifier = Modifier
-                    .width(260.dp)
+                    .weight(1f)
                     .graphicsLayer {
                         translationX = swipe.value
                         alpha = enter.value * (1f - (kotlin.math.abs(swipe.value) / (size.width * 1.2f))).coerceIn(0f, 1f)

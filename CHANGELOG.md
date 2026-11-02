@@ -4,6 +4,10 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 7.6.1 — 2 Nov 2026 (build 75)
+- The mini player's play button is round again on narrower screens (for example OPPO phones
+  with ColorOS at their default display size), instead of being squeezed into a thin sliver.
+
 ## 7.6.0 — 1 Nov 2026 (build 74)
 - **Continue listening.** Home shows the song you were in the middle of when Aalap was
   closed, how far you got, and picks up right there with one tap.
