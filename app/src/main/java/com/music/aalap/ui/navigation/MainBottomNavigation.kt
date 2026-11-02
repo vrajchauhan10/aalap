@@ -124,6 +124,12 @@ fun MainBottomNavigation(navController: NavHostController, bottomBarState: Mutab
                                         } else HomeTabEvents.lastHomeTap = now
                                         return@NavTab
                                     }
+                                    // Search tapped while on Search (a double tap from anywhere):
+                                    // straight into typing, as in YouTube Music.
+                                    if (item == Routes.Search && currentRoute == Routes.Search.route) {
+                                        SearchTabEvents.focus.value = true
+                                        return@NavTab
+                                    }
                                     navController.navigate(item.route) {
                                         navController.graph.startDestinationRoute?.let {
                                             popUpTo(item.route)
@@ -142,6 +148,11 @@ fun MainBottomNavigation(navController: NavHostController, bottomBarState: Mutab
 }
 
 /** Double-tapping Home while on Home: jump to the top and refresh the page. */
+/** Tapping Search while on Search: the search box gets the cursor and the keyboard opens. */
+object SearchTabEvents {
+    val focus = kotlinx.coroutines.flow.MutableStateFlow(false)
+}
+
 object HomeTabEvents {
     val refresh = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     internal var lastHomeTap = 0L

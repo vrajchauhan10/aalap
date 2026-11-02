@@ -4,6 +4,28 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-02 (2) — 7.8.0 (77) YouTube-only songs, failover speed, Search re-tap, version chip
+- **Root cause (OPPO CPH2797, mobile data):** Shadow Fight soundtracks (YouTube only; JioSaavn
+  and Gaana correctly had no match) never played. Trail on the phone: ANDROID_MUSIC
+  LOGIN_REQUIRED "confirm you're not a bot" was treated as an age limit, which dropped the
+  signature timestamp and NewPipe extraction for every fallback client; ANDROID_VR links were
+  403; IOS/IOS_RECENT/ANDROID answered OK with signatureCipher links → `no-link`. Then 15 s
+  lossless + 12 s loose JioSaavn ran in sequence (22–27 s of "loading").
+- **Fixes:** `YouTubeAnswers.isBotCheck` (bot check ≠ age limit; tested); `ClientMemory`
+  skips fallback clients refused (LOGIN_REQUIRED / HTTP 403) in the last 15 min, never the last
+  client (tested); link check `callTimeout` 1.5 s (timeout = accept, as IO errors already
+  did); last resorts run in parallel within 10 s.
+- **Always-on trail:** `adb logcat -s AalapSource` prints per song each client with ms since
+  start and the result, plus "playing from <source> after N ms" (Log.w survives R8).
+- **Measured on the OPPO (release build, real data):** before: song never started. After:
+  first song ~8 s (cold: player JS 2.5 s, iOS decode ~3.8 s), next songs 4.1–4.6 s; link check
+  3.0 s → 0.5–0.85 s; VR skipped after the first refusal. Idle: paused in background 4 ticks /
+  60 s ≈ 0.07% CPU (no new background work; everything added runs only during a song lookup).
+- **UI:** Search tab re-tap / double tap → `SearchTabEvents.focus` → search field focused with
+  keyboard (verified `mInputShown=true`); Home header shows `vVERSION_NAME` after the name.
+- Tests 152/152. Not verified: other networks (the client that works can differ per IP),
+  Wi-Fi, S24 FE with 7.8.0.
+
 ## 2026-11-02 — 7.6.1 (75) mini player width; 7.7.0 (76) one-tap sharing
 - 7.6.1: `MiniPlayer` title row `width(260.dp)` → `weight(1f)`; at 360 dp wide (OPPO ColorOS,
   density 480) the play button was squeezed to ~26 dp. Verified on the OPPO: 144×144 px.

@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -83,10 +84,24 @@ fun AalapSearchBar(
     text: String,
     onFocusChange: (Boolean) -> Unit,
     placeholder: String = "Songs, artists, albums or a mood",
+    // Set to true (by tapping the Search tab while on Search) to put the cursor here with the keyboard up.
+    focusRequest: kotlinx.coroutines.flow.MutableStateFlow<Boolean>? = null,
     onTextChange: (String) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     val focus = LocalFocusManager.current
+    val requester = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    if (focusRequest != null) {
+        androidx.compose.runtime.LaunchedEffect(focusRequest) {
+            focusRequest.collect { wanted ->
+                if (!wanted) return@collect
+                focusRequest.value = false
+                runCatching { requester.requestFocus() }
+                keyboard?.show()
+            }
+        }
+    }
     Box(Modifier.fillMaxWidth().background(AppBackground).padding(horizontal = 16.dp, vertical = 10.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -110,7 +125,7 @@ fun AalapSearchBar(
                     cursorBrush = SolidColor(Saffron),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
-                    modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) },
+                    modifier = Modifier.fillMaxWidth().focusRequester(requester).onFocusChanged { focused = it.isFocused; onFocusChange(it.isFocused) },
                 )
             }
             if (text.isNotEmpty()) {

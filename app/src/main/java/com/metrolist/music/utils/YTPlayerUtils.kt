@@ -98,6 +98,7 @@ object YTPlayerUtils {
             ?.split(';')
             ?.any { it.substringBefore('=').trim() == "SAPISID" } == true
         Timber.tag(TAG).d("Authentication status: ${if (isLoggedIn) "LOGGED_IN" else "ANONYMOUS"}")
+        val t0 = System.currentTimeMillis()
 
         // Get signature timestamp (same as before for normal content)
         val signatureTimestamp = getSignatureTimestampOrNull(videoId)
@@ -160,6 +161,12 @@ object YTPlayerUtils {
             }
         }
         var mainResponse = mainPlayerResponse ?: throw Exception("Every YouTube player endpoint failed")
+        // One line per song in every build (warnings survive release builds): which YouTube
+        // client was asked and what it answered, so a phone that can't play a song can be
+        // diagnosed from `adb logcat -s AalapSource` without a debug build.
+        val trail = StringBuilder("signedIn=$isLoggedIn ${initialResponseClient.clientName}=${mainResponse.playabilityStatus.status}@${System.currentTimeMillis() - t0}ms")
+        fun mark(step: String) { trail.append(' ').append(step).append('@').append(System.currentTimeMillis() - t0).append("ms") }
+        fun report(result: String) = android.util.Log.w("AalapSource", "YouTube $videoId: $trail -> $result")
 
         // Debug uploaded track response
         if (isUploadedTrack || playlistId?.contains("MLPT") == true) {
@@ -175,10 +182,18 @@ object YTPlayerUtils {
 
         // Check if WEB_REMIX response indicates age-restricted
         val mainStatus = mainResponse.playabilityStatus.status
-        val isAgeRestrictedFromResponse = mainStatus in listOf("AGE_CHECK_REQUIRED", "AGE_VERIFICATION_REQUIRED", "LOGIN_REQUIRED", "CONTENT_CHECK_REQUIRED")
+        // "Sign in to confirm you're not a bot" / "Please sign in" also come as LOGIN_REQUIRED,
+        // but they're YouTube's bot check on this client, not an age limit. Treating them as
+        // age-restricted dropped the signature timestamp and the stream decoder for every
+        // other client, so iOS/Android answered OK with links nothing could unscramble and
+        // the song was reported unplayable (seen on an OPPO for game soundtracks, 2026-11-02).
+        val botCheck = YouTubeAnswers.isBotCheck(mainStatus, mainResponse.playabilityStatus.reason)
+        val isAgeRestrictedFromResponse = !botCheck &&
+            mainStatus in listOf("AGE_CHECK_REQUIRED", "AGE_VERIFICATION_REQUIRED", "LOGIN_REQUIRED", "CONTENT_CHECK_REQUIRED")
         wasOriginallyAgeRestricted = isAgeRestrictedFromResponse
+        if (botCheck) mark("(bot check, not age)")
 
-        if (isAgeRestrictedFromResponse && isLoggedIn) {
+        if ((isAgeRestrictedFromResponse || botCheck) && isLoggedIn) {
             // BitChord's restricted-content fallback is the listener's real
             // signed-in browser session, not a cookie attached to a native app.
             Timber.tag(logTag).d("Restricted content, using authenticated WEB_REMIX")
@@ -205,6 +220,7 @@ object YTPlayerUtils {
                 poToken?.playerRequestPoToken,
                 authenticated = true,
             ).getOrNull()
+            mark("authWEB_REMIX=${creatorResponse?.playabilityStatus?.status} poToken=${poToken != null}")
             if (creatorResponse?.playabilityStatus?.status == "OK") {
                 Timber.tag(logTag).d("WEB_REMIX authenticated response is playable")
                 mainResponse = creatorResponse
@@ -225,7 +241,8 @@ object YTPlayerUtils {
 
         // Check current status
         val currentStatus = mainResponse.playabilityStatus.status
-        val isAgeRestricted = currentStatus in listOf("AGE_CHECK_REQUIRED", "AGE_VERIFICATION_REQUIRED", "LOGIN_REQUIRED", "CONTENT_CHECK_REQUIRED")
+        val isAgeRestricted = currentStatus in listOf("AGE_CHECK_REQUIRED", "AGE_VERIFICATION_REQUIRED", "LOGIN_REQUIRED", "CONTENT_CHECK_REQUIRED") &&
+            !YouTubeAnswers.isBotCheck(currentStatus, mainResponse.playabilityStatus.reason)
 
         if (isAgeRestricted) {
             Timber.tag(logTag).d("Content is still age-restricted (status: $currentStatus), will try fallback clients")
@@ -274,6 +291,11 @@ object YTPlayerUtils {
                     continue
                 }
 
+                val clientKey = "${client.clientName}/${client.clientVersion}"
+                if (clientIndex < STREAM_FALLBACK_CLIENTS.size - 1 && ClientMemory.resting(clientKey)) {
+                    mark("${client.clientName}=skipped(refused lately)")
+                    continue
+                }
                 Timber.tag(logTag).d("Fetching player response for fallback client: ${client.clientName}")
                 // Only pass poToken for clients that support it
                 val clientPoToken = if (client.useWebPoTokens) poToken?.playerRequestPoToken else null
@@ -300,6 +322,7 @@ object YTPlayerUtils {
                     "Client ${if (clientIndex == -1) MAIN_CLIENT.clientName else STREAM_FALLBACK_CLIENTS[clientIndex].clientName} " +
                         "returned WRONG video: $returnedVideoId != $videoId — skipping",
                 )
+                mark("${client.clientName}=wrong-video")
                 continue
             }
 
@@ -322,6 +345,7 @@ object YTPlayerUtils {
 
                 if (format == null) {
                     Timber.tag(logTag).d("No suitable format found for client: ${if (clientIndex == -1) MAIN_CLIENT.clientName else STREAM_FALLBACK_CLIENTS[clientIndex].clientName}")
+                    mark("${client.clientName}=no-audio-format")
                     continue
                 }
 
@@ -333,8 +357,10 @@ object YTPlayerUtils {
                     responseToUse,
                     skipNewPipe = wasOriginallyAgeRestricted,
                 )
+                if (streamUrl != null) mark("${client.clientName}=link(${if (format.url == null) "decoded" else "direct"})")
                 if (streamUrl == null) {
                     Timber.tag(logTag).d("Stream URL not found for format")
+                    mark("${client.clientName}=no-link(scrambled=${format.url == null}, decoderSkipped=$wasOriginallyAgeRestricted)")
                     continue
                 }
 
@@ -411,6 +437,7 @@ object YTPlayerUtils {
                 streamExpiresInSeconds = streamPlayerResponse.streamingData?.expiresInSeconds
                 if (streamExpiresInSeconds == null) {
                     Timber.tag(logTag).d("Stream expiration time not found")
+                    mark("${client.clientName}=no-expiry(formats=${streamPlayerResponse.streamingData?.adaptiveFormats?.size ?: 0})")
                     continue
                 }
 
@@ -429,20 +456,31 @@ object YTPlayerUtils {
                     }
                     Timber.tag(TAG)
                         .i("Playback: client=${currentClient.clientName}, videoId=$videoId, private=$isPrivatelyOwned")
+                    mark("${currentClient.clientName}=OK")
+                    ClientMemory.worked("${currentClient.clientName}/${currentClient.clientVersion}")
                     break
                 }
 
+                mark("${client.clientName}=checking")
                 if (validateStatus(streamUrl, format.contentLength)) {
                     // working stream found
                     Timber.tag(logTag).d("Stream validated successfully with client: ${currentClient.clientName}")
                     // Log for release builds
                     Timber.tag(TAG).i("Playback: client=${currentClient.clientName}, videoId=$videoId")
+                    mark("${currentClient.clientName}=OK")
+                    ClientMemory.worked("${currentClient.clientName}/${currentClient.clientVersion}")
                     break
                 } else {
                     Timber.tag(logTag).d("Stream validation failed for client: ${currentClient.clientName}")
+                    mark("${client.clientName}=link-rejected($lastValidation)")
+                    if (lastValidationCode == 403) ClientMemory.refused("${client.clientName}/${client.clientVersion}")
                 }
             } else {
                 Timber.tag(logTag).d("Player response status not OK: ${streamPlayerResponse?.playabilityStatus?.status}, reason: ${streamPlayerResponse?.playabilityStatus?.reason}")
+                mark("${client.clientName}=${streamPlayerResponse?.playabilityStatus?.status ?: "no-answer"}")
+                if (clientIndex >= 0 && ClientMemory.isRefusal(streamPlayerResponse?.playabilityStatus?.status)) {
+                    ClientMemory.refused("${client.clientName}/${client.clientVersion}")
+                }
             }
         }
 
@@ -451,6 +489,7 @@ object YTPlayerUtils {
             if (isUploadedTrack) {
                 println("[PLAYBACK_DEBUG] FAILURE: All clients failed for uploaded track videoId=$videoId")
             }
+            report("failed: no answer")
             throw Exception("Bad stream player response")
         }
 
@@ -460,6 +499,7 @@ object YTPlayerUtils {
             if (isUploadedTrack) {
                 println("[PLAYBACK_DEBUG] FAILURE: Playability not OK for uploaded track - status=${streamPlayerResponse.playabilityStatus.status}, reason=$errorReason")
             }
+            report("failed: $errorReason")
             throw PlaybackException(
                 errorReason,
                 null,
@@ -469,6 +509,7 @@ object YTPlayerUtils {
 
         if (streamExpiresInSeconds == null) {
             Timber.tag(logTag).e("Missing stream expire time")
+            report("failed: no usable stream")
             throw Exception("Missing stream expire time")
         }
 
@@ -483,6 +524,7 @@ object YTPlayerUtils {
         }
 
         Timber.tag(logTag).d("Successfully obtained playback data with format: ${format.mimeType}, bitrate: ${format.bitrate}")
+        report("ok")
         if (isUploadedTrack) {
             println("[PLAYBACK_DEBUG] SUCCESS: Got playback data for uploaded track - format=${format.mimeType}, streamUrl=${streamUrl.take(100)}...")
         }
@@ -553,6 +595,18 @@ object YTPlayerUtils {
      *    killing the client here just cascades us down the fallback chain for no reason
      *  - other HTTP codes (4xx/5xx) → invalid
      */
+    /** What the last link check got back (HTTP code and type), for the AalapSource trail. */
+    /**
+     * The link check gets 1.5 s. A refused link answers 403 quickly; a slow answer took 3 s
+     * per song on mobile data (OPPO, 2026-11-02) and the link was fine. A check that runs out
+     * of time counts like a network error below: the player tries the link itself, and a
+     * real failure there is retried by the player's own error handling.
+     */
+    private val checkClient by lazy { httpClient.newBuilder().callTimeout(1_500, TimeUnit.MILLISECONDS).build() }
+
+    @Volatile private var lastValidation = ""
+    @Volatile private var lastValidationCode = 0
+
     private fun validateStatus(url: String, contentLength: Long?): Boolean {
         Timber.tag(logTag).d("Validating stream URL status")
         try {
@@ -568,16 +622,19 @@ object YTPlayerUtils {
                 requestBuilder.header(name, value)
             }
 
-            httpClient.newCall(requestBuilder.build()).execute().use { response ->
+            checkClient.newCall(requestBuilder.build()).execute().use { response ->
                 val code = response.code
                 val mediaType = response.header("Content-Type").orEmpty()
                 val accepted = (response.isSuccessful || code == 416) &&
                     (mediaType.startsWith("audio/") || mediaType.startsWith("video/")) &&
                     (contentLength != null || response.body?.source()?.request(16 * 1024L) == true)
                 Timber.tag(logTag).d("Stream URL validation: code=$code type=$mediaType range=$range accepted=$accepted")
+                lastValidation = "http $code ${mediaType.substringBefore(';')}"
+                lastValidationCode = code
                 return accepted
             }
         } catch (e: java.io.IOException) {
+            lastValidation = "no answer in time (${e.javaClass.simpleName})"
             // Network timeout / reset while HEAD-probing. The stream URL itself may still
             // be fine — let ExoPlayer attempt GET rather than burning a fallback client.
             Timber.tag(logTag).w(e, "Stream URL HEAD probe failed (IO); accepting optimistically")

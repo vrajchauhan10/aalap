@@ -291,14 +291,30 @@ private fun HomeHeaderRow(navController: NavController) {
     ) {
         Column(Modifier.weight(1f)) {
             Text(greeting, color = com.music.aalap.ui.theme.TextMuted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Text(
-                firstName ?: "Aalap",
-                color = com.music.aalap.ui.theme.TextPrimary,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    firstName ?: "Aalap",
+                    color = com.music.aalap.ui.theme.TextPrimary,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                // Which Aalap this is, at a glance (handy when phones run different builds).
+                Text(
+                    "v${com.music.aalap.BuildConfig.VERSION_NAME}",
+                    color = com.music.aalap.ui.theme.Saffron,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(com.music.aalap.ui.theme.Saffron.copy(alpha = 0.14f))
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
         }
         // Ask Aalap: say a song, an artist or a mood.
         Box(

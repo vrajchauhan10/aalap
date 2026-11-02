@@ -172,7 +172,7 @@ fun SumUpSearchScreen(
             }
             stickyHeader {
                 Column {
-                    AalapSearchBar(text, onFocusChange = { searchFocused = it }) {
+                    AalapSearchBar(text, onFocusChange = { searchFocused = it }, focusRequest = com.music.aalap.ui.navigation.SearchTabEvents.focus) {
                         text = it
                         searchViewModel.search(it)
                     }

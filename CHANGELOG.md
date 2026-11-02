@@ -4,6 +4,18 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 7.8.0 — 2 Nov 2026 (build 77)
+- **Songs only on YouTube play again** (game soundtracks like Shadow Fight, indie and
+  regional releases). When YouTube asked Aalap to "confirm you're not a bot", Aalap mistook
+  it for an age limit and threw away the links that would have worked; now it uses them.
+- **Faster when YouTube is picky.** Aalap remembers, for 15 minutes, which ways of asking
+  YouTube were refused on your network and skips them, so the next songs start sooner.
+- **No more long silent waits.** When no source has a song, the last two checks run side by
+  side for at most 10 seconds instead of up to 27.
+- **Tap Search again to type.** Tapping Search while you're on it (or double-tapping it
+  from anywhere) puts the cursor in the search box with the keyboard open.
+- **Version on Home.** Your Aalap version is shown next to your name.
+
 ## 7.7.0 — 2 Nov 2026 (build 76)
 - **Sharing opens on the first tap.** "Share Aalap" from the profile menu used to need two
   taps (closing the menu stopped the first one); now one tap opens the share sheet, and the

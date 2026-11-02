@@ -55,6 +55,9 @@ object SongPlayer {
     // falls back to YouTube if no FLAC is available or the proxies are throttled.
     // Trades a little first-tap latency for true lossless audio.
     @Volatile var losslessStreaming = true
+
+    /** How long the last resorts (lossless, loose JioSaavn match) get together, after everything else failed. */
+    private const val LAST_RESORT_MS = 10_000L
     @Volatile var losslessHiRes = true
 
     // Source kill-switches. The Spotify web player is currently broken (off).
@@ -859,6 +862,7 @@ object SongPlayer {
         allowYouTube: Boolean = true,
         allowLossless: Boolean = true,
     ): String? {
+        val lookupStarted = System.currentTimeMillis()
         // Imported local files: the play query IS the file's content:// / file:// URI.
         // ExoPlayer plays it directly (FLAC/MP3/WAV/… via its built-in extractors).
         if (song.startsWith("content://") || song.startsWith("file://")) {
@@ -977,6 +981,8 @@ object SongPlayer {
         val fullArtist = metadataRegistry[song]?.artist?.ifBlank { null } ?: info.artist
         val searchText = searchTextForPlayback(song)
         fun use(source: String, url: String, label: String): String {
+            // Kept in release builds: which source a song finally came from (see AalapSource in YTPlayerUtils).
+            if (forPlayback) Log.w("AalapSource", "playing from $source ($label) after ${System.currentTimeMillis() - lookupStarted} ms: $song")
             if (forPlayback) { currentSource = source; currentQuality = label }
             streamCache[song] = url
             sourceCache[song] = source
@@ -1024,12 +1030,21 @@ object SongPlayer {
 
         // Nothing yet: every remaining source gets a turn before the song is reported unplayable.
         Log.w(TAG, "YouTube, JioSaavn and Gaana had nothing — last resorts for: $song")
-        if (losslessStreaming && !quality.lossless) tryLossless()?.let { return it }
-        if (saavnOn) {
-            kotlinx.coroutines.withTimeoutOrNull(12_000L) {
-                com.music.aalap.saavn.JioSaavnSource.resolve(info.title, fullArtist, info.durationSec, searchText, relaxed = true)
-            }?.let { m -> return use("JioSaavn", m.url, "AAC ${m.kbps} kbps") }
-        }
+        // Both last resorts at once, within one limit. One after the other they took up to
+        // 27 s (15 s lossless + 12 s loose JioSaavn) before a song that nobody has was
+        // reported, with the player stuck on "loading" the whole time.
+        val losslessJob = if (losslessStreaming && !quality.lossless) scope.async { tryLossless() } else null
+        val relaxedJob = if (saavnOn) scope.async {
+            com.music.aalap.saavn.JioSaavnSource.resolve(info.title, fullArtist, info.durationSec, searchText, relaxed = true)
+        } else null
+        val deadline = System.currentTimeMillis() + LAST_RESORT_MS
+        fun left() = (deadline - System.currentTimeMillis()).coerceAtLeast(1L)
+        losslessJob?.let { j -> kotlinx.coroutines.withTimeoutOrNull(left()) { j.await() } }
+            ?.let { relaxedJob?.cancel(); return it }
+        relaxedJob?.let { j -> kotlinx.coroutines.withTimeoutOrNull(left()) { j.await() } }
+            ?.let { m -> losslessJob?.cancel(); return use("JioSaavn", m.url, "AAC ${m.kbps} kbps") }
+        losslessJob?.cancel(); relaxedJob?.cancel()
+        Log.w("AalapSource", "no source has: $song")
         return null
     }
 
