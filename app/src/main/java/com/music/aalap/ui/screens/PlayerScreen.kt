@@ -991,22 +991,25 @@ private fun RepeatButton(playerViewModel: PlayerViewModel, context: Context) {
 }
 
 
-/** Shares a story-sized "now listening" image card plus the Spotify link. */
-fun shareSongCard(context: Context, scope: kotlinx.coroutines.CoroutineScope, track: SongsModel?, onDone: () -> Unit = {}) {
+/**
+ * Shares a story-sized "now listening" image card plus the Spotify link. The menu it came
+ * from closes at once ([onDone]); the card is made in the background ([com.music.aalap.ui.share.ShareTask]).
+ */
+fun shareSongCard(context: Context, track: SongsModel?, onDone: () -> Unit = {}) {
     val title = track?.title.orEmpty()
     val artist = track?.singer.orEmpty()
     // One message for everyone: its links open on Android and iPhone alike.
     val message = com.music.aalap.ui.share.ShareMessage.forSong(title, artist, track?.spotifyTrackId.orEmpty())
-    scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-        val art = runCatching {
-            com.bumptech.glide.Glide.with(context).asBitmap().load(track?.coverUri.orEmpty()).submit(900, 900).get()
-        }.getOrNull()
-        val card = com.music.aalap.ui.share.ShareCards.songCard(context, art, title, artist)
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-            com.music.aalap.ui.share.ShareCards.share(context, card, "aalap-song", message)
-            onDone()
+    com.music.aalap.ui.share.ShareTask.run(context, "the song") { app ->
+        val card = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val art = runCatching {
+                com.bumptech.glide.Glide.with(app).asBitmap().load(track?.coverUri.orEmpty()).submit(900, 900).get()
+            }.getOrNull()
+            com.music.aalap.ui.share.ShareCards.songCard(app, art, title, artist)
         }
+        com.music.aalap.ui.share.ShareCards.share(app, card, "aalap-song", message)
     }
+    onDone()
 }
 
 @Composable
@@ -1106,18 +1109,22 @@ fun PlayerConnectRow(
                 contentDescription = "Sound and equalizer",
             )
             Spacer(modifier = Modifier.width(20.dp))
-            val shareScope = androidx.compose.runtime.rememberCoroutineScope()
-            Icon(
-                painter = painterResource(id = R.drawable.ic_share),
-                tint = Color.White,
-                modifier = Modifier
-                    .size(20.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                    ) { shareSongCard(context, shareScope, currentTrack) },
-                contentDescription = "Share song",
-            )
+            val sharing by com.music.aalap.ui.share.ShareTask.busy.collectAsState()
+            if (sharing) {
+                androidx.compose.material3.CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+            } else {
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_share),
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { shareSongCard(context, currentTrack) },
+                    contentDescription = "Share song",
+                )
+            }
             Spacer(modifier = Modifier.width(20.dp))
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.List,
@@ -1252,11 +1259,10 @@ fun PlayerOptionsSheet(
                 }
                 androidx.compose.material3.HorizontalDivider(color = com.music.aalap.ui.theme.SurfaceHigh)
 
-                val shareScope = androidx.compose.runtime.rememberCoroutineScope()
                 PlayerMenuRow(
                     icon = Icons.Default.Share,
                     label = "Share song"
-                ) { shareSongCard(context, shareScope, currentSong, onDismiss) }
+                ) { shareSongCard(context, currentSong, onDismiss) }
                 if (currentSong != null) {
                     // Tell the recommendations what you think of this song.
                     listOf(

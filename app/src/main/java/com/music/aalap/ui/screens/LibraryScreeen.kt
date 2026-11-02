@@ -897,9 +897,10 @@ internal fun AccountSheet(
                 onDismiss()
                 navController.navigate(Routes.History.route)
             }
-            val shareScope = androidx.compose.runtime.rememberCoroutineScope()
+            // Copy the app file while the menu is open, so Share opens at once.
+            androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { com.music.aalap.ui.share.ShareApp.prepare(context) } }
             AccountRow("Share Aalap") {
-                shareScope.launch { runCatching { com.music.aalap.ui.share.ShareApp.share(context) } }
+                com.music.aalap.ui.share.ShareApp.start(context)
                 onDismiss()
             }
             HorizontalDivider(color = com.music.aalap.ui.theme.SurfaceHigh)

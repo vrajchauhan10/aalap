@@ -212,10 +212,9 @@ fun SongOptionsSheet(
                 navController.navigate(albumRoute(song.album, song.singer))
                 onDismiss()
             }
-            val shareScope = androidx.compose.runtime.rememberCoroutineScope()
             SongMenuRow(Icons.Default.Share, "Share") {
                 // Same as the player: a song card, with the link hidden behind "Listen on Aalap".
-                com.music.aalap.ui.screens.shareSongCard(context, shareScope, song, onDismiss)
+                com.music.aalap.ui.screens.shareSongCard(context, song, onDismiss)
             }
             // Tell the recommendations what you think of this song.
             listOf(

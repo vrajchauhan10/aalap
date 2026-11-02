@@ -24,8 +24,8 @@ android {
         targetSdk = 34
         // Must exceed every published build (1.6 shipped as versionCode 16).
         // 2.0.0 is the first Aalap release.
-        versionCode = 75
-        versionName = "7.6.1"
+        versionCode = 76
+        versionName = "7.7.0"
         // Optional Last.fm key for the similar-tracks source (empty = source off).
         // Blend sync (Firebase, free plan): read from app/google-services.json when it's there;
         // without it Blends still work, on each phone on its own.

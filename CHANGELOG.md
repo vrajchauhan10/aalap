@@ -4,6 +4,14 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 7.7.0 — 2 Nov 2026 (build 76)
+- **Sharing opens on the first tap.** "Share Aalap" from the profile menu used to need two
+  taps (closing the menu stopped the first one); now one tap opens the share sheet, and the
+  app is made ready while the menu is open. Sharing a song works the same way.
+- While a share is being made, the player's share icon shows a spinner, a short "Getting …
+  ready to share" note appears if it takes a moment, and extra taps no longer open the share
+  sheet twice.
+
 ## 7.6.1 — 2 Nov 2026 (build 75)
 - The mini player's play button is round again on narrower screens (for example OPPO phones
   with ColorOS at their default display size), instead of being squeezed into a thin sliver.

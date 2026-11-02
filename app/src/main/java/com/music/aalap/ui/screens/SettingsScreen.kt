@@ -458,7 +458,7 @@ private fun ProfileQuickTiles(navController: NavController) {
                 navController.navigate(com.music.aalap.ui.navigation.Routes.History.route)
             }
             Tile("Share Aalap", "Send the app to friends", androidx.compose.ui.graphics.vector.rememberVectorPainter(androidx.compose.material.icons.Icons.Default.Share), Modifier.weight(1f)) {
-                scope.launch { runCatching { com.music.aalap.ui.share.ShareApp.share(context) } }
+                com.music.aalap.ui.share.ShareApp.start(context)
             }
         }
     }
@@ -679,8 +679,7 @@ private fun SubTitle(text: String) {
 @Composable
 fun ShareAalapRow() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var preparing by remember { mutableStateOf(false) }
+    val preparing by com.music.aalap.ui.share.ShareTask.busy.collectAsState()
     // Get the file ready while Profile is open, so the tap opens the share sheet at once.
     LaunchedEffect(Unit) { runCatching { com.music.aalap.ui.share.ShareApp.prepare(context) } }
     Row(
@@ -688,15 +687,7 @@ fun ShareAalapRow() {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .clickable(enabled = !preparing) {
-                preparing = true
-                scope.launch {
-                    runCatching { com.music.aalap.ui.share.ShareApp.share(context) }.onFailure {
-                        android.widget.Toast.makeText(context, "Couldn't share Aalap. Try again.", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                    preparing = false
-                }
-            }
+            .clickable(enabled = !preparing) { com.music.aalap.ui.share.ShareApp.start(context) }
             .padding(vertical = 10.dp),
     ) {
         Box(

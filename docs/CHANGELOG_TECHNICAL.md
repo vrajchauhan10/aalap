@@ -4,6 +4,18 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-02 — 7.6.1 (75) mini player width; 7.7.0 (76) one-tap sharing
+- 7.6.1: `MiniPlayer` title row `width(260.dp)` → `weight(1f)`; at 360 dp wide (OPPO ColorOS,
+  density 480) the play button was squeezed to ~26 dp. Verified on the OPPO: 144×144 px.
+- 7.7.0: shares ran in the menu's `rememberCoroutineScope`; the profile sheet's "Share Aalap"
+  called `onDismiss()` right away, so the first tap's 14 MB APK copy was cancelled when the
+  sheet left (second tap found the cached copy). New `ui/share/ShareTask` (app-lifetime scope,
+  one share at a time, `busy` flow, "Getting … ready" toast after 400 ms) used by
+  `ShareApp.start` and `shareSongCard` (scope parameter removed); the player's share icon shows
+  a spinner while busy; the profile sheet pre-copies the APK. Verified on the S24 FE after the
+  update (stale copy): one tap → share sheet in 0.7 s; double tap on the player's share →
+  one share sheet in 0.9 s.
+
 ## 2026-11-01 (6) — 7.6.0 (74) continue card, smart shuffle, skip memory, weekly Wrapped, per-output sound, backup
 - **Continue card:** `HomeScreen.ContinueCard` shows while `SongPlayer.pendingResumeMs(query)`
   exists and `PlaybackSync.worthContinuing` (≥15 s in, not in the last 10 s). Verified: played

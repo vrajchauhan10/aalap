@@ -29,6 +29,9 @@ object ShareApp {
         out
     }
 
+    /** One tap: prepares and opens the share sheet, even if the menu it came from closes. */
+    fun start(context: Context) = ShareTask.run(context, "Aalap") { share(it) }
+
     suspend fun share(context: Context) {
         val c = context.applicationContext
         val apk = prepare(c)
