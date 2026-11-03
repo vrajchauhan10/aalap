@@ -1,5 +1,6 @@
 package com.music.aalap.ui.screens
 
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -81,6 +82,7 @@ fun HomeHeader(title: String, subtitle: String? = null) {
 fun QuickPicksSection(
     picks: List<HomeMixes.TodaySong>,
     status: com.music.aalap.ui.viewmodel.PicksStatus = com.music.aalap.ui.viewmodel.PicksStatus.READY,
+    navController: androidx.navigation.NavController? = null,
     onRetry: () -> Unit = {},
 ) {
     if (picks.isEmpty()) {
@@ -106,6 +108,11 @@ fun QuickPicksSection(
     val context = LocalContext.current
     val player: PlayerViewModel = hiltViewModel()
     HomeHeader("Quick picks")
+    // The ⋮ on a pick opens the same menu as everywhere else: play next, add to queue, playlists…
+    var menuFor by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.music.aalap.data.entity.SongsModel?>(null) }
+    menuFor?.let { song ->
+        if (navController != null) com.music.aalap.ui.components.SongOptionsSheet(song, navController, context) { menuFor = null }
+    }
     val pages = picks.chunked(4)
     val pager = rememberPagerState { pages.size }
     HorizontalPager(state = pager, contentPadding = PaddingValues(start = 20.dp, end = 48.dp), pageSpacing = 12.dp) { p ->
@@ -127,6 +134,9 @@ fun QuickPicksSection(
                         com.music.aalap.ui.components.ReasonLine(t)
                     }
                     com.music.aalap.ui.components.LikedHeartIfLiked(s.id)
+                    if (navController != null) androidx.compose.material3.IconButton(onClick = { menuFor = s }, modifier = Modifier.size(36.dp)) {
+                        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.MoreVert, contentDescription = "More options", tint = TextMuted)
+                    }
                 }
             }
         }

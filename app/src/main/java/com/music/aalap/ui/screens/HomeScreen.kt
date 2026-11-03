@@ -215,7 +215,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
         // Order: today's poster (opens the 30), Quick picks to choose from, then moods.
         // After a refresh, every section drops in one after another, top to bottom.
         item { BounceIn(1, gen) { com.music.aalap.ui.components.TodayPlaylistSection(today) { navController.navigate(com.music.aalap.ui.navigation.Routes.Today.route) } } }
-        item { BounceIn(2, gen) { QuickPicksSection(quick, quickStatus) { homeViewModel.retryQuickPicks() } } }
+        item { BounceIn(2, gen) { QuickPicksSection(quick, quickStatus, navController = navController) { homeViewModel.retryQuickPicks() } } }
         item { BounceIn(3, gen) { com.music.aalap.ui.components.AalapRadioSection() } }
         item { BounceIn(4, gen) { ChartsRow(navController) } }
         item { BounceIn(5, gen) { MadeForYouSection(mixes) } }

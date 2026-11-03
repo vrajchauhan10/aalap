@@ -4,6 +4,14 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 7.14.0 — 3 Nov 2026 (build 83)
+- **Song menus scroll.** The ⋮ menu in the player and on song lists now scrolls, so every
+  option (down to Sleep timer) is reachable on a phone; rows sit a little closer together.
+- **⋮ on Quick picks.** Each Quick pick has a menu: play next, add to queue, add to
+  playlist, download, go to artist or album, share, more or less like this.
+- **A new account's Library isn't empty.** Before you play or follow anything, it shows
+  albums from artists in the charts, trending playlists, and Add artists.
+
 ## 7.13.0 — 3 Nov 2026 (build 82)
 - **Update offered when you open Aalap.** If a newer Aalap is out, opening the app shows
   "Aalap X is available · Update now". After "Later" it waits a day before asking again on

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -109,7 +110,7 @@ fun SongOptionsSheet(
         sheetState = sheetState,
         containerColor = com.music.aalap.ui.theme.Surface,
     ) {
-        Column(modifier = Modifier.navigationBarsPadding()) {
+        Column(modifier = Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()).navigationBarsPadding()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier

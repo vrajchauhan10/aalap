@@ -59,6 +59,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
@@ -1205,6 +1206,8 @@ fun PlayerOptionsSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // Long menu on a phone: it scrolls, so the last rows (Sleep timer…) are reachable.
+                .verticalScroll(androidx.compose.foundation.rememberScrollState())
                 .navigationBarsPadding()
                 .imePadding()
                 .padding(bottom = 12.dp)
@@ -1491,7 +1494,8 @@ fun PlayerMenuRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(enabled = enabled) { onClick() }
-            .padding(horizontal = 20.dp, vertical = 14.dp)
+            // A little tighter so more of the menu fits on one screen.
+            .padding(horizontal = 20.dp, vertical = 11.dp)
     ) {
         Icon(
             imageVector = icon,

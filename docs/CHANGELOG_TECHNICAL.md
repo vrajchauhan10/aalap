@@ -4,6 +4,16 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-03 (6) — 7.14.0 (83) scrolling song menus, Quick picks menu, new-account Library
+- `PlayerOptionsSheet` and `SongOptionsSheet` columns get `verticalScroll`; `PlayerMenuRow`
+  vertical padding 14 → 11 dp. On the S24 the bottom rows were cut off before.
+- `QuickPicksSection` takes `navController` and opens `SongOptionsSheet` from a ⋮ button.
+  Verified on the S24 (release build): menu opens with all rows reachable.
+- `ArtistPicker.albumsFromFavourites` falls back to `trending(…, 8)` artists when there are
+  no plays or follows (empty results still aren't cached). Library All shows the artists
+  section (Add artists) even when empty, and trending playlists while there are no own
+  entries. Not verified with a real new account. Tests: unit tests pass.
+
 ## 2026-11-03 (5) — 7.13.0 (82) update offered on opening; reminder check always fresh
 - `UpdatePrompt` (activity root) → `AppUpdate.checkAtLaunch`: once per process, only when
   onboarded; fresh unless asked < 1 h ago; `launchOffer` → shared `UpdateDialog`. After Later

@@ -331,7 +331,8 @@ fun LibraryScreen(navController: NavController) {
                         grid = shownGrid,
                         favouriteAlbums = if (q.isBlank() && (shownFilter == LibraryFilter.ALL || shownFilter == LibraryFilter.ALBUMS)) favouriteAlbums else emptyList(),
                         favouriteAlbumsAsGrid = shownFilter == LibraryFilter.ALBUMS,
-                        trending = if (q.isBlank() && shownFilter == LibraryFilter.PLAYLISTS) trendingPlaylists else emptyList(),
+                        // On All too while you have no playlists of your own (a new account), so it isn't blank.
+                        trending = if (q.isBlank() && (shownFilter == LibraryFilter.PLAYLISTS || (shownFilter == LibraryFilter.ALL && listEntries.isEmpty()))) trendingPlaylists else emptyList(),
                         onSeeAll = { filter = it },
                         emptyText = when {
                             q.isNotBlank() -> "Nothing matches that."
@@ -584,7 +585,8 @@ private fun LibraryContent(
             items(favouriteAlbums.size, span = { full() }) { i -> AlbumRow(favouriteAlbums[i], navController) }
         }
 
-        if (artists.isNotEmpty() || artistsAsGrid) {
+        // Shown on All even before you follow anyone, so "Add artists" is right there.
+        if (artists.isNotEmpty() || artistsAsGrid || showTiles) {
             item(span = full) { LibrarySectionTitle("Artists you follow") }
             if (!artistsAsGrid && !grid) {
                 // All view, list: Add artists and the first few as rows, the rest under Artists.

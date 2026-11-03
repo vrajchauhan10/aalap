@@ -110,7 +110,10 @@ object ArtistPicker {
         val rnd = java.util.Random(today.hashCode().toLong())
         val played = Personalizer.artistPlayCounts(c).take(20).map { ArtistsModel(it.first, "", "") }
         val pool = (played.drop(4) + following(c)).distinctBy { key(it.name) }.shuffled(rnd)
+        // A new account has no plays or follows yet: start from who's in the charts, so the
+        // Library isn't an empty page on the first day.
         val artists = (played.take(4) + pool).distinctBy { key(it.name) }.take(12)
+            .ifEmpty { runCatching { trending(c, emptySet(), 8) }.getOrDefault(emptyList()).map { it.artist } }
         val yesterday = prefs.getStringSet("shown", emptySet()).orEmpty()
         val lists = artists.map { a ->
             async {
