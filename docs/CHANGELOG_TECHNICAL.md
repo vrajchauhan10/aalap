@@ -4,6 +4,14 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## Unreleased — reminder check always fresh
+- `remindIfDue` used `check(app)`, which returns the remembered answer for 6 h. On the S24
+  (7.11.0, answer from 13:18 saying 7.11.0 was latest), a forced sync job at 13:29 found
+  "up to date" and then set `asked_at`, so 7.12.0, published at 13:28, would only have been
+  reminded a day later. Now it uses `check(app, force = true)`; the 24 h `asked_at` gate still
+  limits it to one GitHub request a day. Ships with the next release; 7.11.0 and 7.12.0 phones
+  get the reminder up to ~30 h after a release instead of ~24 h.
+
 ## 2026-11-03 (4) — 7.12.0 (81) sheet bottom gap
 - 7.11.0 on the S24 FE: the sheet window was at the top (`frame=[0,0][1080,2205]`) but still
   2205 px tall. Cause, from Compose UI 1.6.8 bytecode: `DialogLayout.internalOnMeasure` measures

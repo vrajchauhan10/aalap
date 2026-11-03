@@ -121,7 +121,9 @@ object AppUpdate {
         val now = System.currentTimeMillis()
         if (now - p.getLong("asked_at", 0L) < ASK_EVERY_MS) return
         p.edit().putLong("asked_at", now).apply()
-        check(app)
+        // Fresh, not the remembered answer: that can be hours old and say "up to date" when a
+        // release has come out since (seen on the S24: no reminder, then none for a day).
+        check(app, force = true)
         val r = (state.value as? State.Available)?.release ?: return
         if (!shouldRemind(r.version, p.getString("reminded", null), p.getLong("reminded_at", 0L), now)) return
         p.edit().putString("reminded", r.version).putLong("reminded_at", now).apply()
