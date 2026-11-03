@@ -56,4 +56,10 @@ class AppUpdateTest {
         assertTrue(AppUpdate.shouldRemind("7.10.0", "7.10.0", 10 * day, 13 * day))  // three days on
         assertTrue(AppUpdate.shouldRemind("7.11.0", "7.10.0", 10 * day, 10 * day))  // a newer one: at once
     }
+
+    @Test fun appOpenOfferWaitsADayAfterLater() {
+        val day = 24 * 3_600_000L
+        assertFalse(AppUpdate.shouldRemind("7.13.0", "7.13.0", 10 * day, 10 * day + 3_600_000L, every = day))
+        assertTrue(AppUpdate.shouldRemind("7.13.0", "7.13.0", 10 * day, 11 * day, every = day))
+    }
 }

@@ -93,8 +93,8 @@ object AppUpdate {
      * Whether to remind about [version] now: the first time it's seen, then again every
      * [REMIND_EVERY_MS] until the phone is updated (a newer version is reminded at once).
      */
-    fun shouldRemind(version: String, lastVersion: String?, lastAt: Long, now: Long): Boolean =
-        version != lastVersion || now - lastAt >= REMIND_EVERY_MS
+    fun shouldRemind(version: String, lastVersion: String?, lastAt: Long, now: Long, every: Long = REMIND_EVERY_MS): Boolean =
+        version != lastVersion || now - lastAt >= every
 
     // ── reminding ───────────────────────────────────────────────────────────
 
@@ -143,6 +143,29 @@ object AppUpdate {
     }
 
     private const val NOTIFICATION_ID = 7310
+
+    // ── on opening Aalap ────────────────────────────────────────────────────
+
+    /** A newer Aalap found when the app opened: the app shows "Update now" over any screen. */
+    val launchOffer = MutableStateFlow<Release?>(null)
+    @Volatile private var launchChecked = false
+
+    /**
+     * Once per app start: asks GitHub (fresh unless asked in the last hour) and offers a newer
+     * Aalap. After "Later" the same version isn't offered on opening again for a day.
+     */
+    suspend fun checkAtLaunch(context: Context) {
+        if (launchChecked) return
+        launchChecked = true
+        val app = context.applicationContext
+        val p = app.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        check(app, force = now - p.getLong("at", 0L) > 3_600_000L)
+        val r = (state.value as? State.Available)?.release ?: return
+        if (!shouldRemind(r.version, p.getString("offered", null), p.getLong("offered_at", 0L), now, every = ASK_EVERY_MS)) return
+        p.edit().putString("offered", r.version).putLong("offered_at", now).apply()
+        launchOffer.value = r
+    }
 
     // ── checking ────────────────────────────────────────────────────────────
 

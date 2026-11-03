@@ -188,6 +188,7 @@ class MainActivity : ComponentActivity() {
                         androidx.compose.ui.Modifier.fillMaxSize().background(com.music.aalap.ui.theme.ImmersiveBackground),
                     )
                     com.music.aalap.ui.components.BlendHost(currentSongState)
+                    com.music.aalap.ui.components.UpdatePrompt()
                     com.music.aalap.ui.components.VoiceOverlay(onCancel = { voice.cancel(); com.music.aalap.di.VoiceUi.state.value = null }, onRetry = { listen() }, inApp = true)
                 }
             }

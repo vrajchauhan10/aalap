@@ -621,22 +621,7 @@ private fun AppUpdateRow() {
             else -> com.music.aalap.AppUpdate.openRequest.value = false
         }
     }
-    offer?.let { r ->
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { offer = null },
-            containerColor = com.music.aalap.ui.theme.Surface,
-            title = { Text("Aalap ${r.version} is available", color = com.music.aalap.ui.theme.TextPrimary) },
-            text = { Text("You have $current. Update now? Your library, likes and settings stay.", color = com.music.aalap.ui.theme.TextMuted) },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = { offer = null; com.music.aalap.AppUpdate.update(context, r) }) {
-                    Text("Update now", color = com.music.aalap.ui.theme.Saffron, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { offer = null }) { Text("Later", color = com.music.aalap.ui.theme.TextMuted) }
-            },
-        )
-    }
+    offer?.let { r -> com.music.aalap.ui.components.UpdateDialog(r) { offer = null } }
     val (title, subtitle) = when (val s = state) {
         is com.music.aalap.AppUpdate.State.Available -> "Update available: Aalap ${s.release.version}" to when (val i = install) {
             is com.music.aalap.AppUpdate.Install.Downloading -> "Downloading… ${i.percent}%"

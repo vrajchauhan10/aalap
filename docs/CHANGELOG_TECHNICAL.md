@@ -4,7 +4,13 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
-## Unreleased — reminder check always fresh
+## 2026-11-03 (5) — 7.13.0 (82) update offered on opening; reminder check always fresh
+- `UpdatePrompt` (activity root) → `AppUpdate.checkAtLaunch`: once per process, only when
+  onboarded; fresh unless asked < 1 h ago; `launchOffer` → shared `UpdateDialog`. After Later
+  the same version waits 24 h (`offered`/`offered_at`, `shouldRemind(every=)` tested). Verified
+  on the S24 with a 7.11.9 test build (GitHub latest 7.12.0): the dialog showed on opening, and
+  after Later + reopen it didn't show; the Home chip read "v7.11.9 · Update". Then 7.13.0 was
+  installed over it with `adb install -r` (same versionCode 82).
 - `remindIfDue` used `check(app)`, which returns the remembered answer for 6 h. On the S24
   (7.11.0, answer from 13:18 saying 7.11.0 was latest), a forced sync job at 13:29 found
   "up to date" and then set `asked_at`, so 7.12.0, published at 13:28, would only have been
