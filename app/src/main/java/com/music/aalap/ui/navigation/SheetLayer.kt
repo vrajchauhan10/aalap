@@ -57,6 +57,13 @@ fun SheetLayer(onClosed: () -> Unit, content: @Composable () -> Unit) {
             if (android.os.Build.VERSION.SDK_INT >= 28) w.attributes = w.attributes.apply {
                 layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
+            // A dialog window is kept clear of the status and gesture bars by default (measured
+            // on the S24 FE: 2205 of 2340 px, a dark band above the player and the page peeking
+            // out below). Let it cover the whole screen; the player pads itself for the bars.
+            if (android.os.Build.VERSION.SDK_INT >= 30) w.attributes = w.attributes.apply {
+                fitInsetsTypes = 0
+                gravity = android.view.Gravity.TOP
+            }
         }
     }
     val height = with(LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }

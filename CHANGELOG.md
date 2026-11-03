@@ -4,6 +4,16 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 7.11.0 — 3 Nov 2026 (build 80)
+- **Update reminders.** When a newer Aalap is out, you get a notification, "Aalap X is
+  available". Tapping it opens Profile with **Update now**. If you don't update, it reminds
+  you again every 3 days. Aalap checks at most once a day, during its usual hourly library
+  sync, so no extra battery is used.
+- **Home shows it too.** The version tag next to your name turns into "· Update"; tap it to
+  update.
+- **Player really full screen.** The thin dark band above the player and the strip of the
+  page peeking out below it are gone (Android 11 and newer).
+
 ## 7.10.0 — 3 Nov 2026 (build 79)
 - **Full-screen player.** The clock and notification icons are hidden while the player or
   queue is open, so the artwork has the whole screen. Swipe down from the top to see them

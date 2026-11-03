@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
     private fun handlePlayIntent(intent: android.content.Intent?) {
         if (intent?.action == com.music.aalap.di.VoiceAsk.ACTION) { listen(); return }
         if (intent?.action == com.music.aalap.di.VoicePlay.ACTION_OPEN_PLAYER) { com.music.aalap.di.VoicePlay.openPlayerRequest.value = true; return }
+        if (intent?.action == com.music.aalap.AppUpdate.ACTION_OPEN_UPDATE) { com.music.aalap.AppUpdate.openRequest.value = true; return }
         if (intent?.action == com.music.aalap.data.recommendation.BlendSync.ACTION_OPEN_BLEND) { com.music.aalap.ui.components.BlendUi.open(); return }
         // A friend's Blend message shared to Aalap.
         if (intent?.action == android.content.Intent.ACTION_SEND) {

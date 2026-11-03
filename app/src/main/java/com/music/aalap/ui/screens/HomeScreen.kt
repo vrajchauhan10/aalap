@@ -302,18 +302,25 @@ private fun HomeHeaderRow(navController: NavController) {
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 // Which Aalap this is, at a glance (handy when phones run different builds).
+                // When a newer one is already known (remembered answer, no network), the chip
+                // says so and opens Profile's Update now.
+                val chipContext = androidx.compose.ui.platform.LocalContext.current
+                val newer = remember { com.music.aalap.AppUpdate.knownNewer(chipContext) }
                 Text(
-                    "v${com.music.aalap.BuildConfig.VERSION_NAME}",
+                    "v${com.music.aalap.BuildConfig.VERSION_NAME}" + if (newer != null) " · Update" else "",
                     // Smaller than the greeting above it: a quiet tag, not a heading.
-                    color = com.music.aalap.ui.theme.Saffron.copy(alpha = 0.85f),
+                    color = if (newer != null) Color.White else com.music.aalap.ui.theme.Saffron.copy(alpha = 0.85f),
                     fontSize = 9.sp,
                     lineHeight = 11.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = if (newer != null) FontWeight.Bold else FontWeight.Medium,
                     maxLines = 1,
                     modifier = Modifier
                         .padding(start = 6.dp)
                         .clip(RoundedCornerShape(50))
-                        .background(com.music.aalap.ui.theme.Saffron.copy(alpha = 0.10f))
+                        .background(if (newer != null) com.music.aalap.ui.theme.Saffron else com.music.aalap.ui.theme.Saffron.copy(alpha = 0.10f))
+                        .then(if (newer != null) Modifier.clickable {
+                            com.music.aalap.AppUpdate.openRequest.value = true
+                        } else Modifier)
                         .padding(horizontal = 5.dp, vertical = 1.dp),
                 )
             }

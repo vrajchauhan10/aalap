@@ -89,6 +89,59 @@ object AppUpdate {
         Release(version, apk, page)
     }.getOrNull()
 
+    /**
+     * Whether to remind about [version] now: the first time it's seen, then again every
+     * [REMIND_EVERY_MS] until the phone is updated (a newer version is reminded at once).
+     */
+    fun shouldRemind(version: String, lastVersion: String?, lastAt: Long, now: Long): Boolean =
+        version != lastVersion || now - lastAt >= REMIND_EVERY_MS
+
+    // ── reminding ───────────────────────────────────────────────────────────
+
+    private const val REMIND_EVERY_MS = 3 * 24 * 3_600_000L
+    private const val ASK_EVERY_MS = 24 * 3_600_000L
+    const val ACTION_OPEN_UPDATE = "com.music.aalap.OPEN_UPDATE"
+
+    /** Set by the notification: open Profile and offer the update there. */
+    val openRequest = MutableStateFlow(false)
+
+    /** The newer version last found, from the remembered answer (no network): for Home's chip. */
+    fun knownNewer(context: Context): String? =
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString("json", null)
+            ?.let { parse(it) }?.version?.takeIf { isNewer(it, current()) }
+
+    /**
+     * Called from the hourly library sync, so it adds no wake-ups of its own: asks GitHub at
+     * most once a day and, when a newer Aalap exists, shows "Aalap X is available" (again
+     * every 3 days until updated). Tapping it opens Profile with Update now.
+     */
+    suspend fun remindIfDue(context: Context) {
+        val app = context.applicationContext
+        val p = app.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        if (now - p.getLong("asked_at", 0L) < ASK_EVERY_MS) return
+        p.edit().putLong("asked_at", now).apply()
+        check(app)
+        val r = (state.value as? State.Available)?.release ?: return
+        if (!shouldRemind(r.version, p.getString("reminded", null), p.getLong("reminded_at", 0L), now)) return
+        p.edit().putString("reminded", r.version).putLong("reminded_at", now).apply()
+        runCatching {
+            val nm = app.getSystemService(android.app.NotificationManager::class.java)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O)
+                nm.createNotificationChannel(android.app.NotificationChannel("updates", "App updates", android.app.NotificationManager.IMPORTANCE_DEFAULT))
+            val open = android.app.PendingIntent.getActivity(app, 11,
+                Intent(app, MainActivity::class.java).setAction(ACTION_OPEN_UPDATE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                android.app.PendingIntent.FLAG_IMMUTABLE)
+            nm.notify(NOTIFICATION_ID, androidx.core.app.NotificationCompat.Builder(app, "updates")
+                .setSmallIcon(R.drawable.media3_notification_small_icon)
+                .setContentTitle("Aalap ${r.version} is available")
+                .setContentText("You have ${current()}. Tap to update; your library, likes and settings stay.")
+                .setContentIntent(open).setAutoCancel(true).build())
+        }
+    }
+
+    private const val NOTIFICATION_ID = 7310
+
     // ── checking ────────────────────────────────────────────────────────────
 
     fun current(): String = BuildConfig.VERSION_NAME.substringBefore('-')
@@ -158,6 +211,7 @@ object AppUpdate {
             return
         }
         install.value = Install.Downloading(0)
+        runCatching { app.getSystemService(android.app.NotificationManager::class.java).cancel(NOTIFICATION_ID) }
         scope.launch {
             val dir = java.io.File(app.cacheDir, "update").apply { mkdirs() }
             dir.listFiles()?.forEach { it.delete() } // an older update file is never offered

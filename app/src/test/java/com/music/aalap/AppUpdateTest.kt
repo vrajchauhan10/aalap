@@ -48,4 +48,12 @@ class AppUpdateTest {
             "https://github.com/vrajchauhan10/aalap/releases/download/v7.9.0/Aalap-7.9.0.apk", pre = true)))
         assertNull(AppUpdate.parse("not json"))
     }
+
+    @Test fun remindsOncePerVersionThenEveryThreeDays() {
+        val day = 24 * 3_600_000L
+        assertTrue(AppUpdate.shouldRemind("7.10.0", null, 0L, 10 * day))          // first time
+        assertFalse(AppUpdate.shouldRemind("7.10.0", "7.10.0", 10 * day, 11 * day)) // reminded yesterday
+        assertTrue(AppUpdate.shouldRemind("7.10.0", "7.10.0", 10 * day, 13 * day))  // three days on
+        assertTrue(AppUpdate.shouldRemind("7.11.0", "7.10.0", 10 * day, 10 * day))  // a newer one: at once
+    }
 }

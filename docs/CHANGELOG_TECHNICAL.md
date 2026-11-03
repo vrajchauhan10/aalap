@@ -4,6 +4,23 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-03 (3) — 7.11.0 (80) update reminders
+- `AppUpdate.remindIfDue` runs at the end of `LibrarySyncWorker` (existing hourly, network-
+  constrained job: no new wake-ups). It asks GitHub at most once per 24 h (`asked_at`), and
+  `shouldRemind` (tested) notifies the first time a version is seen, then every 3 days. The
+  "updates" channel is IMPORTANCE_DEFAULT. A tap sends `ACTION_OPEN_UPDATE` → `openRequest` →
+  MyNavHost opens Settings → `AppUpdateRow` shows the Update now dialog. Starting a download
+  cancels the notification.
+- Home chip: `knownNewer` reads the remembered answer only (no network) → "v7.x · Update",
+  and a tap opens Profile.
+- Sheet window (player/queue): Compose's dialog window was 1080x2205 of 2340 px on the S24
+  FE (`dumpsys window`), kept clear of the system bars, so 7.10.0 hid the status icons but
+  left a dark band above and the page below showing. API 30+: `fitInsetsTypes = 0`, gravity
+  TOP; content already pads (`statusBarsIgnoringVisibility`, `navigationBarsPadding`). API <30
+  unchanged (not testable here).
+- Tests 167/167. Not yet seen on a phone: the notification itself needs a newer published
+  release than the installed one.
+
 ## 2026-11-03 (2) — 7.10.0 (79) full-screen player, update prompt
 - **Player/queue full screen:** `SheetLayer` sets `setDecorFitsSystemWindows(false)` on the sheet
   dialog window and hides `statusBars` while open (`BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`),

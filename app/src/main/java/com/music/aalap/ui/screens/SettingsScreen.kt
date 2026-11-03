@@ -611,6 +611,16 @@ private fun AppUpdateRow() {
     val current = com.music.aalap.AppUpdate.current()
     val available = state as? com.music.aalap.AppUpdate.State.Available
     var offer by remember { mutableStateOf<com.music.aalap.AppUpdate.Release?>(null) }
+    // Came from the "is available" notification or Home's chip: ask straight away.
+    val asked by com.music.aalap.AppUpdate.openRequest.collectAsState()
+    LaunchedEffect(asked, state) {
+        if (!asked) return@LaunchedEffect
+        when (val s = state) {
+            is com.music.aalap.AppUpdate.State.Available -> { offer = s.release; com.music.aalap.AppUpdate.openRequest.value = false }
+            null, com.music.aalap.AppUpdate.State.Checking -> Unit
+            else -> com.music.aalap.AppUpdate.openRequest.value = false
+        }
+    }
     offer?.let { r ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { offer = null },

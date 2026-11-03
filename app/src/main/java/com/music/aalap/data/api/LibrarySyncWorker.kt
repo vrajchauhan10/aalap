@@ -35,6 +35,8 @@ class LibrarySyncWorker(context: Context, params: WorkerParameters) : CoroutineW
             ok = YouTubeLibrary.syncIfDue(c, force = true) || ok
         }
         com.music.aalap.data.recommendation.engine.Personalizer.invalidate()
+        // "Aalap X is available": at most one GitHub request a day, riding on this hourly run.
+        runCatching { com.music.aalap.AppUpdate.remindIfDue(c) }
         Log.d(TAG, "hourly library sync done (ok=$ok)")
         return if (ok) Result.success() else Result.retry()
     }
