@@ -4,6 +4,15 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-03 (2) — 7.10.0 (79) full-screen player, update prompt
+- **Player/queue full screen:** `SheetLayer` sets `setDecorFitsSystemWindows(false)` on the sheet
+  dialog window and hides `statusBars` while open (`BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`),
+  showing them again as it closes; the activity window is untouched, so other pages keep the
+  status bar. Player/Queue pad with `statusBarsIgnoringVisibility`, so the layout doesn't jump
+  under the camera when the bar is hidden or swiped in.
+- **Update row:** tap = forced check, then a toast ("up to date" / "couldn't check") or an
+  `AlertDialog` "Aalap X is available · Update now / Later"; no prompt while downloading.
+
 ## 2026-11-03 — 7.9.0 (78) full screen, font fit, in-app updates
 - **Grey strip at the top:** `Theme.Aalap` (post-splash theme, parent Theme.Material.Light)
   didn't set `statusBarColor`, so the platform default `#757575` was drawn by the DecorView's

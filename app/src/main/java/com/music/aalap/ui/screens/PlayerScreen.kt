@@ -38,6 +38,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -129,7 +131,7 @@ import com.music.aalap.ui.theme.AppPalette
 import com.music.aalap.ui.viewmodel.PlayerViewModel
 import kotlinx.coroutines.delay
 
-@OptIn(ExperimentalGlideComposeApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(ExperimentalGlideComposeApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun PlayerScreen(navController: NavController) {
     val playerViewModel : PlayerViewModel = hiltViewModel()
@@ -337,7 +339,7 @@ fun PlayerScreen(navController: NavController) {
         androidx.compose.foundation.lazy.LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding(),
+                .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBarsIgnoringVisibility),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
         item {

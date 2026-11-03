@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -65,7 +67,7 @@ import com.music.aalap.ui.viewmodel.PlayerViewModel
  * (Spotify's Queue view). Tapping an upcoming track jumps straight to it;
  * dragging the handle reorders it; swiping a row removes it.
  */
-@OptIn(ExperimentalGlideComposeApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalGlideComposeApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun QueueScreen(navController: NavController) {
     val closeSheet = com.music.aalap.ui.navigation.LocalCloseSheet.current
@@ -88,7 +90,7 @@ fun QueueScreen(navController: NavController) {
             // Pull the list down from its top to close the queue.
             .swipeDownToDismiss { navController.navigateUp() }
             .background(com.music.aalap.ui.theme.Surface)
-            .statusBarsPadding()
+            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBarsIgnoringVisibility)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

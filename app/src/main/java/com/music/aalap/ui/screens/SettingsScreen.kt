@@ -610,6 +610,23 @@ private fun AppUpdateRow() {
     LaunchedEffect(Unit) { com.music.aalap.AppUpdate.check(context) }
     val current = com.music.aalap.AppUpdate.current()
     val available = state as? com.music.aalap.AppUpdate.State.Available
+    var offer by remember { mutableStateOf<com.music.aalap.AppUpdate.Release?>(null) }
+    offer?.let { r ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { offer = null },
+            containerColor = com.music.aalap.ui.theme.Surface,
+            title = { Text("Aalap ${r.version} is available", color = com.music.aalap.ui.theme.TextPrimary) },
+            text = { Text("You have $current. Update now? Your library, likes and settings stay.", color = com.music.aalap.ui.theme.TextMuted) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { offer = null; com.music.aalap.AppUpdate.update(context, r) }) {
+                    Text("Update now", color = com.music.aalap.ui.theme.Saffron, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { offer = null }) { Text("Later", color = com.music.aalap.ui.theme.TextMuted) }
+            },
+        )
+    }
     val (title, subtitle) = when (val s = state) {
         is com.music.aalap.AppUpdate.State.Available -> "Update available: Aalap ${s.release.version}" to when (val i = install) {
             is com.music.aalap.AppUpdate.Install.Downloading -> "Downloading… ${i.percent}%"
@@ -630,8 +647,21 @@ private fun AppUpdateRow() {
             .clip(RoundedCornerShape(14.dp))
             .background(if (available != null) com.music.aalap.ui.theme.Saffron.copy(alpha = 0.16f) else com.music.aalap.ui.theme.Surface)
             .clickable {
-                if (available != null) com.music.aalap.AppUpdate.update(context, available.release)
-                else scope.launch { com.music.aalap.AppUpdate.check(context, force = true) }
+                if (available != null) {
+                    // Already downloading: the row shows the progress, no second prompt.
+                    if (install !is com.music.aalap.AppUpdate.Install.Downloading && install != com.music.aalap.AppUpdate.Install.Verifying) offer = available.release
+                }
+                else scope.launch {
+                    // A tap always answers: "up to date", or "X is available" with Update now.
+                    com.music.aalap.AppUpdate.check(context, force = true)
+                    when (val s = com.music.aalap.AppUpdate.state.value) {
+                        is com.music.aalap.AppUpdate.State.Available -> offer = s.release
+                        is com.music.aalap.AppUpdate.State.UpToDate ->
+                            android.widget.Toast.makeText(context, "You're up to date. Aalap $current is the latest version.", android.widget.Toast.LENGTH_SHORT).show()
+                        else ->
+                            android.widget.Toast.makeText(context, "Couldn't check for updates. Check the connection and try again.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {

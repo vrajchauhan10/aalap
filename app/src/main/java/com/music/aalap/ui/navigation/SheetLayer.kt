@@ -47,6 +47,8 @@ fun SheetLayer(onClosed: () -> Unit, content: @Composable () -> Unit) {
         (view.parent as? DialogWindowProvider)?.window?.let { w ->
             w.setDimAmount(0f)
             w.setWindowAnimations(0)
+            // Drawn under the status bar too, so hiding it below leaves no strip behind.
+            WindowCompat.setDecorFitsSystemWindows(w, false)
             w.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
             w.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
             w.statusBarColor = android.graphics.Color.TRANSPARENT
@@ -73,6 +75,11 @@ fun SheetLayer(onClosed: () -> Unit, content: @Composable () -> Unit) {
             WindowCompat.getInsetsController(w, view).apply {
                 isAppearanceLightStatusBars = !open && lightPage
                 isAppearanceLightNavigationBars = !open && lightPage
+                // Full screen while the player or queue is up: no clock and notification icons
+                // over the artwork. A swipe down from the top shows them for a moment.
+                systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                if (open) hide(androidx.core.view.WindowInsetsCompat.Type.statusBars())
+                else show(androidx.core.view.WindowInsetsCompat.Type.statusBars())
             }
         }
     }

@@ -4,6 +4,13 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 7.10.0 — 3 Nov 2026 (build 79)
+- **Full-screen player.** The clock and notification icons are hidden while the player or
+  queue is open, so the artwork has the whole screen. Swipe down from the top to see them
+  for a moment.
+- **Update check answers you.** Tapping the version row in Profile says "You're up to date"
+  or shows "Aalap X is available" with **Update now**.
+
 ## 7.9.0 — 3 Nov 2026 (build 78)
 - **Full screen.** Aalap now draws under the status bar like other apps; the grey strip some
   phones put over the top of the screen is gone.
