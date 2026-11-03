@@ -135,6 +135,7 @@ fun SettingsScreen(navController: NavController) {
             ProfileHeader(navController)
             // What people come here for, up top: Blend, Wrapped, history, sharing.
             ProfileQuickTiles(navController)
+            AppUpdateRow()
             ConnectedServicesSection(navController)
             YourTasteSection()
 
@@ -593,6 +594,57 @@ private fun BackupRows() {
             },
             dismissButton = { androidx.compose.material3.TextButton(onClick = { pending = null }) { Text("Cancel") } },
         )
+    }
+}
+
+/**
+ * "Aalap 7.9.0 · Up to date" or "Update available", from the latest GitHub release. Checked
+ * when Profile opens (the answer is kept for 6 hours); tap to check again or to download.
+ */
+@Composable
+private fun AppUpdateRow() {
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val state by com.music.aalap.AppUpdate.state.collectAsState()
+    val install by com.music.aalap.AppUpdate.install.collectAsState()
+    LaunchedEffect(Unit) { com.music.aalap.AppUpdate.check(context) }
+    val current = com.music.aalap.AppUpdate.current()
+    val available = state as? com.music.aalap.AppUpdate.State.Available
+    val (title, subtitle) = when (val s = state) {
+        is com.music.aalap.AppUpdate.State.Available -> "Update available: Aalap ${s.release.version}" to when (val i = install) {
+            is com.music.aalap.AppUpdate.Install.Downloading -> "Downloading… ${i.percent}%"
+            com.music.aalap.AppUpdate.Install.Verifying -> "Checking it's a genuine Aalap…"
+            com.music.aalap.AppUpdate.Install.NeedsPermission -> "Allow Aalap to install updates, then come back and tap again."
+            is com.music.aalap.AppUpdate.Install.Failed -> i.why
+            null -> "You have $current. Tap to update; your library, likes and settings stay."
+        }
+        is com.music.aalap.AppUpdate.State.UpToDate -> "Aalap $current · Up to date" to "No newer version yet. Tap to check again."
+        com.music.aalap.AppUpdate.State.Checking -> "Aalap $current" to "Checking for updates…"
+        else -> "Aalap $current" to "Couldn't check for updates. Tap to try again."
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .padding(top = 10.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (available != null) com.music.aalap.ui.theme.Saffron.copy(alpha = 0.16f) else com.music.aalap.ui.theme.Surface)
+            .clickable {
+                if (available != null) com.music.aalap.AppUpdate.update(context, available.release)
+                else scope.launch { com.music.aalap.AppUpdate.check(context, force = true) }
+            }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = if (available != null) com.music.aalap.ui.theme.Saffron else com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
+        }
+        val working = install is com.music.aalap.AppUpdate.Install.Downloading || install == com.music.aalap.AppUpdate.Install.Verifying
+        if (state == com.music.aalap.AppUpdate.State.Checking || (available != null && working)) {
+            androidx.compose.material3.CircularProgressIndicator(color = com.music.aalap.ui.theme.Saffron, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+        } else if (available != null) {
+            Text("Update", color = com.music.aalap.ui.theme.Saffron, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }
 

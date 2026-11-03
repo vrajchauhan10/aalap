@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Only the share/ cache folder is exposed, for generated share images. -->
+<!-- Only these cache folders are exposed: share/ for generated share images, update/ for a
+     verified Aalap update handed to Android's installer. -->
 <paths>
     <cache-path name="share" path="share/" />
+    <cache-path name="update" path="update/" />
 </paths>

@@ -35,7 +35,13 @@ downloads that only live on the phone.
    (higher than every APK in `dist/`) and changelog, and writes `dist/Aalap-<version>.apk`
    + `.sha256`. `scripts/release.sh --install` also updates the connected phone with
    `adb install -r` and checks the new versionCode.
-3. Hand out the APK from `dist/` (sideloading). An AAB is only for Google Play, which would
+3. Publish it so phones can update from Profile: `GITHUB_TOKEN=… scripts/publish-release.sh`
+   creates the GitHub release `v<version>` with `Aalap-<version>.apk` (+ `.sha256`) and the
+   CHANGELOG section as notes. Aalap's Profile reads `releases/latest` (at most every 6 h,
+   only while Profile is open), downloads the APK, checks app id, a higher versionCode and the
+   same signing key (`AppUpdate.verify`), then opens Android's installer. A release without an
+   asset named exactly `Aalap-<version>.apk`, a pre-release or a draft is never offered.
+4. Hand out the APK from `dist/` (sideloading). An AAB is only for Google Play, which would
    also need Play App Signing set up with this key; not used.
 
 ## Data compatibility checklist (before every release)

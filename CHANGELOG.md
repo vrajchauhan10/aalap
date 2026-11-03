@@ -4,6 +4,16 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 7.9.0 — 3 Nov 2026 (build 78)
+- **Full screen.** Aalap now draws under the status bar like other apps; the grey strip some
+  phones put over the top of the screen is gone.
+- **Fits your text size.** Aalap follows the phone's font size (85%–130%), so text never gets
+  cut off in the mini player, chips and lists, and rows adapt to the phone's display size.
+- **Updates inside the app.** Profile shows "Up to date" or "Update available". One tap
+  downloads the new version, checks it's a genuine Aalap (same app, newer, signed with
+  Aalap's key) and opens Android's installer; your library, likes and settings stay. The
+  first time, Android asks you to allow Aalap to install updates.
+
 ## 7.8.0 — 2 Nov 2026 (build 77)
 - **Songs only on YouTube play again** (game soundtracks like Shadow Fight, indie and
   regional releases). When YouTube asked Aalap to "confirm you're not a bot", Aalap mistook

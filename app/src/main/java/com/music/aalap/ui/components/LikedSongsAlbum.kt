@@ -259,7 +259,8 @@ fun LikedSongsScreen(
                         Row(
                             horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.width(280.dp)
+                            // What the buttons leave, not a fixed 280 dp (which squeezed them on narrow screens).
+                            modifier = Modifier.weight(1f)
                         ) {
                             GlideImage(
                                 modifier = Modifier

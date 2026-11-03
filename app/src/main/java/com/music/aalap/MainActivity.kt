@@ -165,9 +165,16 @@ class MainActivity : ComponentActivity() {
         controllerFuture = MediaController.Builder(this, token).buildAsync()
 
 
-        enableEdgeToEdge()
+        // Full screen like other apps: both system bars fully see-through. Samsung and ColorOS
+        // otherwise lay a grey "contrast" scrim over the status bar, which made Aalap look
+        // boxed in under a grey strip. The theme sets light/dark bar icons to match the page.
+        enableEdgeToEdge(
+            statusBarStyle = androidx.activity.SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = androidx.activity.SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+        )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
+            window.isStatusBarContrastEnforced = false
         }
         setContent {
 

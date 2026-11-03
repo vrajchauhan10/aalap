@@ -304,15 +304,17 @@ private fun HomeHeaderRow(navController: NavController) {
                 // Which Aalap this is, at a glance (handy when phones run different builds).
                 Text(
                     "v${com.music.aalap.BuildConfig.VERSION_NAME}",
-                    color = com.music.aalap.ui.theme.Saffron,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    // Smaller than the greeting above it: a quiet tag, not a heading.
+                    color = com.music.aalap.ui.theme.Saffron.copy(alpha = 0.85f),
+                    fontSize = 9.sp,
+                    lineHeight = 11.sp,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     modifier = Modifier
-                        .padding(start = 8.dp)
+                        .padding(start = 6.dp)
                         .clip(RoundedCornerShape(50))
-                        .background(com.music.aalap.ui.theme.Saffron.copy(alpha = 0.14f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                        .background(com.music.aalap.ui.theme.Saffron.copy(alpha = 0.10f))
+                        .padding(horizontal = 5.dp, vertical = 1.dp),
                 )
             }
         }

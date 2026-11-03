@@ -82,6 +82,13 @@ fun AalapTheme(
         }
     }
 
+    // Follow the phone's text size, within what the layouts are built for (see [FontFit]).
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val fitted = FontFit.scale(density.fontScale)
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalDensity provides
+            if (fitted == density.fontScale) density else androidx.compose.ui.unit.Density(density.density, fitted),
+    ) {
     MaterialTheme(
         colorScheme = schemeFor(light),
         typography = Typography,
@@ -98,4 +105,16 @@ fun AalapTheme(
             content = content,
         )
     }
+    }
+}
+
+/**
+ * The text size Aalap uses for the phone's font-size setting: the same, between 85% and
+ * 130%. Rows like the mini player, chips and the bottom bar have fixed heights; past 130%
+ * their text was cut off, and below 85% it became hard to read. Pure, so it's tested.
+ */
+object FontFit {
+    const val MIN = 0.85f
+    const val MAX = 1.3f
+    fun scale(phone: Float): Float = if (phone.isNaN() || phone <= 0f) 1f else phone.coerceIn(MIN, MAX)
 }

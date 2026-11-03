@@ -4,6 +4,10 @@
     <style name="Theme.Aalap" parent="android:Theme.Material.Light.NoActionBar">
         <!-- Brand canvas behind Compose, so no white flash after the splash. -->
         <item name="android:windowBackground">@color/splash_back</item>
+        <!-- Full screen: see-through system bars. Without these the platform theme's own
+             status bar colour (#757575) showed as a grey strip over the top of every screen. -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
     <style name="splashScreenTheme" parent="Theme.SplashScreen">
         <!-- Same Aalap mark as the launcher icon, so the splash flash

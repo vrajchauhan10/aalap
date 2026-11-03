@@ -4,6 +4,26 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-03 — 7.9.0 (78) full screen, font fit, in-app updates
+- **Grey strip at the top:** `Theme.Aalap` (post-splash theme, parent Theme.Material.Light)
+  didn't set `statusBarColor`, so the platform default `#757575` was drawn by the DecorView's
+  `statusBarBackground` (measured 117,117,117 over a 16,11,28 page; Samsung Settings showed
+  none). Fixed in `values/themes.xml` + new `values-v29` (transparent bars, no contrast
+  enforcement), plus `enableEdgeToEdge(SystemBarStyle.auto(TRANSPARENT, TRANSPARENT))`.
+  Verified on the S24 FE: status bar pixel = page colour on Home, Search, Library.
+- **Font fit:** `FontFit` clamps the phone's font scale to 0.85–1.3 via `LocalDensity` in
+  `AalapTheme` (tested). Not verified at extreme scales on a phone (changing the system font
+  size is the user's setting). Fixed-width rows → `weight(1f)` (`LikedSongsAlbum`).
+- **In-app updates (`AppUpdate`):** Profile reads GitHub `releases/latest` (≤ every 6 h, only
+  while Profile is open; 404 = no release = up to date). Only `https://github.com/<repo>/releases/…`
+  links and an asset named `Aalap-<version>.apk` are accepted (tested). Tap → download to
+  `cacheDir/update` → `verify`: same package, higher versionCode, identical signing-cert
+  SHA-256 set → FileProvider → Android installer (`REQUEST_INSTALL_PACKAGES`; first time
+  opens "Install unknown apps"). Publish with `scripts/publish-release.sh` (GITHUB_TOKEN).
+  Download/verify/install not exercised end to end yet: it needs a newer published release.
+- Version chip on Home made smaller (9 sp). Tests 158/158. Idle (paused, background, S24 FE):
+  10 ticks / 60 s = 0.17% CPU.
+
 ## 2026-11-02 (2) — 7.8.0 (77) YouTube-only songs, failover speed, Search re-tap, version chip
 - **Root cause (OPPO CPH2797, mobile data):** Shadow Fight soundtracks (YouTube only; JioSaavn
   and Gaana correctly had no match) never played. Trail on the phone: ANDROID_MUSIC
