@@ -4,6 +4,16 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-03 (4) — 7.12.0 (81) sheet bottom gap
+- 7.11.0 on the S24 FE: the sheet window was at the top (`frame=[0,0][1080,2205]`) but still
+  2205 px tall. Cause, from Compose UI 1.6.8 bytecode: `DialogLayout.internalOnMeasure` measures
+  with `screenHeightDp` (screen minus bars), and `internalOnLayout` calls
+  `window.setLayout(measuredW, measuredH)` on every layout, so the window can't be made taller
+  from outside without fighting it. A Compose BOM upgrade would fix it, but it's too big for
+  this. Instead, `SheetCover.shown` (true once the sheet has finished opening, false as soon
+  as it starts closing) paints `ImmersiveBackground`, the player's bottom gradient colour,
+  over the activity, so the 135 px under the window matches.
+
 ## 2026-11-03 (3) — 7.11.0 (80) update reminders
 - `AppUpdate.remindIfDue` runs at the end of `LibrarySyncWorker` (existing hourly, network-
   constrained job: no new wake-ups). It asks GitHub at most once per 24 h (`asked_at`), and

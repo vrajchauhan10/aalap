@@ -4,6 +4,10 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 7.12.0 — 3 Nov 2026 (build 81)
+- **Player edge to edge at the bottom too.** The strip of the page that still showed under
+  the player, by the gesture bar, now matches the player.
+
 ## 7.11.0 — 3 Nov 2026 (build 80)
 - **Update reminders.** When a newer Aalap is out, you get a notification, "Aalap X is
   available". Tapping it opens Profile with **Update now**. If you don't update, it reminds

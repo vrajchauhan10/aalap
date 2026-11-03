@@ -34,6 +34,16 @@ val LocalCloseSheet = compositionLocalOf<(() -> Unit)?> { null }
 private val SheetEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
 /**
+ * True while the player or queue is fully open. Compose 1.6 sizes this dialog window to the
+ * screen minus the system bars (`DialogLayout` measures with screenHeightDp and calls
+ * `setLayout`), so the bottom ~48 dp shows the page underneath. While a sheet is open the page
+ * is covered with the player's own bottom colour, so that gap reads as part of the player.
+ */
+object SheetCover {
+    val shown = androidx.compose.runtime.mutableStateOf(false)
+}
+
+/**
  * The player and queue open as a layer over the page you were on, which stays alive
  * underneath. Closing (back, the down arrow, or pulling down) only slides this layer
  * away, so the page beneath is already there: no rebuild, no pause.
@@ -71,7 +81,11 @@ fun SheetLayer(onClosed: () -> Unit, content: @Composable () -> Unit) {
     val down = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
     val closing = remember { booleanArrayOf(false) }
-    LaunchedEffect(Unit) { down.animateTo(0f, tween(380, easing = SheetEasing)) }
+    LaunchedEffect(Unit) {
+        down.animateTo(0f, tween(380, easing = SheetEasing))
+        if (!closing[0]) SheetCover.shown.value = true
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { SheetCover.shown.value = false } }
     // Light status-bar icons over the player (dark artwork and video); once it's away, the
     // page's own: this window stays on top, and its light icons put a grey band over the
     // cream page on the light theme.
@@ -93,6 +107,7 @@ fun SheetLayer(onClosed: () -> Unit, content: @Composable () -> Unit) {
     val close: () -> Unit = {
         if (!closing[0]) {
             closing[0] = true
+            SheetCover.shown.value = false // the page shows again as the sheet slides down
             scope.launch {
                 down.animateTo(1f, tween(300, easing = SheetEasing))
                 onClosed()

@@ -8,6 +8,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
@@ -182,6 +184,9 @@ class MainActivity : ComponentActivity() {
             AalapTheme {
                 androidx.compose.foundation.layout.Box {
                     App()
+                    if (com.music.aalap.ui.navigation.SheetCover.shown.value) androidx.compose.foundation.layout.Box(
+                        androidx.compose.ui.Modifier.fillMaxSize().background(com.music.aalap.ui.theme.ImmersiveBackground),
+                    )
                     com.music.aalap.ui.components.BlendHost(currentSongState)
                     com.music.aalap.ui.components.VoiceOverlay(onCancel = { voice.cancel(); com.music.aalap.di.VoiceUi.state.value = null }, onRetry = { listen() }, inApp = true)
                 }
