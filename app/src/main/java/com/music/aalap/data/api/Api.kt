@@ -173,13 +173,13 @@ class Api @Inject constructor(
 
     /** Artists matching [query] (artist picker search and name → id lookups). */
     suspend fun searchArtists(query: String, limit: Int = 12): List<ArtistsModel> {
-        if (query.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
+        if (query.isBlank() || !SpotifyTokenProvider.ensureCatalogToken(context)) return emptyList()
         return Spotify.search(query, listOf("artist"), limit = limit).getOrNull()?.artists?.items.orEmpty().map { it.toArtistModel() }
     }
 
     /** An artist's popular releases as Library entries (albums first, then singles/EPs). */
     suspend fun artistReleases(artistId: String, newestFirst: Boolean = false): List<com.music.aalap.data.entity.LibraryEntry> {
-        if (artistId.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
+        if (artistId.isBlank() || !SpotifyTokenProvider.ensureCatalogToken(context)) return emptyList()
         val o = Spotify.artistOverview(artistId).getOrNull() ?: return emptyList()
         // Only the artist's own records: not label compilations ("Happy Vibes", "The Winter
         // Playlist"…) that merely include one of their songs.
@@ -204,7 +204,7 @@ class Api @Inject constructor(
 
     /** Artists similar to [artistId] ("fans also like"). */
     suspend fun relatedArtists(artistId: String): List<ArtistsModel> {
-        if (artistId.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
+        if (artistId.isBlank() || !SpotifyTokenProvider.ensureCatalogToken(context)) return emptyList()
         return Spotify.artistRelatedArtists(artistId).getOrNull().orEmpty().map { it.toArtistModel() }
     }
 
@@ -332,7 +332,7 @@ class Api @Inject constructor(
         if (query.isBlank()) {
             emit(Response.Success(emptyList())); return@flow
         }
-        if (!SpotifyTokenProvider.ensureToken(context)) {
+        if (!SpotifyTokenProvider.ensureCatalogToken(context)) {
             emit(Response.Error("Spotify not authenticated — set sp_dc cookie")); return@flow
         }
         Spotify.search(query, types = listOf("track"), limit = 30).fold(
@@ -352,7 +352,7 @@ class Api @Inject constructor(
             emit(Response.Success(SearchResults())); return@flow
         }
         // Without Spotify (it's optional), YouTube Music finds the songs.
-        if (!SpotifyTokenProvider.ensureToken(context)) {
+        if (!SpotifyTokenProvider.ensureCatalogToken(context)) {
             emit(youTubeSongSearch(query)); return@flow
         }
         Spotify.search(query, types = listOf("track", "album", "artist"), limit = 20).fold(
@@ -408,7 +408,7 @@ class Api @Inject constructor(
     /** A podcast show's episodes, as playable [SongsModel] (url = "episode:<id>"). */
     suspend fun getShowEpisodes(showId: String): Flow<Response<List<SongsModel>>> = flow {
         emit(Response.Loading())
-        if (!SpotifyTokenProvider.ensureToken(context)) {
+        if (!SpotifyTokenProvider.ensureCatalogToken(context)) {
             emit(Response.Error("Spotify not authenticated — set sp_dc cookie")); return@flow
         }
         val show = Spotify.show(showId).getOrNull()
@@ -422,7 +422,7 @@ class Api @Inject constructor(
 
     /** Show header (name/publisher/cover) for the detail screen. */
     suspend fun getShow(showId: String): PodcastModel? {
-        if (!SpotifyTokenProvider.ensureToken(context)) return null
+        if (!SpotifyTokenProvider.ensureCatalogToken(context)) return null
         return Spotify.show(showId).getOrNull()?.toPodcastModel()
     }
 
@@ -464,7 +464,7 @@ class Api @Inject constructor(
 
     /** The best Spotify listing of [c] (title + artist search, checked by the song matcher). */
     suspend fun findTrack(c: com.music.aalap.data.recommendation.engine.Candidate): com.music.aalap.data.recommendation.engine.Candidate? {
-        if (!SpotifyTokenProvider.ensureToken(context)) return null
+        if (!SpotifyTokenProvider.ensureCatalogToken(context)) return null
         val q = "${c.title} ${c.artists.substringBefore(",")}".trim()
         val items = Spotify.search(q, listOf("track"), limit = 8).getOrNull()?.tracks?.items.orEmpty()
         return items.map { it.toCandidate() }
@@ -473,25 +473,25 @@ class Api @Inject constructor(
 
     /** A Spotify track's details by id. */
     suspend fun trackCandidate(spotifyId: String): com.music.aalap.data.recommendation.engine.Candidate? {
-        if (spotifyId.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return null
+        if (spotifyId.isBlank() || !SpotifyTokenProvider.ensureCatalogToken(context)) return null
         return Spotify.track(spotifyId).getOrNull()?.toCandidate()
     }
 
     /** The top Spotify track for free text (debug endpoint's "q:" seeds). */
     suspend fun searchCandidate(query: String): com.music.aalap.data.recommendation.engine.Candidate? {
-        if (query.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return null
+        if (query.isBlank() || !SpotifyTokenProvider.ensureCatalogToken(context)) return null
         return Spotify.search(query, listOf("track"), limit = 1).getOrNull()?.tracks?.items?.firstOrNull()?.toCandidate()
     }
 
     /** The top [limit] Spotify tracks for free text, in Spotify's order (voice requests). */
     suspend fun searchCandidates(query: String, limit: Int = 10): List<com.music.aalap.data.recommendation.engine.Candidate> {
-        if (query.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
+        if (query.isBlank() || !SpotifyTokenProvider.ensureCatalogToken(context)) return emptyList()
         return Spotify.search(query, listOf("track"), limit = limit).getOrNull()?.tracks?.items.orEmpty().map { it.toCandidate() }
     }
 
     /** Top tracks of [artistName]'s best Spotify match (the engine's last fallback). */
     suspend fun artistTopCandidates(artistName: String): List<com.music.aalap.data.recommendation.engine.Candidate> {
-        if (artistName.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
+        if (artistName.isBlank() || !SpotifyTokenProvider.ensureCatalogToken(context)) return emptyList()
         val artist = Spotify.search(artistName, listOf("artist"), limit = 3).getOrNull()?.artists?.items?.firstOrNull()
             ?: return emptyList()
         return Spotify.artistTopTracks(artist.id).getOrNull()?.tracks.orEmpty().map { it.toCandidate() }
@@ -509,7 +509,7 @@ class Api @Inject constructor(
     )
 
     private suspend fun radioTracks(seedId: String): List<SpotifyTrack> {
-        if (seedId.isBlank() || !SpotifyTokenProvider.ensureToken(context)) return emptyList()
+        if (seedId.isBlank() || !SpotifyTokenProvider.ensureCatalogToken(context)) return emptyList()
         // Primary: the exact radio the Spotify web player queues after this track —
         // the inspiredby-mix station playlist. This IS Spotify's real queue, so the
         // continuation matches what open.spotify.com would play next.
@@ -579,7 +579,7 @@ class Api @Inject constructor(
         if (genre.isBlank()) {
             emit(Response.Success(emptyList())); return@flow
         }
-        if (!SpotifyTokenProvider.ensureToken(context)) {
+        if (!SpotifyTokenProvider.ensureCatalogToken(context)) {
             emit(Response.Error("Spotify not authenticated — set sp_dc cookie")); return@flow
         }
         retrying { Spotify.search(genre, types = listOf("playlist"), limit = 24) }.fold(
@@ -613,7 +613,7 @@ class Api @Inject constructor(
         if (artistName.isBlank()) {
             emit(Response.Success(emptyList())); return@flow
         }
-        if (!SpotifyTokenProvider.ensureToken(context)) {
+        if (!SpotifyTokenProvider.ensureCatalogToken(context)) {
             emit(Response.Error("Spotify not authenticated — set sp_dc cookie")); return@flow
         }
         val artist = Spotify.search(artistName, types = listOf("artist"), limit = 1).getOrNull()
@@ -647,7 +647,7 @@ class Api @Inject constructor(
         if (artistName.isBlank() && knownArtistId.isBlank()) {
             emit(Response.Success(ArtistOverviewModel(name = artistName))); return@flow
         }
-        if (!SpotifyTokenProvider.ensureToken(context)) {
+        if (!SpotifyTokenProvider.ensureCatalogToken(context)) {
             emit(Response.Error("Spotify not authenticated — set sp_dc cookie")); return@flow
         }
         val artist = if (knownArtistId.isBlank()) {
@@ -700,7 +700,7 @@ class Api @Inject constructor(
         if (albumName.isBlank()) {
             emit(Response.Success(emptyList())); return@flow
         }
-        if (!SpotifyTokenProvider.ensureToken(context)) {
+        if (!SpotifyTokenProvider.ensureCatalogToken(context)) {
             emit(Response.Error("Spotify not authenticated — set sp_dc cookie")); return@flow
         }
         // Two albums can share a name (different artists). Search the name and,
@@ -732,7 +732,7 @@ class Api @Inject constructor(
         if (playlistId.isBlank()) {
             emit(Response.Success(emptyList())); return@flow
         }
-        if (!SpotifyTokenProvider.ensureToken(context)) {
+        if (!SpotifyTokenProvider.ensureCatalogToken(context)) {
             emit(Response.Error("Spotify not authenticated — set sp_dc cookie")); return@flow
         }
         // First page right away, then keep paging until the whole playlist is loaded.
@@ -860,7 +860,7 @@ class Api @Inject constructor(
         if (playlistId.isBlank()) {
             emit(Response.Error("missing playlist id")); return@flow
         }
-        if (!SpotifyTokenProvider.ensureToken(context)) {
+        if (!SpotifyTokenProvider.ensureCatalogToken(context)) {
             emit(Response.Error("Spotify not authenticated — set sp_dc cookie")); return@flow
         }
         Spotify.playlist(playlistId).fold(

@@ -4,6 +4,32 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-05 — 8.0.0 (84) catalog without Spotify login, sign-in fixes, search artist top songs
+- `SpotifyTokenProvider.ensureCatalogToken`: the user's token when `sp_dc` is set, else the
+  signed-out web-player token (`SpotifyAuth.fetchAnonymousToken`, tracked by `anonymous`).
+  Used in `Api` for public reads only (search, playlists/charts, artists, albums, shows,
+  candidates, radio); library/likes/follows/account still use `ensureToken`, which never
+  accepts the anonymous token. Probed from JVM first: anonymous token loaded "Top 50 -
+  Global" and artist search.
+- Spotify login: `fixSpotifyLoginLayout` used `WebView.height` (screen px) as CSS px, making
+  the page ~2.6 screens tall; now `window.innerHeight` as min-height. Native bottom bar
+  toggles `SIGNUP_URL`/`LOGIN_URL` in the same WebView (sign-up sets `sp_dc`). Google OAuth
+  (`/o/oauth2`, `/signin/oauth`, `/gsi/`) from the Spotify flow is stopped
+  (`setUpForSignIn(onGoogleButton)`) with a dialog explaining the emailed-code login; no UA
+  spoofing. Welcome shrinks its header while the IME is visible.
+- Search: `SearchViewModel.artistTop` (exact/near-exact artist name match, top 10 from
+  `getArtistOverview`), `ArtistTopSongs` card plays via `playAll`.
+- Song taps open the player: `PlayerViewModel.openPlayer()` from `playFromList`, `playAll`,
+  `playWithRadio`, `playSongAt`, and `SearchViewModel.startRadioFromSong`; MyNavHost ignores
+  it on Player and Queue (swipes, queue taps).
+- Downloads: `Downloads.unseen` (prefs `downloads_unseen`, read once at start), dot on the
+  Home chip and Library tile, cleared by opening Downloads. Player menu polls progress every
+  300 ms only while open and downloading; `DownloadBar` in both menus.
+- Player menu: dismiss while on Sleep timer / Alternative stream returns to the menu
+  (`sheetState.show()`), plus a back arrow.
+- Home `UpdateBanner` from `AppUpdate.knownRelease` (cached, no network), re-read when
+  `launchOffer` changes.
+
 ## 2026-11-03 (6) — 7.14.0 (83) scrolling song menus, Quick picks menu, new-account Library
 - `PlayerOptionsSheet` and `SongOptionsSheet` columns get `verticalScroll`; `PlayerMenuRow`
   vertical padding 14 → 11 dp. On the S24 the bottom rows were cut off before.

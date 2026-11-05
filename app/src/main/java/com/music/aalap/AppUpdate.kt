@@ -106,9 +106,12 @@ object AppUpdate {
     val openRequest = MutableStateFlow(false)
 
     /** The newer version last found, from the remembered answer (no network): for Home's chip. */
-    fun knownNewer(context: Context): String? =
+    fun knownNewer(context: Context): String? = knownRelease(context)?.version
+
+    /** The newer release last found (no network), or null once you're on it or newer. */
+    fun knownRelease(context: Context): Release? =
         context.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString("json", null)
-            ?.let { parse(it) }?.version?.takeIf { isNewer(it, current()) }
+            ?.let { parse(it) }?.takeIf { isNewer(it.version, current()) }
 
     /**
      * Called from the hourly library sync, so it adds no wake-ups of its own: asks GitHub at

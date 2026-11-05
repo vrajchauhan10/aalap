@@ -1,5 +1,6 @@
 package com.music.aalap.ui.screens
 
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -114,21 +115,25 @@ fun WelcomeScreen(navController: NavController) {
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 28.dp),
         ) {
-            Spacer(Modifier.height(64.dp))
-            Image(painterResource(R.drawable.logo), contentDescription = "Aalap", modifier = Modifier.size(96.dp).arrive(0))
+            // With the keyboard up the top shrinks, so name, email and Continue fit on one
+            // screen instead of needing a scroll to reach Continue.
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            val typing = androidx.compose.foundation.layout.WindowInsets.isImeVisible
+            Spacer(Modifier.height(if (typing) 12.dp else 64.dp))
+            Image(painterResource(R.drawable.logo), contentDescription = "Aalap", modifier = Modifier.size(if (typing) 52.dp else 96.dp).arrive(0))
             Spacer(Modifier.height(18.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.arrive(1)) {
                 Text("Aalap", color = TextPrimary, fontSize = 40.sp, fontWeight = FontWeight.Bold)
                 Text("All your music. One app.", color = TextMuted, fontSize = 16.sp)
-                Spacer(Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!typing) Spacer(Modifier.height(14.dp))
+                if (!typing) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (f in listOf("Smart radio", "Blend with friends", "Ask Aalap")) {
                         Text(f, color = TextPrimary, fontSize = 12.sp, modifier = Modifier.clip(RoundedCornerShape(50))
                             .background(Surface.copy(alpha = 0.8f)).border(1.dp, Hairline, RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 6.dp))
                     }
                 }
             }
-            Spacer(Modifier.height(34.dp))
+            Spacer(Modifier.height(if (typing) 16.dp else 34.dp))
 
             Column(Modifier.arrive(2)) {
                 AalapField(name, "Your name", KeyboardType.Text, ImeAction.Next) { name = it; error = "" }

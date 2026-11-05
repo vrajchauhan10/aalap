@@ -402,10 +402,11 @@ private fun LibraryTiles(navController: NavController) {
                 listOf(Color(0xFFFF8A3D), Color(0xFFE0461B)),
                 rememberVectorPainter(Icons.Default.Favorite), Modifier.weight(1f),
             ) { navController.navigate(Routes.Liked.route) }
+            val newDownloads by com.music.aalap.di.Downloads.unseen.collectAsState()
             LibraryTile(
-                "Downloads", com.music.aalap.ui.components.counted(downloads, "song"),
+                "Downloads", if (newDownloads > 0) "$newDownloads new · " + com.music.aalap.ui.components.counted(downloads, "song") else com.music.aalap.ui.components.counted(downloads, "song"),
                 listOf(Color(0xFFFFC56B), Color(0xFFB86E00)),
-                painterResource(R.drawable.ic_download), Modifier.weight(1f),
+                painterResource(R.drawable.ic_download), Modifier.weight(1f), dot = newDownloads > 0,
             ) { navController.navigate(Routes.Downloads.route) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -426,7 +427,7 @@ private fun LibraryTiles(navController: NavController) {
 @Composable
 private fun LibraryTile(
     title: String, subtitle: String, colors: List<Color>,
-    icon: androidx.compose.ui.graphics.painter.Painter, modifier: Modifier, onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.painter.Painter, modifier: Modifier, dot: Boolean = false, onClick: () -> Unit,
 ) {
     Column(
         modifier = modifier
@@ -437,7 +438,10 @@ private fun LibraryTile(
             .padding(14.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+            if (dot) com.music.aalap.ui.screens.NewDot(Modifier.padding(start = 6.dp))
+        }
         Column {
             Text(title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             Text(subtitle, color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp, maxLines = 1)

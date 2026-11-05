@@ -101,6 +101,8 @@ fun SpotifyLoginScreen(navController: NavController) {
     val pageReady = remember { AtomicBoolean(false) }
     val tokenFetchStarted = remember { AtomicBoolean(false) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var onSignup by remember { mutableStateOf(false) }
+    var googleHelp by remember { mutableStateOf(false) }
 
     // The off-screen full-size playback WebView is attached above Compose. Remove it
     // while login is visible or it can intercept/draw over this WebView.
@@ -142,7 +144,7 @@ fun SpotifyLoginScreen(navController: NavController) {
         // above) to know when the user has signed in, then exchange it for a token.
         AndroidView(
             // Above the keyboard and the gesture bar, so Next / Log in stay reachable.
-            modifier = Modifier.fillMaxSize().statusBarsPadding().padding(top = 40.dp).navigationBarsPadding().imePadding(),
+            modifier = Modifier.fillMaxSize().statusBarsPadding().padding(top = 40.dp).navigationBarsPadding().imePadding().padding(bottom = 52.dp),
             factory = { ctx ->
                 val cookieManager = CookieManager.getInstance()
                 cookieManager.setAcceptCookie(true)
@@ -168,8 +170,9 @@ fun SpotifyLoginScreen(navController: NavController) {
                     // check and it wrongly returns "Incorrect email or password".
 
                     setUpForSignIn(
-                        onPageStarted = { pageReady.set(false) },
+                        onPageStarted = { url -> pageReady.set(false); onSignup = "/signup" in url },
                         onPageFinished = { view, _ -> pageReady.set(true); fixSpotifyLoginLayout(view) },
+                        onGoogleButton = { googleHelp = true },
                     )
                     loadUrl(SpotifyAuth.LOGIN_URL)
                 }
@@ -188,13 +191,52 @@ fun SpotifyLoginScreen(navController: NavController) {
                 fontSize = 15.sp,
             )
         }
+
+        // Under the page: sign up for Spotify without leaving Aalap. Signing up here also
+        // signs you in, so you come straight back connected.
+        Box(
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().imePadding()
+                .height(52.dp).background(com.music.aalap.ui.theme.Surface),
+            contentAlignment = Alignment.Center,
+        ) {
+            TextButton(onClick = {
+                webViewRef?.loadUrl(if (onSignup) SpotifyAuth.LOGIN_URL else SpotifyAuth.SIGNUP_URL)
+                onSignup = !onSignup // Spotify moves between its pages without a reload, so set it here
+            }) {
+                Text(
+                    if (onSignup) "Already on Spotify? Log in" else "New to Spotify? Create a free account",
+                    color = com.music.aalap.ui.theme.Saffron, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                )
+            }
+        }
     }
+
+    if (googleHelp) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { googleHelp = false },
+        containerColor = com.music.aalap.ui.theme.Surface,
+        title = { Text("Use your Gmail with a code", color = com.music.aalap.ui.theme.TextPrimary, fontWeight = FontWeight.Bold) },
+        text = {
+            Text(
+                "Google doesn't allow its sign-in button inside other apps, so Spotify can't find your account that way.\n\n" +
+                    "Type the Gmail address you use for Spotify in the email box and tap \"Log in without password\" " +
+                    "(or \"Continue\"). Spotify emails you a 6-digit code: enter it and you're connected to the same account.",
+                color = com.music.aalap.ui.theme.TextMuted, fontSize = 14.sp,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { googleHelp = false; webViewRef?.loadUrl(SpotifyAuth.LOGIN_URL) }) {
+                Text("OK", color = com.music.aalap.ui.theme.Saffron, fontWeight = FontWeight.SemiBold)
+            }
+        },
+    )
 }
 
 /** Spotify sometimes computes its login <main> at ~48px tall inside WebView. */
 private fun fixSpotifyLoginLayout(webView: WebView) {
     webView.post {
-        val viewportHeight = webView.height.coerceAtLeast(1)
+        // The page's own height in CSS pixels. WebView.height is in screen pixels (2.6× on
+        // the S24), which made the page 2-3 screens tall: email, password and Log in were a
+        // few scrolls apart.
         webView.evaluateJavascript(
             """
             (function(){
@@ -204,8 +246,9 @@ private fun fixSpotifyLoginLayout(webView: WebView) {
                 style.id = 'aalap-login-layout-fix';
                 document.head.appendChild(style);
               }
-              style.textContent = 'html,body,#__next{height:${viewportHeight}px!important;min-height:${viewportHeight}px!important;}' +
-                'main{height:${viewportHeight}px!important;min-height:${viewportHeight}px!important;max-height:none!important;position:relative!important;overflow:auto!important;}';
+              var h = window.innerHeight + 'px';
+              style.textContent = 'html,body,#__next{min-height:' + h + '!important;}' +
+                'main{min-height:' + h + '!important;max-height:none!important;position:relative!important;}';
             })();
             """.trimIndent(),
             null,

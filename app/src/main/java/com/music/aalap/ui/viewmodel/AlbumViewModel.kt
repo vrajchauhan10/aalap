@@ -35,7 +35,7 @@ class AlbumViewModel @Inject constructor(private val repository: AppRepository, 
 
     /** A song tapped in a list: it plays, then a mix of recommendations and the list (see [com.music.aalap.di.SmartPlay]). */
     fun playFromList(song: SongsModel, list: List<SongsModel>, name: String, context: android.content.Context) =
-        com.music.aalap.di.SmartPlay.fromList(context, currentSongState, song, list, name)
+        com.music.aalap.di.SmartPlay.fromList(context, currentSongState, song, list, name).also { com.music.aalap.di.VoicePlay.openPlayerRequest.value = true } // the full player opens
 
     fun startShuffled(songs: List<SongsModel>) = currentSongState.startShuffled(songs)
 

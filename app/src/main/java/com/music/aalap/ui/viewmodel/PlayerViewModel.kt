@@ -40,11 +40,17 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
 
     /** A song tapped in a list: it plays, then a mix of recommendations and the list (see [com.music.aalap.di.SmartPlay]). */
     fun playFromList(song: SongsModel, list: List<SongsModel>, name: String, context: android.content.Context) =
-        com.music.aalap.di.SmartPlay.fromList(context, currentSongState, song, list, name)
+        com.music.aalap.di.SmartPlay.fromList(context, currentSongState, song, list, name).also { openPlayer() }
 
     /** The whole list in order (a list's Play button). */
     fun playAll(list: List<SongsModel>, name: String, context: android.content.Context, index: Int = 0) =
-        com.music.aalap.di.SmartPlay.playAll(context, currentSongState, list, name, index)
+        com.music.aalap.di.SmartPlay.playAll(context, currentSongState, list, name, index).also { openPlayer() }
+
+    /**
+     * A song tapped in a list opens the full player, not only the bar at the bottom.
+     * Skipped while the player or queue is already open (swiping songs, tapping the queue).
+     */
+    fun openPlayer() { com.music.aalap.di.VoicePlay.openPlayerRequest.value = true }
 
     /** Insert a track right after the one currently playing ("Play next"). */
     fun playNext(song: SongsModel) {
@@ -272,6 +278,7 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
         updateSongState(song.coverUri, song.title, song.singer, true, song.id, 0, song.album)
         SongPlayer.playSong(song.url, context)
         appendRadio(song)
+        openPlayer()
     }
 
     /**
@@ -297,6 +304,7 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
         maybeExtendRadio(queueSongs, index)
         updateSongState(song.coverUri, song.title, song.singer, true, song.id, index, song.album)
         SongPlayer.playSong(song.url, context)
+        openPlayer()
     }
 
     // Function to play the previous song in the album

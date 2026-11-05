@@ -31,6 +31,22 @@ object Downloads {
 
     fun isDownloading(query: String): Boolean = downloading.contains(query)
 
+    /**
+     * Songs downloaded since you last opened Downloads: a small dot on the Downloads chip
+     * and tile says something new is there. Kept across restarts.
+     */
+    val unseen = kotlinx.coroutines.flow.MutableStateFlow(0)
+    private const val UNSEEN_PREF = "downloads_unseen"
+    fun loadUnseen(c: Context) { unseen.value = c.getSharedPreferences(UNSEEN_PREF, Context.MODE_PRIVATE).getInt("n", 0) }
+    fun markSeen(c: Context) {
+        unseen.value = 0
+        c.getSharedPreferences(UNSEEN_PREF, Context.MODE_PRIVATE).edit().putInt("n", 0).apply()
+    }
+    private fun addUnseen(c: Context) {
+        unseen.value += 1
+        c.getSharedPreferences(UNSEEN_PREF, Context.MODE_PRIVATE).edit().putInt("n", unseen.value).apply()
+    }
+
     /** Current download progress (0..100) for a query, or -1 if unknown/not downloading. */
     fun downloadProgress(query: String): Int = downloadProgress[query] ?: -1
 
@@ -193,6 +209,7 @@ object Downloads {
             downloadProgress.remove(query)
             downloadingSongs.remove(query)
             withContext(Dispatchers.Main) {
+                if (ok) addUnseen(appContext)
                 if (!ok) {
                     android.widget.Toast.makeText(
                         appContext,

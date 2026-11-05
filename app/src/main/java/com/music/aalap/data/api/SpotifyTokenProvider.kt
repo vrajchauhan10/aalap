@@ -21,6 +21,35 @@ object SpotifyTokenProvider {
     fun clear() {
         com.metrolist.spotify.Spotify.accessToken = null
         expiresAtMs = 0L
+        anonymous = false
+    }
+
+    /** True while the token held is the signed-out one (no Spotify account connected). */
+    @Volatile private var anonymous = false
+
+    /**
+     * A token for Spotify's public catalog: charts, search, artists, albums and playlists.
+     * Your own account's when Spotify is connected; otherwise the signed-out web player's,
+     * so Top 50, artist pages and search work for everyone, not only Spotify users.
+     * Never use this for your likes, library or follows: those need [ensureToken].
+     */
+    suspend fun ensureCatalogToken(context: Context): Boolean {
+        if (SpotifySession.spDc(context).isNotBlank()) return ensureToken(context)
+        return mutex.withLock {
+            val now = System.currentTimeMillis()
+            if (anonymous && Spotify.accessToken != null && now < expiresAtMs - 60_000L) return@withLock true
+            if (now - lastFailureAtMs < FAILURE_BACKOFF_MS) return@withLock false
+            SpotifyAuth.fetchAnonymousToken().fold(
+                onSuccess = { token ->
+                    Spotify.accessToken = token.accessToken
+                    expiresAtMs = token.accessTokenExpirationTimestampMs
+                    anonymous = true
+                    lastFailureAtMs = 0L
+                    true
+                },
+                onFailure = { Log.e(TAG, "Signed-out Spotify token failed", it); lastFailureAtMs = now; false },
+            )
+        }
     }
 
     private const val TAG = "SpotifyTokenProvider"
@@ -34,7 +63,7 @@ object SpotifyTokenProvider {
     /** [force] skips the cached token and the failure backoff (fresh login). */
     suspend fun ensureToken(context: Context, force: Boolean = false): Boolean = mutex.withLock {
         val now = System.currentTimeMillis()
-        if (!force && Spotify.accessToken != null && now < expiresAtMs - 60_000L) {
+        if (!force && !anonymous && Spotify.accessToken != null && now < expiresAtMs - 60_000L) {
             return@withLock true
         }
         if (!force && now - lastFailureAtMs < FAILURE_BACKOFF_MS) return@withLock false
@@ -47,6 +76,7 @@ object SpotifyTokenProvider {
             onSuccess = { token ->
                 Spotify.accessToken = token.accessToken
                 expiresAtMs = token.accessTokenExpirationTimestampMs
+                anonymous = false
                 lastFailureAtMs = 0L
                 Log.d(TAG, "Spotify token refreshed")
                 true

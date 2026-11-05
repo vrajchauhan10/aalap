@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
@@ -1197,8 +1198,15 @@ fun PlayerOptionsSheet(
         return
     }
 
+    val sheetScope = rememberCoroutineScope()
+    // Back from Sleep timer (or Alternative stream) goes back to this menu, not out of it.
+    val backToMenu: () -> Unit = {
+        showSleep = false
+        showAlternativeStream = false
+        sheetScope.launch { sheetState.show() }
+    }
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (showSleep || showAlternativeStream) backToMenu() else onDismiss() },
         sheetState = sheetState,
         containerColor = com.music.aalap.ui.theme.Surface,
         dragHandle = null
@@ -1282,12 +1290,21 @@ fun PlayerOptionsSheet(
                         }
                     }
                 }
+                // Live progress right here in the menu while it downloads (polled only while
+                // this menu is open and a download is running).
+                var downloadPct by remember { mutableStateOf(-1) }
+                LaunchedEffect(downloadingNow) {
+                    while (downloadingNow) {
+                        downloadPct = com.music.aalap.di.Downloads.downloadProgress(currentSong?.url.orEmpty())
+                        kotlinx.coroutines.delay(300)
+                    }
+                }
                 PlayerMenuRow(
                     icon = if (downloaded) Icons.Default.CheckCircle else ImageVector.vectorResource(R.drawable.ic_download),
                     iconTint = if (downloaded) Color(AppPalette.toArgb()) else com.music.aalap.ui.theme.TextPrimary,
                     label = when {
                         downloaded -> "Downloaded — remove"
-                        downloadingNow -> "Downloading…"
+                        downloadingNow -> if (downloadPct in 1..99) "Downloading… $downloadPct%" else "Downloading… getting ready"
                         else -> "Download"
                     },
                     enabled = currentSong != null && !downloadingNow,
@@ -1304,6 +1321,7 @@ fun PlayerOptionsSheet(
                         }
                     }
                 }
+                if (downloadingNow) com.music.aalap.ui.components.DownloadBar(downloadPct)
                 PlayerMenuRow(
                     icon = Icons.Default.PlayArrow,
                     iconTint = if (currentAlternative != null) Color(AppPalette.toArgb()) else com.music.aalap.ui.theme.TextPrimary,
@@ -1372,13 +1390,11 @@ fun PlayerOptionsSheet(
                     trailingArrow = true
                 ) { showSleep = true }
             } else {
-                Text(
-                    "Sleep timer",
-                    color = com.music.aalap.ui.theme.TextPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(16.dp)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { backToMenu() }.padding(16.dp)) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = com.music.aalap.ui.theme.TextPrimary, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(14.dp))
+                    Text("Sleep timer", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
                 androidx.compose.material3.HorizontalDivider(color = com.music.aalap.ui.theme.SurfaceHigh)
                 val options = listOf(
                     "Off" to 0L,

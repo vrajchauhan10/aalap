@@ -18,16 +18,32 @@ import android.webkit.WebViewClient
  * - Each site gets its own layout: Spotify's page needs the wide view, but Google's
  *   sign-in shown that way was zoomed out with Next far below.
  */
-internal fun WebView.setUpForSignIn(onPageStarted: (String) -> Unit = {}, onPageFinished: (WebView, String) -> Unit = { _, _ -> }) {
+internal fun WebView.setUpForSignIn(
+    onPageStarted: (String) -> Unit = {},
+    onPageFinished: (WebView, String) -> Unit = { _, _ -> },
+    onGoogleButton: (() -> Unit)? = null,
+) {
     settings.setSupportMultipleWindows(true)
     settings.javaScriptCanOpenWindowsAutomatically = true
 
     fun opensInBrowser(url: String): Boolean {
         val u = url.lowercase()
+        // Spotify's sign-up stays here: finishing it signs you in, and Aalap picks that up.
+        if ("spotify.com" in Uri.parse(u).host.orEmpty() && "/signup" in u) return false
         return listOf(
             "/signin/recovery", "/usernamerecovery", "accounts.google.com/lifecycle", "/signup/",
             "accounts.google.com/signup", "/password-reset", "support.google.com", "support.spotify.com",
         ).any { it in u }
+    }
+
+    // Google refuses "Continue with Google" inside an app ("disallowed_useragent"), and the
+    // person ends up on Spotify's "no account" page. Stop there and explain the code login.
+    fun googleButton(url: String): Boolean {
+        if (onGoogleButton == null) return false
+        val u = url.lowercase()
+        if ("accounts.google.com" !in u || !("/o/oauth2" in u || "/signin/oauth" in u || "/gsi/" in u)) return false
+        post { onGoogleButton() }
+        return true
     }
 
     fun openInBrowser(url: String) {
@@ -38,6 +54,7 @@ internal fun WebView.setUpForSignIn(onPageStarted: (String) -> Unit = {}, onPage
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val url = request.url.toString()
             if (!url.startsWith("http")) { openInBrowser(url); return true }
+            if (googleButton(url)) return true
             if (opensInBrowser(url)) { openInBrowser(url); return true }
             return false
         }
@@ -59,7 +76,8 @@ internal fun WebView.setUpForSignIn(onPageStarted: (String) -> Unit = {}, onPage
             catcher.webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(w: WebView, request: WebResourceRequest): Boolean {
                     val url = request.url.toString()
-                    if (opensInBrowser(url)) openInBrowser(url) else view.loadUrl(url)
+                    if (googleButton(url)) Unit
+                    else if (opensInBrowser(url)) openInBrowser(url) else view.loadUrl(url)
                     w.destroy()
                     return true
                 }

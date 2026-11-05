@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -162,7 +163,7 @@ fun SongOptionsSheet(
                 icon = if (downloaded) Icons.Default.CheckCircle else ImageVector.vectorResource(R.drawable.ic_download),
                 label = when {
                     downloaded -> "Downloaded — remove"
-                    downloadingNow -> if (downloadPct in 1..99) "Downloading… $downloadPct%" else "Downloading…"
+                    downloadingNow -> if (downloadPct in 1..99) "Downloading… $downloadPct%" else "Downloading… getting ready"
                     else -> "Download"
                 },
                 iconTint = if (downloaded) Color(AppPalette.toArgb()) else com.music.aalap.ui.theme.TextPrimary,
@@ -179,6 +180,7 @@ fun SongOptionsSheet(
                     }
                 }
             }
+            if (downloadingNow) DownloadBar(downloadPct)
             if (downloaded) {
                 SongMenuRow(
                     icon = ImageVector.vectorResource(R.drawable.ic_download),
@@ -273,4 +275,16 @@ private fun SongMenuRow(
             )
         }
     }
+}
+
+/** A thin progress line under the Download row while the song downloads (0–100, or -1 while it starts). */
+@Composable
+fun DownloadBar(pct: Int) {
+    val shown by androidx.compose.animation.core.animateFloatAsState((pct.coerceIn(0, 100)) / 100f, label = "download")
+    androidx.compose.material3.LinearProgressIndicator(
+        progress = { shown },
+        color = com.music.aalap.ui.theme.Saffron,
+        trackColor = com.music.aalap.ui.theme.SurfaceHigh,
+        modifier = Modifier.fillMaxWidth().padding(start = 62.dp, end = 20.dp, bottom = 6.dp).height(3.dp).clip(RoundedCornerShape(2.dp)),
+    )
 }

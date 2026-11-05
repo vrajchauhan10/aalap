@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -75,6 +76,9 @@ fun DownloadsScreen(navController: NavController) {
     val playerViewModel: PlayerViewModel = hiltViewModel()
     val context = LocalContext.current
     val accent = AppPalette
+    // Opening Downloads clears the "something new" dot (and again for any that finish here).
+    val unseenNow by com.music.aalap.di.Downloads.unseen.collectAsState()
+    androidx.compose.runtime.LaunchedEffect(unseenNow) { if (unseenNow > 0) com.music.aalap.di.Downloads.markSeen(context) }
 
     // Completed downloads (from prefs) + live in-progress ones (from SongPlayer). Poll
     // while the screen is open so a track appears here the moment its download starts,

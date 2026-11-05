@@ -37,6 +37,37 @@ class SearchViewModel @Inject constructor(private val repository: AppRepository,
 
     private var searchJob: Job? = null
 
+    /** The artist you searched for and their top songs, shown at the top like a playlist. */
+    data class ArtistTop(val artist: com.music.aalap.data.entity.ArtistsModel, val songs: List<SongsModel>)
+    private val _artistTop = MutableStateFlow<ArtistTop?>(null)
+    val artistTop: StateFlow<ArtistTop?> = _artistTop
+    private var artistJob: Job? = null
+
+    /** The artist the search is for: a name that matches what you typed (not just one word of it). */
+    private fun artistFor(query: String, results: SearchResults): com.music.aalap.data.entity.ArtistsModel? {
+        fun norm(t: String) = t.lowercase().replace(Regex("[^\\p{L}\\p{N} ]"), "").replace(Regex("\\s+"), " ").trim()
+        val q = norm(query)
+        if (q.length < 3) return null
+        return results.artists.take(3).firstOrNull { norm(it.name) == q }
+            ?: results.artists.firstOrNull()?.takeIf { norm(it.name).startsWith(q) && q.length * 2 >= norm(it.name).length }
+    }
+
+    private fun loadArtistTop(query: String, results: SearchResults) {
+        val artist = artistFor(query, results)
+        if (artist == null) { artistJob?.cancel(); _artistTop.value = null; return }
+        if (_artistTop.value?.artist?.name == artist.name) return
+        artistJob?.cancel()
+        _artistTop.value = null
+        artistJob = viewModelScope.launch(Dispatchers.IO) {
+            repository.provideArtistOverview(artist.name, artist.id).collect { r ->
+                if (r is Response.Success) {
+                    val songs = r.data.topTracks.map { it.song }.filter { it.title.isNotBlank() }.take(10)
+                    _artistTop.value = if (songs.isEmpty()) null else ArtistTop(artist.copy(coverUri = artist.coverUri.ifBlank { r.data.avatarImage }), songs)
+                }
+            }
+        }
+    }
+
     init {
         // Start empty — results come from live searches, not the rate-limited
         // personalized top-tracks feed (which returned 429 and blanked the screen).
@@ -54,6 +85,7 @@ class SearchViewModel @Inject constructor(private val repository: AppRepository,
      */
     fun startRadioFromSong(song: SongsModel) {
         currentSongState.updateQueue(listOf(song))
+        com.music.aalap.di.VoicePlay.openPlayerRequest.value = true // the full player opens
         viewModelScope.launch(Dispatchers.IO) {
             runCatching {
                 repository.provideRecommendations(song, setOf(song.id)).collect { next ->
@@ -76,6 +108,7 @@ class SearchViewModel @Inject constructor(private val repository: AppRepository,
             delay(150) // short debounce for snappy real-time results
             repository.searchEverything(query).collect { result ->
                 _results.value = result
+                if (result is Response.Success) loadArtistTop(query, result.data)
                 // Keep the legacy songs flow in sync for any remaining consumers.
                 _songs.value = when (result) {
                     is Response.Success -> Response.Success(result.data.songs)

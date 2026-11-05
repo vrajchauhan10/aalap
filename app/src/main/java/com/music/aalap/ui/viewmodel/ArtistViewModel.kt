@@ -36,11 +36,11 @@ class ArtistViewModel @Inject constructor(private val repository: AppRepository,
 
     /** A song tapped in a list: it plays, then a mix of recommendations and the list (see [com.music.aalap.di.SmartPlay]). */
     fun playFromList(song: SongsModel, list: List<SongsModel>, name: String, context: android.content.Context) =
-        com.music.aalap.di.SmartPlay.fromList(context, currentSongState, song, list, name)
+        com.music.aalap.di.SmartPlay.fromList(context, currentSongState, song, list, name).also { com.music.aalap.di.VoicePlay.openPlayerRequest.value = true } // the full player opens
 
     /** The whole list in order (a list's Play button). */
     fun playAll(list: List<SongsModel>, name: String, context: android.content.Context, index: Int = 0) =
-        com.music.aalap.di.SmartPlay.playAll(context, currentSongState, list, name, index)
+        com.music.aalap.di.SmartPlay.playAll(context, currentSongState, list, name, index).also { com.music.aalap.di.VoicePlay.openPlayerRequest.value = true } // the full player opens
 
     fun updateSongState(coverUri: String, title: String, singer: String, playingState: Boolean, songId :Int, songIndex : Int = 0, album : String = "") {
         currentSongState.updateSongState(coverUri, title, singer, playingState, songId, songIndex, album)

@@ -4,6 +4,25 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.0.0 — 5 Nov 2026 (build 84)
+- **Aalap works fully without Spotify.** Top 50 India and Global, Trending, moods, artist
+  pages, albums and full search (artists and albums too) now load for everyone. Spotify and
+  YouTube Music only bring your likes and playlists; your taste comes from what you play,
+  like and save in Aalap.
+- **Easier Spotify sign-in.** Spotify's page fits on one screen (email, password and Log in
+  no longer need scrolling). "New to Spotify? Create a free account" signs you up right in
+  Aalap. Signed up with Google? Aalap now explains how to use your Gmail with a code, since
+  Google blocks its button inside apps (that was the "no account found" problem).
+- The first page (name and Gmail) fits with the keyboard open, so Continue is right there.
+- **Artist top songs in Search.** Search an artist and their top 10 songs show first, like a
+  playlist: Play all, or tap any song.
+- **Tap a song, see the player.** Tapping a song anywhere opens the full player.
+- **Download progress in the menu.** The ⋮ menu shows "Downloading… 45%" with a progress
+  bar, and a red dot on Downloads (Home and Library) marks new downloads until you look.
+- Sleep timer's back arrow (and Back) returns to the ⋮ menu instead of closing it.
+- **Update banner on Home.** When a new Aalap is out, "Aalap X is available · Update" sits
+  at the top of Home and goes away once you've updated.
+
 ## 7.14.0 — 3 Nov 2026 (build 83)
 - **Song menus scroll.** The ⋮ menu in the player and on song lists now scrolls, so every
   option (down to Sleep timer) is reachable on a phone; rows sit a little closer together.

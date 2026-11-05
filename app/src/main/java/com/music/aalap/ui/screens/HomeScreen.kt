@@ -208,6 +208,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
             .background(com.music.aalap.ui.theme.AppBackground)
     ) {
         item { BounceIn(0, gen) { HomeHeaderRow(navController) } }
+        item { UpdateBanner() }
         item { ContinueCard() }
         item { LastWeekCard(navController) }
         // Moods live in Aalap Radio below (and in Search), not as a second row of pills.
@@ -390,7 +391,8 @@ private fun HomeHeaderRow(navController: NavController) {
         HomeChip(androidx.compose.ui.graphics.vector.rememberVectorPainter(androidx.compose.material.icons.Icons.Default.Favorite), "Liked") {
             navController.navigate(Routes.Liked.route)
         }
-        HomeChip(androidx.compose.ui.res.painterResource(R.drawable.ic_download), "Downloads") {
+        val newDownloads by com.music.aalap.di.Downloads.unseen.collectAsState()
+        HomeChip(androidx.compose.ui.res.painterResource(R.drawable.ic_download), "Downloads", dot = newDownloads > 0) {
             navController.navigate(Routes.Downloads.route)
         }
         HomeChip(androidx.compose.ui.graphics.vector.rememberVectorPainter(androidx.compose.material.icons.Icons.Default.DateRange), "History") {
@@ -406,7 +408,7 @@ private fun HomeHeaderRow(navController: NavController) {
 }
 
 @Composable
-private fun HomeChip(icon: androidx.compose.ui.graphics.painter.Painter, label: String, onClick: () -> Unit) {
+private fun HomeChip(icon: androidx.compose.ui.graphics.painter.Painter, label: String, dot: Boolean = false, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -418,7 +420,52 @@ private fun HomeChip(icon: androidx.compose.ui.graphics.painter.Painter, label: 
         androidx.compose.material3.Icon(icon, contentDescription = null, tint = com.music.aalap.ui.theme.Saffron, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Text(label, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        if (dot) NewDot(Modifier.padding(start = 6.dp))
     }
+}
+
+/**
+ * "Aalap X is available · Update" at the top of Home, above Continue, while a newer Aalap is
+ * out. It reads the remembered answer (no network); the check on opening refreshes it. Once
+ * you're on that version it's gone.
+ */
+@Composable
+private fun UpdateBanner() {
+    val context = LocalContext.current
+    val offered by com.music.aalap.AppUpdate.launchOffer.collectAsState()
+    val installing by com.music.aalap.AppUpdate.install.collectAsState()
+    val release = remember(offered) { com.music.aalap.AppUpdate.knownRelease(context) } ?: return
+    var ask by remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (ask) com.music.aalap.ui.components.UpdateDialog(release) { ask = false }
+    val busy = installing is com.music.aalap.AppUpdate.Install.Downloading
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 4.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(com.music.aalap.ui.theme.Saffron, com.music.aalap.ui.theme.SaffronGold)))
+            .clickable(enabled = !busy) { ask = true }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Aalap ${release.version} is available", color = com.music.aalap.ui.theme.OnSaffron, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(
+                (installing as? com.music.aalap.AppUpdate.Install.Downloading)?.let { "Downloading… ${it.percent}%" } ?: "New features and fixes. Tap to update.",
+                color = com.music.aalap.ui.theme.OnSaffron.copy(alpha = 0.8f), fontSize = 12.sp,
+            )
+        }
+        Text(
+            "Update", color = com.music.aalap.ui.theme.Saffron, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.clip(RoundedCornerShape(50)).background(com.music.aalap.ui.theme.OnSaffron).padding(horizontal = 14.dp, vertical = 7.dp),
+        )
+    }
+}
+
+/** The small "something new" dot (a new download). */
+@Composable
+fun NewDot(modifier: Modifier = Modifier) {
+    Box(modifier.size(8.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(0xFFFF4D4D)))
 }
 
 /** Large card for the top item of the feed. */

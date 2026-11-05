@@ -90,7 +90,8 @@ fun MyNavHost(
         com.music.aalap.di.VoicePlay.openPlayerRequest.collect { want ->
             if (!want) return@collect
             com.music.aalap.di.VoicePlay.openPlayerRequest.value = false
-            if (navHostController.currentDestination?.route != Routes.Player.route &&
+            val here = navHostController.currentDestination?.route
+            if (here != Routes.Player.route && here != Routes.Queue.route &&
                 com.music.aalap.data.preferences.isAalapOnboarded(context)) navHostController.navigate(Routes.Player.route)
         }
     }
@@ -104,7 +105,8 @@ fun MyNavHost(
     // A voice request opened the app: show the player once the music starts.
     LaunchedEffect(Unit) {
         com.music.aalap.di.VoicePlay.showPlayer.collect {
-            if (navHostController.currentDestination?.route != Routes.Player.route &&
+            val here = navHostController.currentDestination?.route
+            if (here != Routes.Player.route && here != Routes.Queue.route &&
                 com.music.aalap.data.preferences.isAalapOnboarded(context)) navHostController.navigate(Routes.Player.route)
         }
     }

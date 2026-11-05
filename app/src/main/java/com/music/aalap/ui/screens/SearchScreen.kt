@@ -24,6 +24,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -116,6 +119,7 @@ fun SumUpSearchScreen(
     var recents by remember {
         mutableStateOf(com.music.aalap.data.preferences.getRecentItems(context))
     }
+    val artistTop by searchViewModel.artistTop.collectAsState()
     var menuSong by remember { mutableStateOf<SongsModel?>(null) }
     menuSong?.let { sel ->
         SongOptionsSheet(
@@ -264,6 +268,13 @@ fun SumUpSearchScreen(
                     }
                 }
             } else {
+                // Searched for an artist: their top songs first, as a playlist you can play.
+                val top = artistTop
+                if (top != null && (filter == SearchFilter.ALL || filter == SearchFilter.SONGS)) item(key = "artist-top") {
+                    ArtistTopSongs(top, onOpenArtist = {
+                        navController.navigate(artistRoute(top.artist.name, top.artist.id))
+                    }, onLongClick = { menuSong = it })
+                }
                 // Keyed rows glide into place when a filter (Songs, Artists…) changes the list.
                 items(mixed.size, key = { i -> mixed[i].key }) { i ->
                     Box(Modifier.animateItemPlacement(androidx.compose.animation.core.tween(300))) {
@@ -599,6 +610,64 @@ fun SearchAlbumRow(album: com.music.aalap.data.entity.AlbumsModel, onClick: () -
         Column {
             Text(text = album.name, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Text(text = "Album • ${album.artists}", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        }
+    }
+}
+
+/**
+ * "Top songs" for the artist you searched: their photo and name, a Play button, then
+ * their 10 most played songs. A tap plays the list from that song, in order.
+ */
+@OptIn(ExperimentalGlideComposeApi::class, ExperimentalFoundationApi::class)
+@Composable
+fun ArtistTopSongs(top: SearchViewModel.ArtistTop, onOpenArtist: () -> Unit, onLongClick: (SongsModel) -> Unit) {
+    val context = LocalContext.current
+    val player: com.music.aalap.ui.viewmodel.PlayerViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    val listName = "${top.artist.name} · Top songs"
+    Column(
+        Modifier.fillMaxWidth().padding(16.dp, 10.dp, 16.dp, 6.dp)
+            .clip(RoundedCornerShape(20.dp)).background(com.music.aalap.ui.theme.Surface).padding(bottom = 6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { onOpenArtist() }.padding(14.dp)) {
+            GlideImage(
+                model = top.artist.coverUri, contentDescription = top.artist.name, contentScale = ContentScale.Crop,
+                failure = placeholder(R.drawable.placeholder), loading = placeholder(R.drawable.placeholder),
+                modifier = Modifier.size(64.dp).clip(androidx.compose.foundation.shape.CircleShape),
+            )
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Text("TOP SONGS", color = com.music.aalap.ui.theme.Saffron, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text(top.artist.name, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text("${top.songs.size} songs · see artist", color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
+            }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(48.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(com.music.aalap.ui.theme.Saffron).clickable { player.playAll(top.songs, listName, context) },
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = com.music.aalap.ui.theme.OnSaffron, modifier = Modifier.size(28.dp))
+            }
+        }
+        top.songs.forEachIndexed { i, song ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+                    .combinedClickable(onLongClick = { onLongClick(song) }) { player.playAll(top.songs, listName, context, i) }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+            ) {
+                Text("${i + 1}", color = com.music.aalap.ui.theme.TextMuted, fontSize = 13.sp, modifier = Modifier.width(22.dp))
+                GlideImage(
+                    model = song.coverUri, contentDescription = null, contentScale = ContentScale.Crop,
+                    failure = placeholder(R.drawable.placeholder), loading = placeholder(R.drawable.placeholder),
+                    modifier = Modifier.size(42.dp).clip(RoundedCornerShape(6.dp)),
+                )
+                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                    Text(song.title, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text(song.singer, color = Color.Gray, fontSize = 12.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                IconButton(onClick = { onLongClick(song) }, modifier = Modifier.size(34.dp)) {
+                    Icon(androidx.compose.material.icons.Icons.Default.MoreVert, contentDescription = "More options", tint = com.music.aalap.ui.theme.TextMuted)
+                }
+            }
         }
     }
 }

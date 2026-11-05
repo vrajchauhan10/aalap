@@ -41,6 +41,7 @@ class MyApplication : Application(), androidx.appfunctions.service.AppFunctionCo
         // First, so a crash anywhere below (or later) leaves a report to share from Settings.
         CrashReport.install(this)
         instance = this
+        com.music.aalap.di.Downloads.loadUnseen(this) // one small prefs read: the new-download dot
         // Each song's tempo and energy, measured as it plays, go to the recommendation engine.
         com.music.aalap.audio.AudioAnalysis.onMeasured = { song, result ->
             com.music.aalap.data.recommendation.engine.VibeStore.saveAudio(this, song, result)
