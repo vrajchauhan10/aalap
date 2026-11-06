@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -27,6 +28,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -76,6 +78,62 @@ import com.music.aalap.ui.viewmodel.ArtistViewModel
 
 private val SpotifyGreen get() = com.music.aalap.ui.theme.Saffron
 
+/** The artist's bio as plain text: links become their words, &amp; and friends become characters. */
+internal fun cleanBio(raw: String): String =
+    androidx.core.text.HtmlCompat.fromHtml(raw.replace("\n", "<br>"), androidx.core.text.HtmlCompat.FROM_HTML_MODE_LEGACY)
+        .toString().replace(Regex("[ \t]+"), " ").replace(Regex("\n{3,}"), "\n\n").trim()
+
+/** Pulls web addresses out of the bio: the words left, and each link with a short name (Instagram, X, Website…). */
+internal fun splitLinks(bio: String): Pair<String, List<Pair<String, String>>> {
+    val urls = Regex("""https?://\S+|www\.\S+""").findAll(bio).map { it.value.trimEnd('.', ',', ')') }.distinct().toList()
+    fun name(u: String): String {
+        val host = android.net.Uri.parse(if (u.startsWith("http")) u else "https://$u").host.orEmpty().removePrefix("www.").removePrefix("m.")
+        return when {
+            "instagram" in host -> "Instagram"
+            "youtube" in host || "youtu.be" in host -> "YouTube"
+            "twitter" in host || host == "x.com" -> "X"
+            "facebook" in host -> "Facebook"
+            "spotify" in host -> "Spotify"
+            else -> host.substringBefore('/').ifBlank { "Website" }
+        }
+    }
+    var text = bio
+    urls.forEach { text = text.replace(it, "") }
+    text = text.replace(Regex("[ \t]+\n"), "\n").replace(Regex("\n{3,}"), "\n\n").trim()
+    return text to urls.map { name(it) to (if (it.startsWith("http")) it else "https://$it") }.distinctBy { it.first }
+}
+
+/** Header size for an artist's name: big for short names, smaller as they get longer. */
+internal fun artistNameSize(name: String): androidx.compose.ui.unit.TextUnit {
+    // The longest piece that can't wrap (hyphens stay together) has to fit on one line;
+    // at 42 sp about 12 letters fit across the S24.
+    val longestWord = name.split(' ').maxOfOrNull { it.length } ?: 0
+    val byLength = when {
+        name.length <= 12 -> 42f
+        name.length <= 18 -> 34f
+        name.length <= 26 -> 28f
+        else -> 24f
+    }
+    val byWord = when {
+        longestWord <= 12 -> 42f
+        longestWord <= 15 -> 34f
+        longestWord <= 19 -> 28f
+        else -> 22f
+    }
+    return minOf(byLength, byWord).sp
+}
+
+/** 347802860 → "347M", 1520000000 → "1.5B", 45200 → "45K": easy to read at a glance. */
+internal fun shortCount(n: Long): String {
+    fun one(v: Double) = if (v < 10) String.format(java.util.Locale.US, "%.1f", v).removeSuffix(".0") else v.toLong().toString()
+    return when {
+        n >= 1_000_000_000L -> one(n / 1e9) + "B"
+        n >= 1_000_000L -> one(n / 1e6) + "M"
+        n >= 1_000L -> one(n / 1e3) + "K"
+        else -> n.toString()
+    }
+}
+
 private fun grouped(n: Long): String =
     "%,d".format(n)
 
@@ -105,7 +163,7 @@ fun ArtistScreen(navController: NavController, artistName: String, artistId: Str
 }
 
 @SuppressLint("DefaultLocale")
-@OptIn(ExperimentalGlideComposeApi::class)
+@OptIn(ExperimentalGlideComposeApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun ArtistOverviewContent(
     navController: NavController,
@@ -188,12 +246,16 @@ private fun ArtistOverviewContent(
                             indication = null,
                         ) { navController.navigateUp() },
                 )
+                // Long names ("Shankar-Ehsaan-Loy", "A. R. Rahman & Shreya Ghoshal") get a smaller
+                // size so they fit in two lines instead of spilling off the photo.
                 Text(
                     text = displayName,
                     color = com.music.aalap.ui.theme.TextPrimary,
-                    fontSize = 42.sp,
+                    fontSize = artistNameSize(displayName),
+                    lineHeight = artistNameSize(displayName) * 1.08f,
                     fontWeight = FontWeight.ExtraBold,
                     maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(16.dp, 0.dp, 16.dp, 12.dp),
@@ -263,13 +325,39 @@ private fun ArtistOverviewContent(
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
-                    Spacer(Modifier.width(16.dp))
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_dots),
-                        contentDescription = "",
-                        tint = Color.Gray,
-                        modifier = Modifier.size(22.dp),
-                    )
+                    Spacer(Modifier.width(8.dp))
+                    // More: share the artist, or a radio of them and artists like them.
+                    var more by remember { mutableStateOf(false) }
+                    Box {
+                        androidx.compose.material3.IconButton(onClick = { more = true }) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_dots),
+                                contentDescription = "More",
+                                tint = Color.Gray,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = more, onDismissRequest = { more = false },
+                            modifier = Modifier.background(com.music.aalap.ui.theme.Surface),
+                        ) {
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text("Artist radio", color = com.music.aalap.ui.theme.TextPrimary) },
+                                enabled = tracks.isNotEmpty(),
+                                onClick = { more = false; playTrackAt(0) },
+                            )
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text("Share artist", color = com.music.aalap.ui.theme.TextPrimary) },
+                                onClick = {
+                                    more = false
+                                    val link = if (overview.id.isNotBlank()) "https://open.spotify.com/artist/${overview.id}" else ""
+                                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                                        .putExtra(android.content.Intent.EXTRA_TEXT, "Listen to $displayName on Aalap $link".trim())
+                                    context.startActivity(android.content.Intent.createChooser(send, "Share $displayName"))
+                                },
+                            )
+                        }
+                    }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -317,13 +405,39 @@ private fun ArtistOverviewContent(
                     modifier = Modifier.padding(16.dp, 8.dp, 16.dp, 4.dp),
                 )
             }
-            itemsIndexed(tracks.take(5)) { index, item ->
-                com.music.aalap.ui.components.SwipeToQueue(item.song) {
-                PopularTrackRow(
-                    item, index, artistViewModel,
-                    onLongClick = { menuSong = item.song },
-                    onPlay = { playTrackAt(index) },
-                )
+            // Up to 16 songs, 4 to a page like Quick picks: swipe sideways for the next four.
+            item {
+                val pages = tracks.take(16).withIndex().toList().chunked(4)
+                val pager = androidx.compose.foundation.pager.rememberPagerState { pages.size }
+                androidx.compose.foundation.pager.HorizontalPager(
+                    state = pager,
+                    contentPadding = PaddingValues(start = 16.dp, end = 48.dp),
+                    pageSpacing = 12.dp,
+                    verticalAlignment = Alignment.Top,
+                ) { p ->
+                    Column {
+                        pages[p].forEach { (index, item) ->
+                            PopularTrackRow(
+                                item, index, artistViewModel,
+                                onLongClick = { menuSong = item.song },
+                                onMenu = { menuSong = item.song },
+                                onPlay = { playTrackAt(index) },
+                            )
+                        }
+                        // A short last page keeps the full height, so nothing below jumps up.
+                        repeat(4 - pages[p].size) { Spacer(Modifier.height(62.dp)) }
+                    }
+                }
+                if (pages.size > 1) Row(
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                ) {
+                    repeat(pages.size) { i ->
+                        Box(
+                            Modifier.padding(horizontal = 3.dp).size(if (i == pager.currentPage) 8.dp else 6.dp).clip(CircleShape)
+                                .background(if (i == pager.currentPage) com.music.aalap.ui.theme.Saffron else Color.Gray.copy(alpha = 0.5f)),
+                        )
+                    }
                 }
             }
         }
@@ -339,7 +453,7 @@ private fun ArtistOverviewContent(
             if (overview.popularReleases.size > 4) {
                 item {
                     ShowAllButton {
-                        navController.navigate("${Routes.ArtistReleases.route}/$artistName")
+                        navController.navigate("${Routes.ArtistReleases.route}/${android.net.Uri.encode(artistName)}")
                     }
                 }
             }
@@ -376,11 +490,41 @@ private fun ArtistOverviewContent(
                                 modifier = Modifier.padding(14.dp, 12.dp, 14.dp, 4.dp),
                             )
                         }
+                        // Spotify's text carries links (<a href="spotify:artist:…">Name</a>) and
+                        // codes like &amp;: shown as plain words, a few lines with Read more.
+                        val bioAndLinks = remember(overview.biography) { splitLinks(cleanBio(overview.biography.orEmpty())) }
+                        val bio = bioAndLinks.first
+                        var expanded by remember { mutableStateOf(false) }
                         Text(
-                            text = overview.biography.orEmpty(),
+                            text = bio,
                             color = Color.Gray,
                             fontSize = 13.sp,
-                            modifier = Modifier.padding(14.dp, 4.dp, 14.dp, 16.dp),
+                            lineHeight = 19.sp,
+                            maxLines = if (expanded) Int.MAX_VALUE else 5,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(14.dp, 4.dp, 14.dp, 4.dp),
+                        )
+                        // Links in the bio (Instagram, YouTube…) as small buttons instead of raw addresses.
+                        if (bioAndLinks.second.isNotEmpty()) Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(14.dp, 8.dp, 14.dp, 0.dp)
+                                .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                        ) {
+                            bioAndLinks.second.forEach { (label, url) ->
+                                Text(
+                                    label, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.clip(RoundedCornerShape(50)).border(1.dp, Color.Gray, RoundedCornerShape(50))
+                                        .clickable {
+                                            runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
+                                        }
+                                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                                )
+                            }
+                        }
+                        if (bio.length > 220 || bio.count { it == '\n' } > 3) Text(
+                            if (expanded) "Show less" else "Read more",
+                            color = com.music.aalap.ui.theme.Saffron, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.clickable { expanded = !expanded }.padding(14.dp, 4.dp, 14.dp, 14.dp),
                         )
                     }
                 }
@@ -428,6 +572,7 @@ private fun PopularTrackRow(
     index: Int,
     artistViewModel: ArtistViewModel,
     onLongClick: (() -> Unit)? = null,
+    onMenu: (() -> Unit)? = null,
     onPlay: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -442,25 +587,19 @@ private fun PopularTrackRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp, 6.dp)
+            .padding(vertical = 5.dp)
+            .clip(RoundedCornerShape(12.dp))
             .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
                 onLongClick = onLongClick,
                 onClick = onPlay,
             ),
     ) {
-        Text(
-            text = "${index + 1}",
-            color = Color.Gray,
-            fontSize = 15.sp,
-            modifier = Modifier.width(24.dp),
-        )
+        // Same look as Quick picks: cover, title, then rank and plays underneath.
         GlideImage(
             modifier = Modifier
-                .padding(8.dp, 0.dp, 12.dp, 0.dp)
-                .size(48.dp)
-                .clip(RoundedCornerShape(4.dp)),
+                .padding(end = 12.dp)
+                .size(52.dp)
+                .clip(RoundedCornerShape(10.dp)),
             model = song.coverUri,
             contentScale = ContentScale.Crop,
             failure = placeholder(R.drawable.placeholder),
@@ -468,10 +607,12 @@ private fun PopularTrackRow(
             contentDescription = "",
         )
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = song.title, color = titleColor, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-            item.playcount?.let {
-                Text(text = grouped(it), color = Color.Gray, fontSize = 12.sp, maxLines = 1)
-            } ?: Text(text = song.singer, color = Color.Gray, fontSize = 12.sp, maxLines = 1)
+            Text(text = song.title, color = titleColor, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(
+                text = item.playcount?.let { "${shortCount(it)} plays" } ?: song.singer,
+                color = Color.Gray, fontSize = 12.sp, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
         }
         Icon(
             painter = if (isLiked) painterResource(id = R.drawable.added) else painterResource(id = R.drawable.ic_add),
@@ -491,6 +632,9 @@ private fun PopularTrackRow(
                     artistViewModel.updateLikeState(!artistViewModel.likeState.value)
                 },
         )
+        if (onMenu != null) androidx.compose.material3.IconButton(onClick = onMenu, modifier = Modifier.padding(start = 4.dp).size(36.dp)) {
+            Icon(androidx.compose.material.icons.Icons.Default.MoreVert, contentDescription = "More options", tint = Color.Gray)
+        }
     }
 }
 

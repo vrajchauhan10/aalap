@@ -266,10 +266,12 @@ fun SumUpAlbumScreen(
                     fontWeight = FontWeight.Bold)
                 Text(modifier = Modifier
                     .padding(20.dp, 0.dp, 0.dp, 0.dp),
-                    text = album[0].artists.ifBlank { albumSongs.firstOrNull()?.singer ?: "" },
+                    text = com.music.aalap.ui.components.shortArtists(album[0].artists.ifBlank { albumSongs.firstOrNull()?.singer ?: "" }),
                     color = com.music.aalap.ui.theme.TextPrimary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium)
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 Text(modifier = Modifier
                     .padding(20.dp, 0.dp, 0.dp, 0.dp),
                     text = listOfNotNull("Album", album[0].time.takeIf { it.isNotBlank() }, com.music.aalap.ui.components.counted(albumSongs.size, "song")).joinToString(" · "),
@@ -492,6 +494,7 @@ fun SumUpAlbumScreen(
                                         song,
                                         albumName
                                     )
+                                    com.music.aalap.di.VoicePlay.openPlayerRequest.value = true // the full player opens
                                 },
                             )
                     ) {
@@ -517,7 +520,7 @@ fun SumUpAlbumScreen(
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = albumSongs[song].singer,
+                                    text = com.music.aalap.ui.components.shortArtists(albumSongs[song].singer),
                                     color = Color.Gray,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,

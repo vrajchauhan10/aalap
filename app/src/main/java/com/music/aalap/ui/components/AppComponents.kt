@@ -267,7 +267,7 @@ fun MiniPlayer(navController: NavHostController) {
                         .widthIn(Dp.Unspecified, 200.dp)
                 ) {
                     Text(text = songTitle, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis )
-                    Text(text = songSinger, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text(text = com.music.aalap.ui.components.shortArtists(songSinger), color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             }
 

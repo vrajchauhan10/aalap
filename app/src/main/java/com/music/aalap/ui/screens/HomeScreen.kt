@@ -1213,7 +1213,7 @@ private fun OfflineHome(navController: NavController) {
                 )
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(song.title, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                    Text(song.singer, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text(com.music.aalap.ui.components.shortArtists(song.singer), color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             }
         }
@@ -1354,7 +1354,7 @@ private fun SongTileRow(title: String, songs: List<com.music.aalap.data.entity.S
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(song.title, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                Text(song.singer, color = com.music.aalap.ui.theme.TextMuted, fontSize = 11.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(com.music.aalap.ui.components.shortArtists(song.singer), color = com.music.aalap.ui.theme.TextMuted, fontSize = 11.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
     }

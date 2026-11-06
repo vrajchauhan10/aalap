@@ -131,7 +131,7 @@ fun MoodScreen(navController: NavController, moodName: String) {
                     )
                     Column(Modifier.weight(1f).padding(start = 12.dp)) {
                         Text(song.title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(song.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(com.music.aalap.ui.components.shortArtists(song.singer), color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     // Same tags as everywhere: Trending, Top hit, Liked, Your taste.
                     com.music.aalap.ui.components.SongTasteTag(song, modifier = Modifier.padding(start = 8.dp))

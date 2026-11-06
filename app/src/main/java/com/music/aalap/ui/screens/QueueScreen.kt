@@ -244,7 +244,7 @@ private fun QueueRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = song.singer,
+                text = com.music.aalap.ui.components.shortArtists(song.singer),
                 color = Color.Gray,
                 fontSize = 13.sp,
                 maxLines = 1,

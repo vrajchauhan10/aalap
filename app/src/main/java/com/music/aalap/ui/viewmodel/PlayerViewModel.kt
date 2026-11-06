@@ -216,7 +216,7 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
     fun goToArtist(trackId: String, fallbackName: String, navigate: (route: String) -> Unit) {
         viewModelScope.launch {
             val route = withContext(Dispatchers.IO) {
-                val artist = if (trackId.isNotBlank())
+                val artist = if (trackId.isNotBlank() && com.music.aalap.data.api.SpotifyTokenProvider.ensureCatalogToken(com.music.aalap.MyApplication.instance))
                     com.metrolist.spotify.Spotify.track(trackId).getOrNull()?.artists?.firstOrNull()
                 else null
                 artistRoute(

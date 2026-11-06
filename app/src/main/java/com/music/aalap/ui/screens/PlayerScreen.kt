@@ -684,7 +684,7 @@ fun PlayerInfo(
                     softWrap = false,
                 )
                 Text(
-                    text = songSinger,
+                    text = com.music.aalap.ui.components.shortArtists(songSinger, max = 3),
                     color = Color.Gray,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
@@ -1267,7 +1267,7 @@ fun PlayerOptionsSheet(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(title, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                        Text(singer, color = Color.Gray, fontSize = 13.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text(com.music.aalap.ui.components.shortArtists(singer), color = Color.Gray, fontSize = 13.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                 }
                 androidx.compose.material3.HorizontalDivider(color = com.music.aalap.ui.theme.SurfaceHigh)

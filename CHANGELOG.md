@@ -4,6 +4,18 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.1.0 — 5 Nov 2026 (build 85)
+- **Artist page, reworked.** Popular shows 16 songs, 4 to a page like Quick picks (swipe for
+  more), with plays as "347M plays". About reads as plain text with Read more, and links
+  show as Instagram / YouTube / X buttons instead of long addresses. The ⋯ next to Follow
+  now offers Artist radio and Share artist.
+- **Search an artist, open the artist.** Searching a name shows the artist as one card; a tap
+  opens their page, and they're saved in Recent searches.
+- **Simpler song lines everywhere.** Albums, playlists, search, Liked, Downloads, History,
+  the queue and the player show two artists and "& 6 more" instead of every credited name.
+  Tapping a song on an album page opens the full player too.
+- The first page no longer mentions the anonymous Blend ID.
+
 ## 8.0.0 — 5 Nov 2026 (build 84)
 - **Aalap works fully without Spotify.** Top 50 India and Global, Trending, moods, artist
   pages, albums and full search (artists and albums too) now load for everyone. Spotify and

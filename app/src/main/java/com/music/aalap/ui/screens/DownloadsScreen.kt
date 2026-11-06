@@ -323,7 +323,7 @@ fun DownloadsScreen(navController: NavController) {
                             )
                             Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                                 Text(text = song.title, color = currentColor, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-                                Text(text = song.singer, color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                                Text(text = com.music.aalap.ui.components.shortArtists(song.singer), color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                             }
                             // Visible way into the song menu (export, remove…); long-press alone was hidden.
                             androidx.compose.material3.IconButton(onClick = { menuSong = song }) {

@@ -304,7 +304,7 @@ fun HistoryScreen(navController: NavController) {
                             )
                             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                                 Text(entry.title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(entry.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(com.music.aalap.ui.components.shortArtists(entry.singer), color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 // Share of plays compared with your #1.
                                 Box(Modifier.padding(top = 5.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(SurfaceHigh)) {
                                     Box(Modifier.fillMaxWidth(r.plays.toFloat() / maxPlays).height(3.dp).clip(RoundedCornerShape(2.dp)).background(Saffron.copy(alpha = 0.8f)))
@@ -371,7 +371,7 @@ fun HistoryScreen(navController: NavController) {
                             )
                             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                                 Text(e.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(e.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(com.music.aalap.ui.components.shortArtists(e.singer), color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             Text(
                                 Instant.ofEpochMilli(e.ts).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())),
@@ -428,7 +428,7 @@ private fun TopSongHero(r: Ranked, periodName: String, onClick: () -> Unit) {
             Text("#1 SONG · ${periodName.uppercase()}", color = SaffronGold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
             Spacer(Modifier.height(6.dp))
             Text(r.entry.title, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 28.sp)
-            Text(r.entry.singer, color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(com.music.aalap.ui.components.shortArtists(r.entry.singer), color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${r.plays} plays · ${r.minutes} min", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)

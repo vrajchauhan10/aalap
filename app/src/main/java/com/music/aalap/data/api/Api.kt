@@ -674,13 +674,13 @@ class Api @Inject constructor(
                     biography = o.biography,
                     headerImage = header,
                     avatarImage = avatar,
-                    topTracks = o.topTracks.map { t ->
+                    topTracks = topUpTo16(o.name.ifBlank { artistName }, o.topTracks.map { t ->
                         val song = t.track.toSongModel()
                         ArtistTrackUi(
                             song = if (song.coverUri.isBlank()) song.copy(coverUri = avatar) else song,
                             playcount = t.playcount,
                         )
-                    },
+                    }),
                     popularReleases = o.popularReleases.map { it.toAlbumModel() },
                     appearsOn = o.appearsOn.map { it.toAlbumModel() },
                     relatedArtists = o.relatedArtists.map { it.toArtistModel() },
@@ -688,6 +688,24 @@ class Api @Inject constructor(
             },
             onFailure = { Log.e("Api", "getArtistOverview failed", it); emit(Response.Error(it.message ?: "error")) },
         )
+    }
+
+    /**
+     * Spotify's artist page lists only 10 popular songs; the artist screen shows 16 (four full pages). The rest
+     * come from a song search for the artist, keeping only songs they're credited on, each
+     * song once (no second "From …" or remix copy of one already shown).
+     */
+    private suspend fun topUpTo16(artist: String, top: List<ArtistTrackUi>): List<ArtistTrackUi> {
+        if (top.size >= 16 || artist.isBlank()) return top.take(16)
+        fun same(t: String) = t.lowercase().replace(Regex("""\(.*?\)|\[.*?\]|-.*$"""), " ").replace(Regex("""\s+"""), " ").trim()
+        val who = artist.lowercase().trim()
+        val seen = top.mapTo(HashSet()) { same(it.song.title) }
+        val more = Spotify.search(artist, types = listOf("track"), limit = 40).getOrNull()?.tracks?.items.orEmpty()
+            .map { it.toSongModel() }
+            .filter { s -> s.title.isNotBlank() && s.singer.split(",").any { it.trim().lowercase() == who } }
+            .filter { seen.add(same(it.title)) }
+            .map { ArtistTrackUi(song = it, playcount = null) }
+        return (top + more).take(16)
     }
 
     /**

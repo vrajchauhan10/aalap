@@ -165,7 +165,7 @@ fun WelcomeScreen(navController: NavController) {
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Your name and email stay on this phone. Blends with friends use a private, anonymous Aalap ID.",
+                    "Your name and email stay on this phone.",
                     color = TextMuted.copy(alpha = 0.8f), fontSize = 11.sp, textAlign = TextAlign.Center,
                 )
             }

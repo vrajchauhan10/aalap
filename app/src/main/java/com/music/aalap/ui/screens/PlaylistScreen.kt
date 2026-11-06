@@ -446,7 +446,7 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                                     maxLines = 1
                                 )
                                 Text(
-                                    text = song.singer,
+                                    text = com.music.aalap.ui.components.shortArtists(song.singer),
                                     color = Color.Gray,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,

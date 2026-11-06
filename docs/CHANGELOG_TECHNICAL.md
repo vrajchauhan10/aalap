@@ -4,6 +4,21 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-05 (2) — 8.1.0 (85) artist page and search artist card
+- `Api.topUpTo16`: overview's 10 top tracks + a track search for the artist (credited only,
+  title-deduped) to 16. `ArtistScreen` Popular is a `HorizontalPager` of 4-row pages, short
+  last page padded to keep height; rows like Quick picks with `shortCount` plays (tested).
+- About: `cleanBio` (HtmlCompat) + `splitLinks` (URLs → named buttons), 5 lines + Read more.
+  Artist ⋯ = DropdownMenu (Artist radio, Share). Releases "Show all" encodes the name.
+- Search: `artistTop` is the matched artist only (no overview fetch); card opens the artist
+  page and records it in recents; that artist isn't repeated in the list.
+- `ui/components/shortArtists` (tested) on album/playlist/search/liked/downloads/history/
+  today/mood/queue/home rows, album header, player and mini player. Album row taps now
+  raise `openPlayerRequest` (they called `SongPlayer.playSong` directly).
+- `PlayerViewModel.goToArtist` gets a catalog token first (works without Spotify login).
+- Verified on the S24 (debug copy, no login): search card → artist, recents, 16 songs over 4
+  pages, Fans also like, Appears on → album, ⋯ menu, About buttons.
+
 ## 2026-11-05 — 8.0.0 (84) catalog without Spotify login, sign-in fixes, search artist top songs
 - `SpotifyTokenProvider.ensureCatalogToken`: the user's token when `sp_dc` is set, else the
   signed-out web-player token (`SpotifyAuth.fetchAnonymousToken`, tracked by `anonymous`).

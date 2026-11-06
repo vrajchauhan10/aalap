@@ -109,7 +109,7 @@ fun TodayScreen(navController: NavController) {
                 )
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                     Text(t.song.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(t.song.singer, color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(com.music.aalap.ui.components.shortArtists(t.song.singer), color = TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 com.music.aalap.ui.components.SongTags(t)
             }
