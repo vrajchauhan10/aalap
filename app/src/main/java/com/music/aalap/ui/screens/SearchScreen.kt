@@ -423,7 +423,7 @@ fun RecentItemRow(
         ) {
             Text(text = item.name, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
             val subtitle = when (item.type) {
-                "song" -> "Song • ${item.singer}"
+                "song" -> "Song • ${com.music.aalap.ui.components.shortArtists(item.singer, max = 1)}"
                 "artist" -> "Artist"
                 "album" -> "Album • ${item.singer}"
                 "show" -> "Podcast" + (if (item.singer.isNotBlank()) " • ${item.singer}" else "")
@@ -508,7 +508,8 @@ fun SearchSongRow(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = song.title, color = currentPlayingIndicatorColor, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-                Text(text = "Song • ${com.music.aalap.ui.components.shortArtists(song.singer)}", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                // One name + "& 3 more" leaves room for the tags on the right; "…" if it still doesn't fit.
+                Text(text = "Song • ${com.music.aalap.ui.components.shortArtists(song.singer, max = 1)}", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
         // The tag ("Liked", "Your taste"…) says it all; like/unlike stays in the long-press menu.

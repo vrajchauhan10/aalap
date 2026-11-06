@@ -4,6 +4,11 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.2.0 — 6 Nov 2026 (build 86)
+- Search results show one artist and "& 3 more", so the line is never cut off next to the
+  Your taste / Liked tags.
+- Share artist sends "Listen to … on Aalap" with a link anyone can open, and no Spotify address.
+
 ## 8.1.0 — 5 Nov 2026 (build 85)
 - **Artist page, reworked.** Popular shows 16 songs, 4 to a page like Quick picks (swipe for
   more), with plays as "347M plays". About reads as plain text with Read more, and links

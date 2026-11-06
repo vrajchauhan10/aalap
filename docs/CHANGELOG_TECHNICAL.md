@@ -4,6 +4,12 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-06 — 8.2.0 (86) search artist line, artist share text
+- `SearchSongRow` and recent song rows: `shortArtists(max = 1)` + ellipsis (two tags left
+  "… & 2" with "more" wrapped out of sight on the S24).
+- `ShareMessage.forArtist`: name + YouTube Music search link; the artist ⋯ Share uses it
+  instead of an open.spotify.com address (backend names stay hidden).
+
 ## 2026-11-05 (2) — 8.1.0 (85) artist page and search artist card
 - `Api.topUpTo16`: overview's 10 top tracks + a track search for the artist (credited only,
   title-deduped) to 16. `ArtistScreen` Popular is a `HorizontalPager` of 4-row pages, short

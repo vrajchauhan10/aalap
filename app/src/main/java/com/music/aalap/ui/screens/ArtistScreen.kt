@@ -350,9 +350,8 @@ private fun ArtistOverviewContent(
                                 text = { Text("Share artist", color = com.music.aalap.ui.theme.TextPrimary) },
                                 onClick = {
                                     more = false
-                                    val link = if (overview.id.isNotBlank()) "https://open.spotify.com/artist/${overview.id}" else ""
                                     val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
-                                        .putExtra(android.content.Intent.EXTRA_TEXT, "Listen to $displayName on Aalap $link".trim())
+                                        .putExtra(android.content.Intent.EXTRA_TEXT, com.music.aalap.ui.share.ShareMessage.forArtist(displayName))
                                     context.startActivity(android.content.Intent.createChooser(send, "Share $displayName"))
                                 },
                             )
