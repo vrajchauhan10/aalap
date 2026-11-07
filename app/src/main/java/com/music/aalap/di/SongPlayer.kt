@@ -44,10 +44,10 @@ object SongPlayer {
 
     // Cache of resolved stream URLs keyed by the "title artist" query, so replays
     // and prefetched neighbours start instantly instead of re-hitting the network.
-    private val streamCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val streamCache = CappedMap<String, String>()
     // Which engine each cached stream came from ("YouTube", "Lossless • …") so a
     // cache hit can restore the correct source badge.
-    private val sourceCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val sourceCache = CappedMap<String, String>()
 
     // ── Lossless (SpotiFLAC) ──
     // When enabled, playback first tries to resolve a lossless FLAC stream (Tidal/
@@ -79,12 +79,12 @@ object SongPlayer {
     // "OPUS 141 kbps"), shown next to the source badge.
     @Volatile var currentQuality: String = ""
         private set
-    private val qualityCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val qualityCache = CappedMap<String, String>()
     // Maps a "title artist" play query -> the track's real Spotify id, so the
     // lossless resolver can be seeded from a play site that only has the query.
     // Populated centrally whenever the queue changes (see CurrentSongState).
-    private val trackIdRegistry = java.util.concurrent.ConcurrentHashMap<String, String>()
-    private val alternativeKeyRegistry = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val trackIdRegistry = CappedMap<String, String>()
+    private val alternativeKeyRegistry = CappedMap<String, String>()
 
     /** The play query registered for a Spotify track id (reverse of [registerLossless]). */
     fun queryForTrackId(spotifyId: String): String? =
@@ -105,7 +105,7 @@ object SongPlayer {
 
     // Whether each play query is the explicit version on Spotify, so the YouTube
     // fallback can pick the matching (explicit vs clean) edit.
-    private val explicitRegistry = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+    private val explicitRegistry = CappedMap<String, Boolean>()
 
     /** Register query→explicit pairs (populated whenever the queue changes). */
     fun registerExplicit(pairs: List<Pair<String, Boolean>>) {
@@ -116,7 +116,7 @@ object SongPlayer {
 
     // Expected track length (ms) per query, from Spotify — lets the YouTube match
     // reject a same-title song by a different artist (different duration).
-    private val durationRegistry = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    private val durationRegistry = CappedMap<String, Int>()
 
     /** Register query→durationMs pairs (populated whenever the queue changes). */
     fun registerDuration(pairs: List<Pair<String, Int>>) {
@@ -133,7 +133,7 @@ object SongPlayer {
     )
 
     private val metadataRegistry =
-        java.util.concurrent.ConcurrentHashMap<String, TrackMatchMetadata>()
+        CappedMap<String, TrackMatchMetadata>()
     // GQL track objects do not consistently carry the explicit flag. Keep this
     // separate from explicitRegistry so the model's default `false` is not
     // mistaken for a confirmed clean track.

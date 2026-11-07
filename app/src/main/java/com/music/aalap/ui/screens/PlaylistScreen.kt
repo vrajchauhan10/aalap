@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
@@ -324,12 +325,29 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                                         com.music.aalap.ui.components.ConfirmDownloadAllDialog(
                                             songs.size, onDismiss = { askDownloadAll = false },
                                         ) {
-                                            com.music.aalap.di.Downloads.downloadAll(songs, context)
-                                            android.widget.Toast.makeText(
+                                            if (com.music.aalap.di.Downloads.downloadAll(songs, context, playlistId)) android.widget.Toast.makeText(
                                                 context, "Downloading ${songs.size} tracks…", android.widget.Toast.LENGTH_SHORT,
                                             ).show()
                                         }
                                     }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    // Share: a readable list with an Aalap code that saves it on a friend's phone.
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        tint = com.music.aalap.ui.theme.TextPrimary,
+                                        modifier = Modifier
+                                            .size(22.dp)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                            ) {
+                                                val name = playlist?.name?.ifBlank { null } ?: playlistName.ifBlank { "Playlist" }
+                                                val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
+                                                    .putExtra(android.content.Intent.EXTRA_TEXT, com.music.aalap.ui.share.PlaylistShare.message(name, songs))
+                                                context.startActivity(android.content.Intent.createChooser(send, "Share $name"))
+                                            },
+                                        contentDescription = "Share playlist",
+                                    )
                                     Spacer(modifier = Modifier.width(16.dp))
                                     // Shuffle-play: start the playlist in random order.
                                     Icon(
@@ -410,6 +428,7 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                         val seen = HashMap<Int, Int>()
                         displaySongs.map { s -> seen.merge(s.id, 1, Int::plus).let { n -> if (n == 1) "${s.id}" else "${s.id}#$n" } }
                     }
+                    item(key = "batch") { com.music.aalap.ui.components.BatchDownloadBar(playlistId) }
                     itemsIndexed(displaySongs, key = { index, _ -> rowKeys[index] }) { index, song ->
                         com.music.aalap.ui.components.SwipeToQueue(song) {
                         val currentColor = if (song.id == playlistViewModel.currentSongId.value)

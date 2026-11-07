@@ -101,8 +101,15 @@ class MainActivity : ComponentActivity() {
         // A friend's Blend message shared to Aalap.
         if (intent?.action == android.content.Intent.ACTION_SEND) {
             val text = intent.getStringExtra(android.content.Intent.EXTRA_TEXT).orEmpty()
+            val shared = com.music.aalap.ui.share.PlaylistShare.decode(text)
+            if (shared != null) {
+                val id = com.music.aalap.data.local.AalapPlaylists.create(this, shared.first)
+                com.music.aalap.data.local.AalapPlaylists.replaceSongs(this, id, shared.second)
+                android.widget.Toast.makeText(this, "Saved \"${shared.first}\" (${shared.second.size} songs) to your Library", android.widget.Toast.LENGTH_LONG).show()
+                return
+            }
             if (text.contains(com.music.aalap.data.recommendation.Blend.PREFIX)) com.music.aalap.ui.components.BlendUi.open(text)
-            else android.widget.Toast.makeText(this, "That isn't an Aalap Blend code", android.widget.Toast.LENGTH_SHORT).show()
+            else android.widget.Toast.makeText(this, "That isn't an Aalap playlist or Blend code", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
         val req = com.music.aalap.di.VoicePlay.fromIntent(intent)

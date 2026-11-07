@@ -1,5 +1,6 @@
 package com.music.aalap.ui.screens
 
+import com.music.aalap.ui.components.pressSquish
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
@@ -631,6 +632,7 @@ fun ArtistTopSongs(top: SearchViewModel.ArtistTop, onOpenArtist: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(16.dp, 10.dp, 16.dp, 6.dp)
+            .pressSquish(0.97f)
             .clip(RoundedCornerShape(20.dp)).background(com.music.aalap.ui.theme.Surface)
             .clickable { onOpenArtist() }.padding(14.dp),
     ) {

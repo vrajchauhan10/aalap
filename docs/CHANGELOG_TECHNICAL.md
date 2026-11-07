@@ -4,6 +4,28 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-07 — 8.3.0 (87) YouTube backup, search rank, playlist share, queue, downloads, motion, security
+- Backup: `YouTube.playlistSongs` (VL + public chart playlists) and `YouTube.artistByName`
+  (search with artist filter → browse). `Api.youTubeChart` maps the four Spotify chart ids to
+  YT Top 100 India/Global; used when the catalog token or the playlist call fails.
+  `Api.youTubeArtist` builds an `ArtistOverviewModel` (top songs + credited search hits, 16).
+  `youTubeSongSearch` also returns the YT artist. Probed from JVM: charts 100/99 songs.
+- `SearchRank` (tested): exact/starting title first, version words (cover, remix, lofi…)
+  down unless in the query, stable on Spotify's order (searchDesktop has no playcount).
+- `PlaylistShare` (tested): gzip+base64 code `AALAP-PLAYLIST:`; size limits; MainActivity
+  ACTION_SEND imports into `AalapPlaylists`.
+- Queue screen rewritten: theme colours (was hard-coded #121212), NowPlayingCard, numbered
+  rows, time left, Shuffle/Clear, `animateItemPlacement`, lifted drag row.
+- `Downloads.batch` + `BatchDownloadBar`; `downloads.wifi_only` (checked against
+  `isActiveNetworkMetered`; refuses with a message, no background waiting).
+- `CappedMap` (tested) for SongPlayer registries, PlaybackService maps, LyricsApi;
+  `CurrentSongState.updateQueue` registers only new songs (was O(n²)).
+- `Motion`: `pressSquish`, `kickOn`; tab kick, play/pause AnimatedContent with spin,
+  mini player title roll. Interaction-only; nothing runs idle.
+- Security: `AppUpdate.verify` also requires `OFFICIAL_SIGNER`; `genuine()` + Home warning;
+  docs/SECURITY.md. Version chip always opens the update row.
+- Hum/sing search not added: no public recognition API; paid ones need an in-app secret.
+
 ## 2026-11-06 — 8.2.0 (86) search artist line, artist share text
 - `SearchSongRow` and recent song rows: `shortArtists(max = 1)` + ellipsis (two tags left
   "… & 2" with "more" wrapped out of sight on the S24).

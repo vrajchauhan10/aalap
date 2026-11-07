@@ -1,5 +1,6 @@
 package com.music.aalap.ui.screens
 
+import com.music.aalap.ui.components.pressSquish
 import android.annotation.SuppressLint
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -587,6 +588,7 @@ private fun PopularTrackRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 5.dp)
+            .pressSquish()
             .clip(RoundedCornerShape(12.dp))
             .combinedClickable(
                 onLongClick = onLongClick,

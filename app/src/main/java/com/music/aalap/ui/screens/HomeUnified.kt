@@ -1,5 +1,6 @@
 package com.music.aalap.ui.screens
 
+import com.music.aalap.ui.components.pressSquish
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -121,7 +122,7 @@ fun QuickPicksSection(
                 val s = t.song
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { player.playWithRadio(s, context) },
+                    modifier = Modifier.fillMaxWidth().pressSquish().clip(RoundedCornerShape(12.dp)).clickable { player.playWithRadio(s, context) },
                 ) {
                     GlideImage(
                         model = s.coverUri, contentDescription = s.title, contentScale = ContentScale.Crop,

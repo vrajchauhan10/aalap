@@ -60,8 +60,8 @@ class PlaybackService : MediaLibraryService() {
 
     // Android Auto browse cache: mediaId → track, and mediaId → the list it was
     // browsed from (so playing a track queues its whole playlist/album).
-    private val trackById = java.util.concurrent.ConcurrentHashMap<String, SongsModel>()
-    private val queueByTrackId = java.util.concurrent.ConcurrentHashMap<String, List<SongsModel>>()
+    private val trackById = com.music.aalap.di.CappedMap<String, SongsModel>()
+    private val queueByTrackId = com.music.aalap.di.CappedMap<String, List<SongsModel>>(200)
     private var webPlayer: WebMediaPlayer? = null
     private var snapshotObserver: androidx.compose.runtime.snapshots.ObserverHandle? = null
     private var showingWeb = false

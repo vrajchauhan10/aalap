@@ -4,6 +4,24 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.3.0 — 7 Nov 2026 (build 87)
+- **Never without music.** If Spotify's catalog stops answering, charts (Top 100 India and
+  Global), artist pages and search come from YouTube Music instead, no login needed.
+- **The song you meant comes first.** Searching a song puts the original, most played version
+  on top; covers, remixes, lo-fi and slowed versions go below unless you ask for them.
+- **Share a playlist.** The share button on a playlist sends the song list with an Aalap code;
+  a friend shares it to Aalap and it's saved in their Library.
+- **New queue.** A Now playing card with live bars, numbered songs with their length, time
+  left, Shuffle and Clear, and a row that lifts as you drag it.
+- **Download a whole album or playlist with one progress bar**, and a new "Download on Wi-Fi
+  only" setting (also in the download dialog).
+- **Motion.** Rows and buttons press in and spring back, the chosen tab pops in, the mini
+  player rolls to the next song's title, and play/pause turns into each other.
+- **Safety.** Aalap warns if this copy isn't the official one, and updates install only when
+  signed with Aalap's own key.
+- Tapping the version tag on Home opens the update check.
+- Lighter on memory in long listening sessions (lookups no longer grow forever).
+
 ## 8.2.0 — 6 Nov 2026 (build 86)
 - Search results show one artist and "& 3 more", so the line is never cut off next to the
   Your taste / Liked tags.

@@ -148,10 +148,40 @@ object Downloads {
         }
     }
 
-    /** Download every track in a list (album/playlist). Each song dedupes and
-     *  reports its own progress via the existing per-song machinery. */
-    fun downloadAll(songs: List<com.music.aalap.data.entity.SongsModel>, context: Context) {
-        songs.forEach { downloadSong(it, context) }
+    /** A whole album or playlist downloading: one bar for all of it. */
+    data class Batch(val name: String, val total: Int, val done: Int, val failed: Int = 0) {
+        val finished get() = done + failed >= total
+    }
+    val batch = kotlinx.coroutines.flow.MutableStateFlow<Batch?>(null)
+
+    /** Download every track in a list (album/playlist), shown as one bar named [name]. */
+    /** False when nothing started (Wi-Fi only on mobile data, or all already saved). */
+    fun downloadAll(songs: List<com.music.aalap.data.entity.SongsModel>, context: Context, name: String = ""): Boolean {
+        if (!allowedNow(context)) return false
+        val todo = songs.filter { !com.music.aalap.data.preferences.isDownloaded(context.applicationContext, it.id.toString()) }
+        if (todo.isEmpty()) return false
+        batch.value = Batch(name, todo.size, 0)
+        todo.forEach { song ->
+            downloadSong(song, context) { ok ->
+                batch.value = batch.value?.takeIf { it.name == name }?.let { if (ok) it.copy(done = it.done + 1) else it.copy(failed = it.failed + 1) }
+            }
+        }
+        return true
+    }
+
+    /**
+     * "Download on Wi-Fi only": on mobile data a download doesn't start; Aalap says why.
+     * (No waiting in the background for Wi-Fi: that would mean watching the network forever.)
+     */
+    fun wifiOnly(c: Context) = c.getSharedPreferences("downloads", Context.MODE_PRIVATE).getBoolean("wifi_only", false)
+    fun setWifiOnly(c: Context, on: Boolean) = c.getSharedPreferences("downloads", Context.MODE_PRIVATE).edit().putBoolean("wifi_only", on).apply()
+
+    private fun allowedNow(context: Context): Boolean {
+        if (!wifiOnly(context)) return true
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+        if (!cm.isActiveNetworkMetered) return true
+        android.widget.Toast.makeText(context.applicationContext, "Downloads are set to Wi-Fi only. Connect to Wi-Fi, or change it in Profile.", android.widget.Toast.LENGTH_LONG).show()
+        return false
     }
 
     private val jobs = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Job>()
@@ -192,6 +222,7 @@ object Downloads {
     ) {
         val appContext = context.applicationContext
         val query = song.url
+        if (!allowedNow(context)) { onComplete(false); return }
         if (query.isBlank() ||
             com.music.aalap.data.preferences.isDownloaded(appContext, song.id.toString()) ||
             !downloading.add(query)

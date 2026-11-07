@@ -265,6 +265,28 @@ object YouTube {
         explore.ifEmpty { pages("FEmusic_charts", 1) { json -> parseSongs(json) } }.distinctBy { it.videoId }
     }
 
+    /** A public YouTube Music playlist's songs (charts like "Top 100 Songs India"), no sign-in needed. */
+    suspend fun playlistSongs(playlistId: String, maxPages: Int = 3): Result<List<LibrarySong>> = runCatching {
+        pages("VL$playlistId", maxPages) { json -> parseSongs(json) }.distinctBy { it.videoId }
+    }
+
+    /** An artist on YouTube Music: their channel id, name, photo and top songs, found by name. */
+    data class ArtistPage(val browseId: String, val name: String, val thumbnail: String, val songs: List<LibrarySong>)
+
+    suspend fun artistByName(name: String): Result<ArtistPage> = runCatching {
+        val json = Json.parseToJsonElement(innerTube.search(WEB_REMIX, name, ARTIST_FILTER).bodyAsText())
+        val r = findAll(json, "musicResponsiveListItemRenderer").firstOrNull { item ->
+            item["navigationEndpoint"].obj()?.get("browseEndpoint").obj()?.get("browseId").str()?.startsWith("UC") == true
+        } ?: error("no artist")
+        val id = r["navigationEndpoint"].obj()?.get("browseEndpoint").obj()?.get("browseId").str()!!
+        val found = r["flexColumns"].arr()?.firstOrNull().obj()
+            ?.get("musicResponsiveListItemFlexColumnRenderer").obj()?.get("text").let(::runsText).ifBlank { name }
+        val page = Json.parseToJsonElement(innerTube.browse(WEB_REMIX, id).bodyAsText())
+        ArtistPage(id, found, bestThumb(r), parseSongs(page).distinctBy { it.videoId })
+    }
+
+    private const val ARTIST_FILTER = "EgWKAQIgAWoKEAkQChAFEAMQBA%3D%3D"
+
     /** Artists the signed-in user subscribes to on YouTube Music. */
     suspend fun libraryArtists(maxPages: Int = 10): Result<List<LibraryArtist>> = runCatching {
         check(cookie != null) { "not signed in" }

@@ -1,5 +1,8 @@
 package com.music.aalap.ui.screens
 
+import androidx.compose.ui.draw.rotate
+import com.music.aalap.ui.components.pressSquish
+import androidx.compose.animation.togetherWith
 import androidx.lifecycle.repeatOnLifecycle
 import com.music.aalap.ui.components.swipeDownToDismiss
 import kotlinx.coroutines.launch
@@ -859,6 +862,7 @@ fun PlayerFull(
                 // requiredSize forces an exact 64×64 square even if the parent Column
                 // constrains height — .size() alone let it get squished into an ellipse.
                 .requiredSize(64.dp)
+                .pressSquish(0.88f)
                 .clip(CircleShape)
                 .background(com.music.aalap.ui.theme.Saffron)
                 .clickable {
@@ -889,18 +893,26 @@ fun PlayerFull(
             ,
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                modifier = Modifier
-                    .size(30.dp)
-
-                ,
-                tint = Color.White,
-                painter = if (songPlayingState)
-                    painterResource(id = R.drawable.ic_playing)
-                else
-                    painterResource(id = R.drawable.play_svgrepo_com)
-                ,
-                contentDescription = if (songPlayingState) "Pause" else "Play")
+            // Play ⇄ pause: the old icon spins away shrinking while the new one turns in.
+            androidx.compose.animation.AnimatedContent(
+                targetState = songPlayingState,
+                transitionSpec = {
+                    (androidx.compose.animation.scaleIn(com.music.aalap.ui.components.Motion.arrive, initialScale = 0.4f) +
+                        androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(120)))
+                        .togetherWith(androidx.compose.animation.scaleOut(androidx.compose.animation.core.tween(140), targetScale = 0.4f) +
+                            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120)))
+                },
+                label = "playPause",
+            ) { playing ->
+                val turn = remember { androidx.compose.animation.core.Animatable(if (playing) -90f else 90f) }
+                LaunchedEffect(Unit) { turn.animateTo(0f, com.music.aalap.ui.components.Motion.arrive) }
+                Icon(
+                    modifier = Modifier.size(30.dp).rotate(turn.value),
+                    tint = Color.White,
+                    painter = if (playing) painterResource(id = R.drawable.ic_playing) else painterResource(id = R.drawable.play_svgrepo_com),
+                    contentDescription = if (playing) "Pause" else "Play",
+                )
+            }
         }
 
         Icon(

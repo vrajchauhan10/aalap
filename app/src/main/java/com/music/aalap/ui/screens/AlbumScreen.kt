@@ -367,9 +367,10 @@ fun SumUpAlbumScreen(
                                 com.music.aalap.ui.components.ConfirmDownloadAllDialog(
                                     albumSongs.size, onDismiss = { askDownloadAll = false },
                                 ) {
-                                    com.music.aalap.di.Downloads.downloadAll(albumSongs, context)
-                                    snackbarMessage = "Downloading ${albumSongs.size} tracks…"
-                                    snackbarVisible = true
+                                    if (com.music.aalap.di.Downloads.downloadAll(albumSongs, context, albumName)) {
+                                        snackbarMessage = "Downloading ${albumSongs.size} tracks…"
+                                        snackbarVisible = true
+                                    }
                                 }
                             }
                             Spacer(modifier = Modifier.width(16.dp))
@@ -456,6 +457,7 @@ fun SumUpAlbumScreen(
 
 //            Spacer(modifier = Modifier.padding(25.dp))
 
+            com.music.aalap.ui.components.BatchDownloadBar(albumName)
             if(albumSongs.isNotEmpty()){
                 repeat(albumSongs.size) {song ->
                     com.music.aalap.ui.components.SwipeToQueue(albumSongs[song]) {

@@ -370,7 +370,7 @@ class Api @Inject constructor(
                 fun firstArtist(a: String) = com.music.aalap.data.recommendation.engine.SongMatcher.artistKeys(a).firstOrNull().orEmpty()
                 emit(Response.Success(SearchResults(
                     // Spotify can return entries with no name; they can't be shown or opened.
-                    songs = res.tracks?.items.orEmpty().map { it.toSongModel() }.filter { it.title.isNotBlank() }.distinctBy { "${same(it.title)}|${firstArtist(it.singer)}" },
+                    songs = SearchRank.rank(query, res.tracks?.items.orEmpty().map { it.toSongModel() }.filter { it.title.isNotBlank() }.distinctBy { "${same(it.title)}|${firstArtist(it.singer)}" }),
                     albums = res.albums?.items.orEmpty().map { it.toAlbumModel() }.filter { it.name.isNotBlank() }.distinctBy { "${same(it.name)}|${firstArtist(it.artists)}" },
                     artists = res.artists?.items.orEmpty().map { it.toArtistModel() }.filter { it.name.isNotBlank() }.distinctBy { it.name.lowercase().trim() },
                     shows = podcasts?.shows?.items.orEmpty().map { it.toPodcastModel() },
@@ -389,6 +389,49 @@ class Api @Inject constructor(
      * Songs from YouTube Music's search (no albums, artists or podcasts: those pages are
      * Spotify's). Each song plays the exact recording found, like a YouTube Music like does.
      */
+    // ── YouTube Music backup ──────────────────────────────────────────────
+    // Charts, artists and search come from Spotify's signed-out access, which depends on a
+    // secret Spotify changes now and then. When that fails, YouTube Music answers instead,
+    // so a user with no login never loses charts, artist pages or search.
+
+    /** Spotify chart → the matching YouTube Music chart (Top 100 India / Global). */
+    private val youTubeCharts = mapOf(
+        "37i9dQZEVXbLZ52XmnySJg" to "PL4fGSI1pDJn40WjZ6utkIuj2rNg-7iGsq", // Top 50 India
+        "37i9dQZF1DXbVhgADFy3im" to "PL4fGSI1pDJn40WjZ6utkIuj2rNg-7iGsq", // Trending India
+        "37i9dQZEVXbMDoHDwVN2tF" to "PL4fGSI1pDJn6puJdseH2Rt9sMvt9E2M4i", // Top 50 Global
+        "37i9dQZF1DX2L0iB23Enbq" to "PL4fGSI1pDJn6puJdseH2Rt9sMvt9E2M4i", // Viral Global
+    )
+
+    private fun ytToSongs(list: List<com.metrolist.innertube.YouTube.LibrarySong>): List<SongsModel> {
+        val db = com.music.aalap.data.recommendation.engine.RecoDb.get(context)
+        return db.resolveAll(list.map {
+            com.music.aalap.data.recommendation.engine.Candidate(
+                title = it.title, artists = it.artists, durationSec = it.durationSec, album = it.album,
+                cover = it.thumbnail, ytId = it.videoId,
+            )
+        }).map(com.music.aalap.data.recommendation.engine.SongBridge::toSongsModel).filter { it.title.isNotBlank() }.distinctBy { it.id }
+    }
+
+    /** A chart from YouTube Music when Spotify can't give it; null for other playlists. */
+    private suspend fun youTubeChart(playlistId: String): List<SongsModel>? {
+        val yt = youTubeCharts[playlistId] ?: return null
+        return com.metrolist.innertube.YouTube.playlistSongs(yt).getOrNull()?.let(::ytToSongs)?.take(50)?.takeIf { it.isNotEmpty() }
+    }
+
+    /** An artist page from YouTube Music: photo, name and up to 16 songs. */
+    private suspend fun youTubeArtist(name: String): ArtistOverviewModel? {
+        val a = com.metrolist.innertube.YouTube.artistByName(name).getOrNull() ?: return null
+        val top = ytToSongs(a.songs)
+        val more = (youTubeSongSearch(a.name) as? Response.Success)?.data?.songs.orEmpty()
+            .filter { s -> s.singer.split(",").any { it.trim().equals(a.name, true) } }
+        val songs = (top + more).distinctBy { it.title.lowercase().substringBefore(" (") }.take(16)
+        if (songs.isEmpty()) return null
+        return ArtistOverviewModel(
+            name = a.name, headerImage = a.thumbnail, avatarImage = a.thumbnail,
+            topTracks = songs.map { ArtistTrackUi(song = it, playcount = null) },
+        )
+    }
+
     private suspend fun youTubeSongSearch(query: String): Response<SearchResults> {
         val items = com.metrolist.innertube.YouTube.search(query, com.metrolist.innertube.YouTube.SearchFilter.FILTER_SONG)
             .onFailure { Log.e("Api", "YouTube search failed", it) }
@@ -402,7 +445,11 @@ class Api @Inject constructor(
                 album = it.album?.name.orEmpty(), cover = it.thumbnail, ytId = it.id, explicit = it.explicit,
             )
         }).map(com.music.aalap.data.recommendation.engine.SongBridge::toSongsModel).filter { it.title.isNotBlank() }.distinctBy { it.id }
-        return Response.Success(SearchResults(songs = songs))
+            .let { SearchRank.rank(query, it) }
+        // The artist too, so the artist card still shows when Spotify is down.
+        val artist = com.metrolist.innertube.YouTube.artistByName(query).getOrNull()
+            ?.let { listOf(com.music.aalap.data.entity.ArtistsModel(it.name, it.thumbnail)) }.orEmpty()
+        return Response.Success(SearchResults(songs = songs, artists = artist))
     }
 
     /** A podcast show's episodes, as playable [SongsModel] (url = "episode:<id>"). */
@@ -648,7 +695,7 @@ class Api @Inject constructor(
             emit(Response.Success(ArtistOverviewModel(name = artistName))); return@flow
         }
         if (!SpotifyTokenProvider.ensureCatalogToken(context)) {
-            emit(Response.Error("Spotify not authenticated — set sp_dc cookie")); return@flow
+            emit(youTubeArtist(artistName)?.let { Response.Success(it) } ?: Response.Error("Couldn't load this artist")); return@flow
         }
         val artist = if (knownArtistId.isBlank()) {
             // Prefer an EXACT name match among the top hits — the first fuzzy
@@ -659,7 +706,7 @@ class Api @Inject constructor(
         } else null
         val artistId = knownArtistId.ifBlank { artist?.id.orEmpty() }
         if (artistId.isBlank()) {
-            emit(Response.Error("Artist not found")); return@flow
+            emit(youTubeArtist(artistName)?.let { Response.Success(it) } ?: Response.Error("Artist not found")); return@flow
         }
         val searchCover = artist?.images?.firstOrNull()?.url ?: ""
         Spotify.artistOverview(artistId).fold(
@@ -686,7 +733,10 @@ class Api @Inject constructor(
                     relatedArtists = o.relatedArtists.map { it.toArtistModel() },
                 )))
             },
-            onFailure = { Log.e("Api", "getArtistOverview failed", it); emit(Response.Error(it.message ?: "error")) },
+            onFailure = {
+                Log.e("Api", "getArtistOverview failed", it)
+                emit(youTubeArtist(artistName)?.let { yt -> Response.Success(yt) } ?: Response.Error(it.message ?: "error"))
+            },
         )
     }
 
@@ -751,7 +801,7 @@ class Api @Inject constructor(
             emit(Response.Success(emptyList())); return@flow
         }
         if (!SpotifyTokenProvider.ensureCatalogToken(context)) {
-            emit(Response.Error("Spotify not authenticated — set sp_dc cookie")); return@flow
+            emit(youTubeChart(playlistId)?.let { Response.Success(it) } ?: Response.Error("Couldn't load this playlist")); return@flow
         }
         // First page right away, then keep paging until the whole playlist is loaded.
         var loaded = false
@@ -759,7 +809,7 @@ class Api @Inject constructor(
             loaded = true
             emit(Response.Success(items.mapNotNull { it.track?.toSongModel() }))
         }) { offset -> retrying { Spotify.playlistTracks(playlistId, limit = 100, offset = offset) } }
-        if (!loaded) emit(Response.Error("Couldn't load this playlist"))
+        if (!loaded) emit(youTubeChart(playlistId)?.let { Response.Success(it) } ?: Response.Error("Couldn't load this playlist"))
     }
 
     /**

@@ -299,8 +299,32 @@ object AppUpdate {
         if (file.packageName != context.packageName) return "The downloaded file is a different app."
         if (versionCodeOf(file) <= versionCodeOf(mine)) return "The downloaded version isn't newer than this one."
         if (signers(file) != signers(mine) || signers(mine).isEmpty()) return "The download isn't signed by Aalap's key, so it wasn't installed."
+        // And it must be Aalap's official key, not just the same key as this copy: a modified
+        // copy signed with someone else's key could otherwise accept that person's "updates".
+        if (!BuildConfig.DEBUG && OFFICIAL_SIGNER !in signers(file)) return "The download isn't an official Aalap release, so it wasn't installed."
         return null
     }
+
+    /**
+     * SHA-256 of Aalap's release signing certificate (scripts/release-signer.sha256). Only the
+     * owner of the private key, which is not in the repository, can sign an app with it.
+     */
+    const val OFFICIAL_SIGNER = "1c1e8f2cfb03494bcde526b2a3ca25d0ddbcd9334b648600b174a46581a3e6c1"
+
+    /**
+     * False when this installed copy was not signed with Aalap's key: someone rebuilt or
+     * modified it. Debug builds (signed with the debug key) count as genuine. Read once.
+     */
+    fun genuine(context: Context): Boolean = genuineCache ?: run {
+        val ok = BuildConfig.DEBUG || runCatching {
+            val sigFlag = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P)
+                android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES else @Suppress("DEPRECATION") android.content.pm.PackageManager.GET_SIGNATURES
+            OFFICIAL_SIGNER in signers(context.packageManager.getPackageInfo(context.packageName, sigFlag))
+        }.getOrDefault(true)
+        genuineCache = ok
+        ok
+    }
+    @Volatile private var genuineCache: Boolean? = null
 
     @Suppress("DEPRECATION")
     private fun versionCodeOf(p: android.content.pm.PackageInfo): Long =

@@ -1,5 +1,7 @@
 package com.music.aalap.ui.navigation
 
+import com.music.aalap.ui.components.kickOn
+import com.music.aalap.ui.components.pressSquish
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -165,6 +167,7 @@ private fun NavTab(item: Routes, selected: Boolean, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
+            .pressSquish(0.9f)
             .clip(RoundedCornerShape(24.dp))
             .background(pill)
             .clickable(
@@ -175,11 +178,12 @@ private fun NavTab(item: Routes, selected: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 10.dp)
             .animateContentSize(),
     ) {
+        // Chosen: the icon pops in with a small spring and a tilt that straightens.
         Icon(
             painter = painterResource(id = item.icon),
             contentDescription = item.label,
             tint = content,
-            modifier = Modifier.size(22.dp),
+            modifier = Modifier.size(22.dp).kickOn(selected, enabled = selected),
         )
         AnimatedVisibility(
             visible = selected,

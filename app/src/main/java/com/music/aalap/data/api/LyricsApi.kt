@@ -31,7 +31,7 @@ object LyricsApi {
     private class Miss(val at: Long = System.currentTimeMillis())
     private const val MISS_RETRY_MS = 120_000L
 
-    private val cache = java.util.concurrent.ConcurrentHashMap<String, Any>() // Lyrics | Miss
+    private val cache = com.music.aalap.di.CappedMap<String, Any>(300) // Lyrics | Miss
     private val prefetchScope =
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
 
@@ -51,7 +51,7 @@ object LyricsApi {
     // Play-queue registry: "title|artist" → Spotify track id, seeded by
     // CurrentSongState.updateQueue so we can hit Spotify's own lyrics endpoint
     // (the exact lyrics the official client shows) before falling back to LRCLIB.
-    private val trackIds = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val trackIds = com.music.aalap.di.CappedMap<String, String>()
 
     fun registerTracks(songs: List<com.music.aalap.data.entity.SongsModel>) {
         for (s in songs) {

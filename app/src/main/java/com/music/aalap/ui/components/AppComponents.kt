@@ -1,5 +1,6 @@
 package com.music.aalap.ui.components
 
+import androidx.compose.animation.togetherWith
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -266,8 +267,23 @@ fun MiniPlayer(navController: NavHostController) {
                     modifier = Modifier
                         .widthIn(Dp.Unspecified, 200.dp)
                 ) {
-                    Text(text = songTitle, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis )
-                    Text(text = com.music.aalap.ui.components.shortArtists(songSinger), color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    // A new song rolls in from below while the old one lifts away, like a ticker.
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = Triple(songId, songTitle, songSinger),
+                        contentKey = { it.first },
+                        transitionSpec = {
+                            (androidx.compose.animation.slideInVertically(androidx.compose.animation.core.spring(dampingRatio = 0.75f, stiffness = 380f)) { it } +
+                                androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)))
+                                .togetherWith(androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(200)) { -it / 2 } +
+                                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(150)))
+                        },
+                        label = "miniTitle",
+                    ) { (_, title, singer) ->
+                        Column {
+                            Text(text = title, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis )
+                            Text(text = com.music.aalap.ui.components.shortArtists(singer), color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        }
+                    }
                 }
             }
 
@@ -439,6 +455,31 @@ fun Snackbar(showMessage : String) {
 }
 
 /**
+ * One bar for a whole album or playlist downloading: "Downloading 4 of 12", then
+ * "12 songs downloaded". Shown only on the page of the list being downloaded.
+ */
+@Composable
+fun BatchDownloadBar(name: String) {
+    val b by com.music.aalap.di.Downloads.batch.collectAsState()
+    val batch = b?.takeIf { it.name == name } ?: return
+    val shown by androidx.compose.animation.core.animateFloatAsState((batch.done + batch.failed).toFloat() / batch.total.coerceAtLeast(1), label = "batch")
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)) {
+        androidx.compose.material3.Text(
+            when {
+                !batch.finished -> "Downloading ${batch.done + batch.failed + 1} of ${batch.total}"
+                batch.failed > 0 -> "${batch.done} downloaded · ${batch.failed} couldn't be saved"
+                else -> "${batch.total} songs downloaded"
+            },
+            color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp,
+        )
+        androidx.compose.material3.LinearProgressIndicator(
+            progress = { shown }, color = com.music.aalap.ui.theme.Saffron, trackColor = com.music.aalap.ui.theme.SurfaceHigh,
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(4.dp).clip(RoundedCornerShape(2.dp)),
+        )
+    }
+}
+
+/**
  * Asks before downloading a whole list: the download-all icon is small and shows
  * up only once the list has loaded, so a stray tap used to start dozens of downloads.
  */
@@ -447,7 +488,20 @@ fun ConfirmDownloadAllDialog(count: Int, onDismiss: () -> Unit, onConfirm: () ->
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { androidx.compose.material3.Text("Download $count tracks?") },
-        text = { androidx.compose.material3.Text("They are saved for offline playback. You can cancel from Downloads.") },
+        text = {
+            val ctx = LocalContext.current
+            var wifi by remember { mutableStateOf(com.music.aalap.di.Downloads.wifiOnly(ctx)) }
+            androidx.compose.foundation.layout.Column {
+                androidx.compose.material3.Text("They are saved for offline playback. You can cancel from Downloads.")
+                androidx.compose.foundation.layout.Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 10.dp).clickable { wifi = !wifi; com.music.aalap.di.Downloads.setWifiOnly(ctx, wifi) },
+                ) {
+                    androidx.compose.material3.Checkbox(checked = wifi, onCheckedChange = { wifi = it; com.music.aalap.di.Downloads.setWifiOnly(ctx, it) })
+                    androidx.compose.material3.Text("Only download on Wi-Fi")
+                }
+            }
+        },
         confirmButton = {
             androidx.compose.material3.TextButton(onClick = { onDismiss(); onConfirm() }) {
                 androidx.compose.material3.Text("Download")

@@ -208,6 +208,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
             .background(com.music.aalap.ui.theme.AppBackground)
     ) {
         item { BounceIn(0, gen) { HomeHeaderRow(navController) } }
+        item { GenuineWarning() }
         item { UpdateBanner() }
         item { ContinueCard() }
         item { LastWeekCard(navController) }
@@ -319,9 +320,8 @@ private fun HomeHeaderRow(navController: NavController) {
                         .padding(start = 6.dp)
                         .clip(RoundedCornerShape(50))
                         .background(if (newer != null) com.music.aalap.ui.theme.Saffron else com.music.aalap.ui.theme.Saffron.copy(alpha = 0.10f))
-                        .then(if (newer != null) Modifier.clickable {
-                            com.music.aalap.AppUpdate.openRequest.value = true
-                        } else Modifier)
+                        // Always opens Profile's update row, which checks for a newer Aalap.
+                        .clickable { com.music.aalap.AppUpdate.openRequest.value = true }
                         .padding(horizontal = 5.dp, vertical = 1.dp),
                 )
             }
@@ -421,6 +421,33 @@ private fun HomeChip(icon: androidx.compose.ui.graphics.painter.Painter, label: 
         Spacer(Modifier.width(8.dp))
         Text(label, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         if (dot) NewDot(Modifier.padding(start = 6.dp))
+    }
+}
+
+/**
+ * Shown only when this copy of Aalap wasn't signed with Aalap's own key: someone rebuilt or
+ * changed it, and it may not be safe. Points to the official download.
+ */
+@Composable
+private fun GenuineWarning() {
+    val context = LocalContext.current
+    if (remember { com.music.aalap.AppUpdate.genuine(context) }) return
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 20.dp, vertical = 4.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFF7A1F1F))
+            .clickable {
+                runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/vrajchauhan10/aalap/releases/latest"))) }
+            }
+            .padding(16.dp),
+    ) {
+        Text("This isn't the official Aalap", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "This copy was changed by someone else and may not be safe. Tap to get the official app, then uninstall this one.",
+            color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp,
+        )
     }
 }
 
