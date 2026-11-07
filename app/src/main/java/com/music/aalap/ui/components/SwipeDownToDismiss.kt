@@ -1,5 +1,8 @@
 package com.music.aalap.ui.components
 
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
@@ -76,7 +79,23 @@ fun Modifier.swipeDownToDismiss(onDismiss: () -> Unit): Modifier {
             }
         }
     }
+    // Safety net: if the finger lifts without a fling reaching us (a drag that ended on a
+    // row's own gesture), the sheet would stay pulled down a little. Settle it back.
+    val settle = Modifier.pointerInput(Unit) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false, pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+            do {
+                val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+            } while (e.changes.any { it.pressed })
+            scope.launch {
+                kotlinx.coroutines.delay(120)
+                if (!offset.isRunning && offset.value > 0f && offset.value < screenHeight * 0.95f)
+                    offset.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 500f))
+            }
+        }
+    }
     return this
+        .then(settle)
         .nestedScroll(connection)
         .graphicsLayer {
             // While pulled, the sheet follows the finger, shrinks a little towards the

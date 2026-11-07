@@ -4,6 +4,16 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-07 (3) — 8.4.1 (89) mini title, queue pull, sheet cover count
+- Mini player title: AnimatedContent slide → Crossfade(220 ms).
+- swipeDownToDismiss: a pointer watcher springs the offset back when the finger lifts without
+  a fling reaching the nested-scroll connection (queue stuck slightly lowered).
+- SheetCover: `open` count (shown = open > 0) instead of a flag the queue cleared under the
+  open player; `color` lets the queue paint its own colour in the bottom strip.
+- Queue: Signature item. pressSquish on HomeChip and LibraryTile.
+- Verified on the S24 (debug copy): slow partial pulls spring back, full pull closes, player
+  bottom covered after the queue closes, signature shown.
+
 ## 2026-11-07 (2) — 8.4.0 (88) in-app update vs Play Protect
 - Cause of "App not installed" (8.2.0 → 8.3.0 on the S24): logcat showed
   `INSTALL_FAILED_VERIFICATION_FAILURE` from Finsky VerifyApps: verdict 9 (unknown app) →

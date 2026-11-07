@@ -88,6 +88,11 @@ fun QueueScreen(navController: NavController) {
     var dragOffset by remember { mutableFloatStateOf(0f) }
     val rowHeightPx = with(LocalDensity.current) { 70.dp.toPx() }
 
+    // The strip under the queue (below the sheet window) takes the queue's colour, not the player's.
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        com.music.aalap.ui.navigation.SheetCover.color.value = com.music.aalap.ui.theme.Surface
+        onDispose { com.music.aalap.ui.navigation.SheetCover.color.value = null }
+    }
     val playingFrom = playerViewModel.currentSongAlbum.value
     val leftMs = upcoming.sumOf { it.durationMs.toLong() }
     val T = com.music.aalap.ui.theme.TextPrimary
@@ -222,6 +227,11 @@ fun QueueScreen(navController: NavController) {
                         }
                     )
                     }
+                }
+            }
+            item(key = "signature") {
+                Box(Modifier.fillMaxWidth().padding(20.dp, 24.dp, 20.dp, 8.dp), contentAlignment = Alignment.CenterEnd) {
+                    com.music.aalap.ui.components.Signature()
                 }
             }
         }

@@ -194,7 +194,7 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.foundation.layout.Box {
                     App()
                     if (com.music.aalap.ui.navigation.SheetCover.shown.value) androidx.compose.foundation.layout.Box(
-                        androidx.compose.ui.Modifier.fillMaxSize().background(com.music.aalap.ui.theme.ImmersiveBackground),
+                        androidx.compose.ui.Modifier.fillMaxSize().background(com.music.aalap.ui.navigation.SheetCover.color.value ?: com.music.aalap.ui.theme.ImmersiveBackground),
                     )
                     com.music.aalap.ui.components.BlendHost(currentSongState)
                     com.music.aalap.ui.components.UpdatePrompt()

@@ -2,6 +2,7 @@
 
 package com.music.aalap.ui.screens
 
+import com.music.aalap.ui.components.pressSquish
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.border
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -412,6 +413,7 @@ private fun HomeChip(icon: androidx.compose.ui.graphics.painter.Painter, label: 
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
+            .then(Modifier.pressSquish(0.94f))
             .clip(RoundedCornerShape(14.dp))
             .background(com.music.aalap.ui.theme.SurfaceHigh)
             .clickable(onClick = onClick)

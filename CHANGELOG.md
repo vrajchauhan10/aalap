@@ -4,6 +4,13 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.4.1 — 7 Nov 2026 (build 89)
+- The mini player's song title now fades smoothly instead of rolling (the roll stuttered).
+- Pulling the queue down part way no longer leaves it stuck lower with a gap; it springs back.
+- Closing the queue no longer lets the page show through under the player.
+- "crafted by V" at the end of the queue.
+- Home chips and Library tiles press in softly when tapped.
+
 ## 8.4.0 — 7 Nov 2026 (build 88)
 - **Updates finish more reliably.** Android asks Google Play Protect to scan each new Aalap
   before installing it; left unanswered, it says "App not installed". The update dialog now

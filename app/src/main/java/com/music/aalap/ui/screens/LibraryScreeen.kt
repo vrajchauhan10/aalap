@@ -1,5 +1,6 @@
 package com.music.aalap.ui.screens
 
+import com.music.aalap.ui.components.pressSquish
 import androidx.compose.animation.togetherWith
 import com.bumptech.glide.integration.compose.placeholder
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -431,6 +432,7 @@ private fun LibraryTile(
 ) {
     Column(
         modifier = modifier
+            .pressSquish(0.96f)
             .height(92.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(androidx.compose.ui.graphics.Brush.linearGradient(colors))

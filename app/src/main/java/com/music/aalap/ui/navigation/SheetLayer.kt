@@ -40,7 +40,12 @@ private val SheetEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
  * is covered with the player's own bottom colour, so that gap reads as part of the player.
  */
 object SheetCover {
-    val shown = androidx.compose.runtime.mutableStateOf(false)
+    /** How many sheets are fully open: the queue opens over the player, and closing it must
+     *  not uncover the page under the player (it peeked out below it). */
+    val open = androidx.compose.runtime.mutableIntStateOf(0)
+    val shown = androidx.compose.runtime.derivedStateOf { open.intValue > 0 }
+    /** The colour at the bottom of the open sheet: the player's by default, the queue's while it's open. */
+    val color = androidx.compose.runtime.mutableStateOf<androidx.compose.ui.graphics.Color?>(null)
 }
 
 /**
@@ -81,11 +86,14 @@ fun SheetLayer(onClosed: () -> Unit, content: @Composable () -> Unit) {
     val down = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
     val closing = remember { booleanArrayOf(false) }
+    // Counted once while this sheet is fully open; uncounted when it starts closing or goes away.
+    val counted = remember { booleanArrayOf(false) }
+    val uncount = { if (counted[0]) { counted[0] = false; SheetCover.open.intValue = (SheetCover.open.intValue - 1).coerceAtLeast(0) } }
     LaunchedEffect(Unit) {
         down.animateTo(0f, tween(380, easing = SheetEasing))
-        if (!closing[0]) SheetCover.shown.value = true
+        if (!closing[0] && !counted[0]) { counted[0] = true; SheetCover.open.intValue += 1 }
     }
-    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { SheetCover.shown.value = false } }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { uncount() } }
     // Light status-bar icons over the player (dark artwork and video); once it's away, the
     // page's own: this window stays on top, and its light icons put a grey band over the
     // cream page on the light theme.
@@ -107,7 +115,7 @@ fun SheetLayer(onClosed: () -> Unit, content: @Composable () -> Unit) {
     val close: () -> Unit = {
         if (!closing[0]) {
             closing[0] = true
-            SheetCover.shown.value = false // the page shows again as the sheet slides down
+            uncount() // the page shows again as the sheet slides down (unless another sheet is under it)
             scope.launch {
                 down.animateTo(1f, tween(300, easing = SheetEasing))
                 onClosed()

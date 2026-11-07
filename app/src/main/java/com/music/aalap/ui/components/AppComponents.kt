@@ -267,16 +267,10 @@ fun MiniPlayer(navController: NavHostController) {
                     modifier = Modifier
                         .widthIn(Dp.Unspecified, 200.dp)
                 ) {
-                    // A new song rolls in from below while the old one lifts away, like a ticker.
-                    androidx.compose.animation.AnimatedContent(
+                    // A new song's title fades in over the old one: light enough for every frame.
+                    androidx.compose.animation.Crossfade(
                         targetState = Triple(songId, songTitle, songSinger),
-                        contentKey = { it.first },
-                        transitionSpec = {
-                            (androidx.compose.animation.slideInVertically(androidx.compose.animation.core.spring(dampingRatio = 0.75f, stiffness = 380f)) { it } +
-                                androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(220)))
-                                .togetherWith(androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(200)) { -it / 2 } +
-                                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(150)))
-                        },
+                        animationSpec = androidx.compose.animation.core.tween(220),
                         label = "miniTitle",
                     ) { (_, title, singer) ->
                         Column {
