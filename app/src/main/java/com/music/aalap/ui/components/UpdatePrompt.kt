@@ -19,7 +19,13 @@ fun UpdateDialog(release: AppUpdate.Release, onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         containerColor = com.music.aalap.ui.theme.Surface,
         title = { Text("Aalap ${release.version} is available", color = com.music.aalap.ui.theme.TextPrimary) },
-        text = { Text("You have ${AppUpdate.current()}. Update now? Your library, likes and settings stay.", color = com.music.aalap.ui.theme.TextMuted) },
+        text = {
+            Text(
+                "You have ${AppUpdate.current()}. Update now? Your library, likes and settings stay.\n\n" +
+                    "If Google Play Protect asks to scan Aalap, tap \"Scan app\", then \"Install\".",
+                color = com.music.aalap.ui.theme.TextMuted,
+            )
+        },
         confirmButton = {
             TextButton(onClick = {
                 onDismiss()

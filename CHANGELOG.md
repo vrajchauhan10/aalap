@@ -4,6 +4,12 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.4.0 — 7 Nov 2026 (build 88)
+- **Updates finish more reliably.** Android asks Google Play Protect to scan each new Aalap
+  before installing it; left unanswered, it says "App not installed". The update dialog now
+  says to tap "Scan app", then "Install", and if the update didn't go in, Aalap says so on Home
+  and Profile and Update tries again.
+
 ## 8.3.0 — 7 Nov 2026 (build 87)
 - **Never without music.** If Spotify's catalog stops answering, charts (Top 100 India and
   Global), artist pages and search come from YouTube Music instead, no login needed.

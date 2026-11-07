@@ -130,6 +130,8 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Back in the app: read the connection again (see OfflineState.recheck).
         com.music.aalap.data.preferences.OfflineState.recheck()
+        // Back from Android's installer: if the update didn't go in, say how to finish it.
+        com.music.aalap.AppUpdate.returned()
     }
 
 

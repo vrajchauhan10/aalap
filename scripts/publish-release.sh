@@ -23,6 +23,11 @@ signer=$("$BT/apksigner" verify --print-certs "$APK" | sed -n 's/.*certificate S
 shasum -a 256 "$APK" | awk '{print $1}' > "$APK.sha256"
 
 NOTES=$(awk -v v="## $V " 'index($0, v) == 1 {on=1; next} /^## / {on=0} on' CHANGELOG.md)
+# Every release says where safe copies come from and what Play Protect may ask.
+NOTES="$NOTES
+
+---
+**Install safely:** download Aalap only from this Releases page or the in-app update (Profile → Update). Android may ask Google Play Protect to scan it: tap *Scan app*, then *Install*. Your library, likes and settings stay."
 BODY=$(python3 -c 'import json,sys; print(json.dumps({"tag_name": "v"+sys.argv[1], "name": "Aalap "+sys.argv[1], "body": sys.argv[2], "draft": False, "prerelease": False}))' "$V" "$NOTES")
 API=https://api.github.com/repos/$REPO
 AUTH="Authorization: Bearer $GITHUB_TOKEN"

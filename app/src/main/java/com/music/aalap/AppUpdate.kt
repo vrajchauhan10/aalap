@@ -252,6 +252,9 @@ object AppUpdate {
             val problem = withContext(Dispatchers.IO) { verify(app, apk) }
             if (problem != null) { apk.delete(); install.value = Install.Failed(problem); return@launch }
             install.value = null
+            // Android's installer can't tell Aalap how it went, so remember what we asked for:
+            // coming back still on the old version means it wasn't installed (see [returned]).
+            pendingVersion = release.version
             openInstaller(app, apk)
         }
     }
@@ -341,6 +344,22 @@ object AppUpdate {
         return certs.orEmpty().map { c ->
             java.security.MessageDigest.getInstance("SHA-256").digest(c.toByteArray()).joinToString("") { "%02x".format(it) }
         }.toSet()
+    }
+
+    @Volatile private var pendingVersion: String? = null
+
+    /**
+     * Back in Aalap after Android's installer. Still on the old version means it wasn't
+     * installed. On the S24 that was Google Play Protect: each new Aalap is an app it hasn't
+     * seen, so it asks "Scan app / Don't install app" and, unanswered for ~15 s, refuses
+     * ("App not installed"). Say what to tap and let Update try again.
+     */
+    fun returned() {
+        val wanted = pendingVersion ?: return
+        pendingVersion = null
+        if (isNewer(wanted, current())) install.value = Install.Failed(
+            "Not installed yet. If Google Play Protect asks, tap \"Scan app\", then \"Install\". Tap Update to try again.",
+        )
     }
 
     private fun openInstaller(context: Context, apk: java.io.File) {

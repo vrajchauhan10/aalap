@@ -1,16 +1,19 @@
 # Security: what protects Aalap users
 
 ## The key that matters
-Every Aalap release is signed with Aalap's private release key (`keystore.properties` and
-the keystore file live only on the maintainer's Mac; neither is in Git). Its certificate
-SHA-256 is public: `scripts/release-signer.sha256` and `AppUpdate.OFFICIAL_SIGNER`.
+Every Aalap release is signed with one key: this Mac's `~/.android/debug.keystore` (see
+docs/RELEASING.md; its passwords are Android's defaults, so the **file itself** is the secret).
+It is not in Git. Its certificate SHA-256 is public: `scripts/release-signer.sha256` and
+`AppUpdate.OFFICIAL_SIGNER`. A backup with restore notes is in
+`~/Documents/Aalap-signing-key-backup/` (2026-11-07); keep copies offline in two places.
 
-Anyone can read or copy the code. Nobody without the key can:
-- push to this repository (GitHub only lets the owner/collaborators write; forks are separate);
-- make a phone accept their build as an **update** to the real Aalap: Android refuses to
-  replace an app with one signed by a different key;
-- get their build installed by Aalap's in-app updater: it installs only APKs signed with the
-  official key (`AppUpdate.verify`).
+Anyone can read or copy the code. Nobody without the key file can:
+- make a phone accept their build as an **update** to the real Aalap (Android refuses an app
+  signed with a different key);
+- get their build installed by Aalap's in-app updater (it installs only APKs signed with the
+  official key, `AppUpdate.verify`).
+Pushing to this repository needs the owner's GitHub login; `main` is protected against
+force-pushes and deletion (set 2026-11-07).
 
 ## In the app
 - **Updates**: downloaded only from this repo's GitHub releases, checked for the same app id,
@@ -22,9 +25,10 @@ Anyone can read or copy the code. Nobody without the key can:
   ever become songs Aalap itself plays.
 
 ## Owner checklist
-1. Back up the keystore and `keystore.properties` offline (two places). Losing them means no
-   phone can update to your future releases; leaking them means others can.
-2. GitHub: two-factor login on, and a branch protection rule on `main` (no force pushes).
+1. Keep the key backup (`~/Documents/Aalap-signing-key-backup/`) in two offline places.
+   Losing it means no phone can update to your future releases; leaking it means others can.
+2. GitHub: turn on two-factor login (Settings → Password and authentication). `main` already
+   blocks force-pushes and deletion.
 3. Never commit tokens or keys (`local.properties`, `keystore.properties` are ignored).
-4. Tell users: download Aalap only from github.com/vrajchauhan10/aalap/releases (or the
-   in-app update / "Share Aalap"), and check `Aalap-x.apk.sha256` if in doubt.
+4. Users are told where to download: README "Download safely" and every release's notes
+   (added by scripts/publish-release.sh).

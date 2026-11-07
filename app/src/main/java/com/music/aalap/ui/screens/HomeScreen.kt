@@ -478,7 +478,12 @@ private fun UpdateBanner() {
         Column(Modifier.weight(1f)) {
             Text("Aalap ${release.version} is available", color = com.music.aalap.ui.theme.OnSaffron, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Text(
-                (installing as? com.music.aalap.AppUpdate.Install.Downloading)?.let { "Downloading… ${it.percent}%" } ?: "New features and fixes. Tap to update.",
+                when (val i = installing) {
+                    is com.music.aalap.AppUpdate.Install.Downloading -> "Downloading… ${i.percent}%"
+                    com.music.aalap.AppUpdate.Install.Verifying -> "Checking it's a genuine Aalap…"
+                    is com.music.aalap.AppUpdate.Install.Failed -> i.why
+                    else -> "New features and fixes. Tap to update."
+                },
                 color = com.music.aalap.ui.theme.OnSaffron.copy(alpha = 0.8f), fontSize = 12.sp,
             )
         }

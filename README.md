@@ -8,6 +8,16 @@
 It brings your library, playlists and likes into one place and plays them with no ads,
 in high quality, with lyrics and offline listening.
 
+## Download safely
+
+Install Aalap **only** from this repository's
+[Releases page](https://github.com/vrajchauhan10/aalap/releases/latest), from the in-app update
+(Profile → Update), or from "Share Aalap" on a friend's phone. Copies from anywhere else may be
+modified. Official builds are signed with certificate SHA-256
+`1c1e8f2cfb03494bcde526b2a3ca25d0ddbcd9334b648600b174a46581a3e6c1`; each release also has a
+`.sha256` file to check the download. When installing, Android may ask Google Play Protect to scan
+Aalap: tap **Scan app**, then **Install**.
+
 ## Features
 
 - **One Aalap account.** Sign up once with your name and email, then connect your music

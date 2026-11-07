@@ -4,6 +4,18 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-07 (2) — 8.4.0 (88) in-app update vs Play Protect
+- Cause of "App not installed" (8.2.0 → 8.3.0 on the S24): logcat showed
+  `INSTALL_FAILED_VERIFICATION_FAILURE` from Finsky VerifyApps: verdict 9 (unknown app) →
+  "App scan recommended" (Scan app / Don't install app) → unanswered ~15 s → REJECT. With
+  "Scan app": "This app looks safe" → Install → `Session installed` (verified on the S24).
+  adb installs skip the verifier, which is why cable installs always worked.
+- `AppUpdate.pendingVersion` set before `openInstaller`; `returned()` (MainActivity.onResume)
+  sets `Install.Failed` with the Play Protect instructions when still on the old version.
+  UpdateDialog mentions Scan app → Install; the Home banner shows Verifying/Failed text.
+- Not fixable from the app: Play Protect's check is Android's. Fewer prompts would need the
+  APK known to Google (Play Console / Android developer verification).
+
 ## 2026-11-07 — 8.3.0 (87) YouTube backup, search rank, playlist share, queue, downloads, motion, security
 - Backup: `YouTube.playlistSongs` (VL + public chart playlists) and `YouTube.artistByName`
   (search with artist filter → browse). `Api.youTubeChart` maps the four Spotify chart ids to
