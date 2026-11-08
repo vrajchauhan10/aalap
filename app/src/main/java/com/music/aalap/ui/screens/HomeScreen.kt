@@ -210,7 +210,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
     ) {
         item { BounceIn(0, gen) { HomeHeaderRow(navController) } }
         item { GenuineWarning() }
-        item { UpdateBanner() }
+        item { com.music.aalap.ui.components.UpdateBanner() }
         item { ContinueCard() }
         item { LastWeekCard(navController) }
         // Moods live in Aalap Radio below (and in Search), not as a second row of pills.
@@ -449,49 +449,6 @@ private fun GenuineWarning() {
         Text(
             "This copy was changed by someone else and may not be safe. Tap to get the official app, then uninstall this one.",
             color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp,
-        )
-    }
-}
-
-/**
- * "Aalap X is available · Update" at the top of Home, above Continue, while a newer Aalap is
- * out. It reads the remembered answer (no network); the check on opening refreshes it. Once
- * you're on that version it's gone.
- */
-@Composable
-private fun UpdateBanner() {
-    val context = LocalContext.current
-    val offered by com.music.aalap.AppUpdate.launchOffer.collectAsState()
-    val installing by com.music.aalap.AppUpdate.install.collectAsState()
-    val release = remember(offered) { com.music.aalap.AppUpdate.knownRelease(context) } ?: return
-    var ask by remember { androidx.compose.runtime.mutableStateOf(false) }
-    if (ask) com.music.aalap.ui.components.UpdateDialog(release) { ask = false }
-    val busy = installing is com.music.aalap.AppUpdate.Install.Downloading
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .padding(horizontal = 20.dp, vertical = 4.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(com.music.aalap.ui.theme.Saffron, com.music.aalap.ui.theme.SaffronGold)))
-            .clickable(enabled = !busy) { ask = true }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("Aalap ${release.version} is available", color = com.music.aalap.ui.theme.OnSaffron, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Text(
-                when (val i = installing) {
-                    is com.music.aalap.AppUpdate.Install.Downloading -> "Downloading… ${i.percent}%"
-                    com.music.aalap.AppUpdate.Install.Verifying -> "Checking it's a genuine Aalap…"
-                    is com.music.aalap.AppUpdate.Install.Failed -> i.why
-                    else -> "New features and fixes. Tap to update."
-                },
-                color = com.music.aalap.ui.theme.OnSaffron.copy(alpha = 0.8f), fontSize = 12.sp,
-            )
-        }
-        Text(
-            "Update", color = com.music.aalap.ui.theme.Saffron, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.clip(RoundedCornerShape(50)).background(com.music.aalap.ui.theme.OnSaffron).padding(horizontal = 14.dp, vertical = 7.dp),
         )
     }
 }

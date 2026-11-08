@@ -4,6 +4,13 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.5.1 — 8 Nov 2026 (build 91)
+- **Updates download even when GitHub's link is down.** GitHub's normal download link was
+  answering with an error for every release; Aalap now tries GitHub's other route for the
+  same file, so Update still works. (Your GitHub two-factor login doesn't affect updates.)
+- **A yellow update box on Home and in Library.** Tap Update and it fills with yellow from
+  left to right as Aalap downloads, shows the percentage, then checks it's genuine.
+
 ## 8.5.0 — 8 Nov 2026 (build 90)
 - **Android Auto, redone.** Four tabs in the car: For you (Continue, Aaj ka Aalap, Drive mix,
   Quick picks, Top 50 India), Library, Moods and Radio (your top artists). The now-playing

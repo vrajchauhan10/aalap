@@ -30,7 +30,8 @@ object AppUpdate {
     private const val CHECK_EVERY_MS = 6 * 3_600_000L
     private const val PREF = "app_update"
 
-    data class Release(val version: String, val apkUrl: String, val pageUrl: String)
+    /** [apiUrl]: the same file through GitHub's API, used when the normal link fails. */
+    data class Release(val version: String, val apkUrl: String, val pageUrl: String, val apiUrl: String = "")
 
     sealed interface State {
         data object Checking : State
@@ -76,17 +77,26 @@ object AppUpdate {
             path.startsWith("/$REPO/releases/") && ".." !in path
     }
 
+    /** GitHub's API address of a file of this repository's releases (the backup download). */
+    fun isTrustedApi(url: String): Boolean {
+        val u = runCatching { java.net.URI(url) }.getOrNull() ?: return false
+        val path = u.path ?: return false
+        return u.scheme == "https" && u.host == "api.github.com" && u.userInfo == null && u.port == -1 &&
+            path.startsWith("/repos/$REPO/releases/assets/") && ".." !in path
+    }
+
     /** Reads GitHub's "latest release" answer; null when it has no Aalap APK we'd trust. */
     fun parse(json: String): Release? = runCatching {
         val o = JSONObject(json)
         if (o.optBoolean("draft") || o.optBoolean("prerelease")) return null
         val version = o.optString("tag_name").removePrefix("v").ifBlank { return null }
         val assets = o.optJSONArray("assets") ?: return null
-        val apk = (0 until assets.length()).map { assets.getJSONObject(it) }
-            .firstOrNull { it.optString("name") == "Aalap-$version.apk" }
-            ?.optString("browser_download_url")?.takeIf { isTrusted(it) } ?: return null
+        val asset = (0 until assets.length()).map { assets.getJSONObject(it) }
+            .firstOrNull { it.optString("name") == "Aalap-$version.apk" } ?: return null
+        val apk = asset.optString("browser_download_url").takeIf { isTrusted(it) } ?: return null
+        val api = asset.optString("url").takeIf { isTrustedApi(it) }.orEmpty()
         val page = o.optString("html_url").takeIf { isTrusted(it) } ?: "https://github.com/$REPO/releases/latest"
-        Release(version, apk, page)
+        Release(version, apk, page, api)
     }.getOrNull()
 
     /**
@@ -245,7 +255,12 @@ object AppUpdate {
             dir.listFiles()?.forEach { it.delete() } // an older update file is never offered
             val apk = java.io.File(dir, "Aalap-${release.version}.apk")
             val ok = withContext(Dispatchers.IO) {
-                runCatching { downloadTo(release.apkUrl, apk) { install.value = Install.Downloading(it) } }.isSuccess
+                // GitHub's normal link sometimes answers 504 for a while (seen 2026-11-08, every
+                // release): the same file through its API still downloads, so try that next.
+                runCatching { downloadTo(release.apkUrl, apk) { install.value = Install.Downloading(it) } }.isSuccess ||
+                    (release.apiUrl.isNotBlank() && runCatching {
+                        downloadTo(release.apiUrl, apk, api = true) { install.value = Install.Downloading(it) }
+                    }.isSuccess)
             }
             if (!ok) { apk.delete(); install.value = Install.Failed("Download didn't finish. Check the connection and tap again."); return@launch }
             install.value = Install.Verifying
@@ -259,13 +274,14 @@ object AppUpdate {
         }
     }
 
-    private fun downloadTo(url: String, out: java.io.File, progress: (Int) -> Unit) {
+    private fun downloadTo(url: String, out: java.io.File, api: Boolean = false, progress: (Int) -> Unit) {
         val c = URL(url).openConnection() as HttpURLConnection
         try {
             c.connectTimeout = 10_000
             c.readTimeout = 20_000
             c.instanceFollowRedirects = true // github.com → its release file host (HTTPS only)
             c.setRequestProperty("User-Agent", "Aalap/${current()}")
+            if (api) c.setRequestProperty("Accept", "application/octet-stream")
             if (c.responseCode != 200) error("HTTP ${c.responseCode}")
             if (c.url.protocol != "https") error("not HTTPS")
             val total = c.contentLengthLong.takeIf { it > 0 }

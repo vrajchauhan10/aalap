@@ -4,6 +4,19 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-08 (2) — 8.5.1 (91) update download fallback, filling update banner
+- github.com/<repo>/releases/download/... answered 504 (92-byte body) for every release
+  (8.5.0 and 8.4.1, ~6 tries over several minutes, GitHub status "operational"); the API
+  asset URL with `Accept: application/octet-stream` downloaded the full 14 MB.
+  `Release.apiUrl` (asset "url", `isTrustedApi`: https, api.github.com,
+  /repos/<repo>/releases/assets/, tested) is tried when the normal link fails. Signing checks
+  unchanged. Verified on the S24: a test copy downloaded 8.5.0 while the normal link 504'd
+  (then refused it as a different app id, as it must). Installed 8.4.1 still uses only the
+  normal link, so it fails until GitHub recovers or the APK is installed from the browser.
+- `ui/components/UpdateBanner` (moved from HomeScreen, also on Library): saffron box; while
+  downloading/verifying a dim box that fills left-to-right (`drawBehind`, animated percent).
+  Fill motion not caught on screen (download finished in under a second).
+
 ## 2026-11-08 — 8.5.0 (90) Android Auto tabs, up-next widget, SongRow, page cache, pull exit
 - PlaybackService: root = 4 grid tabs (foryou/library/moods/radio) with content-style extras;
   mix/*, mood/*, radio/* folders built from HomeMixes/Discover. Car-only custom layout

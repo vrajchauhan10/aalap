@@ -62,4 +62,10 @@ class AppUpdateTest {
         assertFalse(AppUpdate.shouldRemind("7.13.0", "7.13.0", 10 * day, 10 * day + 3_600_000L, every = day))
         assertTrue(AppUpdate.shouldRemind("7.13.0", "7.13.0", 10 * day, 11 * day, every = day))
     }
+
+    @org.junit.Test fun backupApiLinkOnlyForThisRepo() {
+        org.junit.Assert.assertTrue(com.music.aalap.AppUpdate.isTrustedApi("https://api.github.com/repos/vrajchauhan10/aalap/releases/assets/723390981"))
+        org.junit.Assert.assertFalse(com.music.aalap.AppUpdate.isTrustedApi("https://api.github.com/repos/someone/aalap/releases/assets/1"))
+        org.junit.Assert.assertFalse(com.music.aalap.AppUpdate.isTrustedApi("http://api.github.com/repos/vrajchauhan10/aalap/releases/assets/1"))
+    }
 }

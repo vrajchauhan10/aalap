@@ -251,6 +251,8 @@ fun LibraryScreen(navController: NavController) {
                 }
             }
 
+            // A newer Aalap: the same update box as on Home (it fills as it downloads).
+            com.music.aalap.ui.components.UpdateBanner(Modifier.padding(bottom = 6.dp))
             // ── Filter chips ──
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
