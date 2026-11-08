@@ -4,6 +4,19 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.5.0 — 8 Nov 2026 (build 90)
+- **Android Auto, redone.** Four tabs in the car: For you (Continue, Aaj ka Aalap, Drive mix,
+  Quick picks, Top 50 India), Library, Moods and Radio (your top artists). The now-playing
+  screen in the car has Less like this, Like and More like this.
+- **New "Aalap up next" widget (4×2).** The song playing with play and next, the next two
+  songs, and Aaj ka Aalap / Drive mix / Liked that start music in one tap.
+- **One song row everywhere.** Albums, playlists, Liked and Downloads use the Quick picks
+  look: rounded cover, short artist line and ⋮ on every song.
+- **Artist and album pages open instantly** when you go back to one within 3 hours.
+- **Pull a page down and it slides down** (every page), instead of sliding off sideways.
+- Search keeps what you typed when you come back from an artist or album, and an old artist
+  card no longer lingers while you type a new search.
+
 ## 8.4.1 — 7 Nov 2026 (build 89)
 - The mini player's song title now fades smoothly instead of rolling (the roll stuttered).
 - Pulling the queue down part way no longer leaves it stuck lower with a gap; it springs back.

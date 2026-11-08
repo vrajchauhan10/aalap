@@ -112,7 +112,8 @@ fun SumUpSearchScreen(
 ) {
     val context = LocalContext.current
 
-    var text by remember {
+    // Kept when you open an artist or album and come back, so your search is still there.
+    var text by androidx.compose.runtime.saveable.rememberSaveable {
         mutableStateOf("")
     }
     // Recents are the *items opened from results* (songs/artists/albums), not the
@@ -140,7 +141,7 @@ fun SumUpSearchScreen(
     val searchedList = results.songs
     // One relevance-mixed list (songs, artists, albums interleaved) instead of
     // separate type sections — matches how most music apps present search.
-    var filter by remember { mutableStateOf(SearchFilter.ALL) }
+    var filter by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(SearchFilter.ALL) }
     val available = remember(results) {
         buildSet {
             if (results.songs.isNotEmpty()) add(SearchFilter.SONGS)

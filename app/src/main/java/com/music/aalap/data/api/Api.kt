@@ -689,7 +689,29 @@ class Api @Inject constructor(
      * directly; otherwise the name is resolved via search (fuzzy — a query like
      * "RAM" may resolve to "Rammstein", so ids are strongly preferred).
      */
+    /**
+     * Artist and album pages are kept for 3 hours (this app run only, at most 60 of each), so
+     * going back to an artist or album you just opened is instant and uses no data.
+     */
     suspend fun getArtistOverview(artistName: String, knownArtistId: String = ""): Flow<Response<ArtistOverviewModel>> = flow {
+        val key = knownArtistId.ifBlank { artistName.lowercase().trim() }
+        PageCache.artists.get(key)?.let { emit(Response.Success(it)); return@flow }
+        loadArtistOverview(artistName, knownArtistId).collect { r ->
+            if (r is Response.Success && r.data.topTracks.isNotEmpty()) PageCache.artists.put(key, r.data)
+            emit(r)
+        }
+    }
+
+    suspend fun getAlbumSongs(albumName: String, artist: String = ""): Flow<Response<List<SongsModel>>> = flow {
+        val key = "${albumName.lowercase().trim()}|${artist.lowercase().trim()}"
+        PageCache.albums.get(key)?.let { emit(Response.Success(it)); return@flow }
+        loadAlbumSongs(albumName, artist).collect { r ->
+            if (r is Response.Success && r.data.isNotEmpty()) PageCache.albums.put(key, r.data)
+            emit(r)
+        }
+    }
+
+    private suspend fun loadArtistOverview(artistName: String, knownArtistId: String = ""): Flow<Response<ArtistOverviewModel>> = flow {
         emit(Response.Loading())
         if (artistName.isBlank() && knownArtistId.isBlank()) {
             emit(Response.Success(ArtistOverviewModel(name = artistName))); return@flow
@@ -763,7 +785,7 @@ class Api @Inject constructor(
      * (the real Spotify id is lost during mapping), so we resolve the album via
      * search, then fetch its tracks. Uses GraphQL endpoints (not rate-limited).
      */
-    suspend fun getAlbumSongs(albumName: String, artist: String = ""): Flow<Response<List<SongsModel>>> = flow {
+    private suspend fun loadAlbumSongs(albumName: String, artist: String = ""): Flow<Response<List<SongsModel>>> = flow {
         emit(Response.Loading())
         if (albumName.isBlank()) {
             emit(Response.Success(emptyList())); return@flow

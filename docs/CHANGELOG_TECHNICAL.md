@@ -4,6 +4,24 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-08 — 8.5.0 (90) Android Auto tabs, up-next widget, SongRow, page cache, pull exit
+- PlaybackService: root = 4 grid tabs (foryou/library/moods/radio) with content-style extras;
+  mix/*, mood/*, radio/* folders built from HomeMixes/Discover. Car-only custom layout
+  (`onPostConnect`, `setCustomLayout(controller, …)`): LESS / LIKE / MORE via SmartPlay.feedback.
+  Not tested in a car or DHU.
+- AalapWidgetQueue (widget_queue, 4×2): play/next, `WidgetState.upNext` (next two in queue),
+  mix chips → ACTION_MIX → session command ACTION_PLAY_MIX → `playMix` (today/drive/liked).
+  Rendered on the S24 debug copy; mix buttons not exercised.
+- `ui/components/SongRow` used by Album/Playlist/Liked/Downloads (album keeps its own play
+  path + openPlayerRequest; numbers on album rows).
+- `PageCache` (3 h, 60 each, LRU) in front of Api.getArtistOverview / getAlbumSongs. Verified:
+  second open of an artist page fully drawn within 0.4 s (first showed the loader).
+- MyNavHost: `PullClose` timestamp from PullDownToClose → PullExit (slide down + fade) /
+  PullEnter (fade) instead of the sideways pop; back keeps the sideways pop.
+- Search: `text`/`filter` rememberSaveable (were lost returning from artist/album);
+  `artistTop` cleared when the query moves away from that artist.
+- Lyrics-on-cover was built and removed on request (not shipped).
+
 ## 2026-11-07 (3) — 8.4.1 (89) mini title, queue pull, sheet cover count
 - Mini player title: AnimatedContent slide → Crossfade(220 ms).
 - swipeDownToDismiss: a pointer watcher springs the offset back when the finger lifts without

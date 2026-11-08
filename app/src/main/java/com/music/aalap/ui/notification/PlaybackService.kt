@@ -102,7 +102,7 @@ class PlaybackService : MediaLibraryService() {
             }
         }
 
-        refreshNotificationButtons = { mediaSession?.setCustomLayout(customLayout()) }
+        refreshNotificationButtons = { mediaSession?.setCustomLayout(customLayout()); refreshCarButtons() }
         // Debug builds: the session's old-style token, so the debug endpoint can send a
         // voice request the way Google Assistant does (MediaControllerCompat.playFromSearch).
         if (com.music.aalap.BuildConfig.DEBUG) debugCompatToken = mediaSession?.sessionCompatToken
@@ -113,6 +113,7 @@ class PlaybackService : MediaLibraryService() {
                 listOf(
                     currentSongState.title.value, currentSongState.singer.value, currentSongState.coverUri.value,
                     currentSongState.playingState.value, currentSongState.likeState.value, currentSongState.songId.value,
+                    currentSongState.queue.value.size,
                 )
             }.collect { pushWidgets() }
         }
@@ -144,7 +145,7 @@ class PlaybackService : MediaLibraryService() {
         serviceScope.launch {
             androidx.compose.runtime.snapshotFlow {
                 Triple(currentSongState.songId.value, currentSongState.likeState.value, currentSongState.shuffle.value)
-            }.collect { mediaSession?.setCustomLayout(customLayout()) }
+            }.collect { mediaSession?.setCustomLayout(customLayout()); refreshCarButtons() }
         }
 
         // When a crossfade promotes a new ExoPlayer instance, re-bind the session to it
@@ -187,6 +188,54 @@ class PlaybackService : MediaLibraryService() {
 
     private val cmdLike = SessionCommand(ACTION_LIKE, android.os.Bundle.EMPTY)
     private val cmdShuffle = SessionCommand(ACTION_SHUFFLE, android.os.Bundle.EMPTY)
+    private val cmdLess = SessionCommand(ACTION_LESS, android.os.Bundle.EMPTY)
+    private val cmdMix = SessionCommand(ACTION_PLAY_MIX, android.os.Bundle.EMPTY)
+
+    /** A widget's mix button: Aaj ka Aalap, Drive mix or Liked Songs starts playing at once. */
+    private fun playMix(mix: String?) = serviceScope.launch {
+        val app = applicationContext
+        val (songs, name) = when (mix) {
+            "today" -> com.music.aalap.data.recommendation.HomeMixes.todayCached()
+                .ifEmpty { runCatching { com.music.aalap.data.recommendation.HomeMixes.todayPlaylist(app) }.getOrDefault(emptyList()) }
+                .map { it.song } to "Aaj ka Aalap"
+            "drive" -> runCatching { com.music.aalap.data.api.Discover.moodMix(app, com.music.aalap.data.api.Mood.ROAD_TRIP) }.getOrDefault(emptyList()) to "Drive mix"
+            "liked" -> lastSuccess(repository.provideLikedSongs()).orEmpty().shuffled() to "Liked Songs"
+            else -> return@launch
+        }
+        if (songs.isEmpty()) return@launch
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+            com.music.aalap.di.SmartPlay.playAll(app, currentSongState, songs, name)
+        }
+    }
+    private val cmdMore = SessionCommand(ACTION_MORE, android.os.Bundle.EMPTY)
+
+    /**
+     * The car's now-playing buttons: Less like this, Like, and More like this (radio from
+     * this song). Only the car gets these; the phone notification keeps Like and Shuffle.
+     */
+    private fun carLayout(): ImmutableList<CommandButton> {
+        val liked = currentTrackLiked()
+        return ImmutableList.of(
+            CommandButton.Builder().setDisplayName("Less like this")
+                .setIconResId(com.music.aalap.R.drawable.ic_thumb_down).setSessionCommand(cmdLess).build(),
+            CommandButton.Builder().setDisplayName(if (liked) "Remove from Liked Songs" else "Add to Liked Songs")
+                .setIconResId(if (liked) com.music.aalap.R.drawable.ic_notif_heart_filled else com.music.aalap.R.drawable.ic_notif_heart)
+                .setSessionCommand(cmdLike).build(),
+            CommandButton.Builder().setDisplayName("More like this")
+                .setIconResId(com.music.aalap.R.drawable.ic_thumb_up).setSessionCommand(cmdMore).build(),
+        )
+    }
+
+    private fun refreshCarButtons() {
+        val s = mediaSession ?: return
+        s.connectedControllers.filter { it.packageName == CAR }.forEach { s.setCustomLayout(it, carLayout()) }
+    }
+
+    /** Less / more like the song playing now (same as the player's menu). */
+    private fun carFeedback(kind: com.music.aalap.data.recommendation.engine.Feedback.Kind) {
+        val song = currentSongState.queue.value.firstOrNull { it.id == currentSongState.songId.value } ?: return
+        com.music.aalap.di.SmartPlay.feedback(this, currentSongState, song, kind)
+    }
 
     private fun currentTrackLiked(): Boolean =
         com.music.aalap.data.preferences.isSongLiked(this, currentSongState.songId.value.toString())
@@ -222,6 +271,10 @@ class PlaybackService : MediaLibraryService() {
                 progress = if (dur > 0) (SongPlayer.getCurrentPosition().toFloat() / dur).coerceIn(0f, 1f) else 0f,
                 positionMs = SongPlayer.getCurrentPosition().coerceAtLeast(0L),
                 durationMs = dur.coerceAtLeast(0L),
+                upNext = currentSongState.queue.value.let { q ->
+                    val i = q.indexOfFirst { it.id == currentSongState.songId.value }
+                    q.drop(i + 1).take(2).map { "${it.title} · ${it.singer.substringBefore(",").trim()}" }
+                },
             ),
         )
     }
@@ -478,6 +531,15 @@ class PlaybackService : MediaLibraryService() {
         const val NODE_DOWNLOADS = "downloads"
         const val NODE_PLAYLISTS = "playlists"
         const val NODE_ALBUMS = "albums"
+        // Android Auto shows the root's first four folders as tabs.
+        const val NODE_FOR_YOU = "foryou"
+        const val NODE_LIBRARY = "library"
+        const val NODE_MOODS = "moods"
+        const val NODE_RADIO = "radio"
+        const val ACTION_LESS = "com.music.aalap.LESS"
+        const val ACTION_PLAY_MIX = "com.music.aalap.PLAY_MIX"
+        const val ACTION_MORE = "com.music.aalap.MORE"
+        const val CAR = "com.google.android.projection.gearhead"
         const val ACTION_LIKE = "com.music.aalap.LIKE"
         const val ACTION_SHUFFLE = "com.music.aalap.SHUFFLE"
     }
@@ -494,6 +556,10 @@ class PlaybackService : MediaLibraryService() {
             c.packageName == packageName || c.isTrusted || c.packageName in TRUSTED_BROWSERS
 
         // Allow controllers (the system notification) to send our Like / Shuffle commands.
+        override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) {
+            if (controller.packageName == CAR) session.setCustomLayout(controller, carLayout())
+        }
+
         override fun onConnect(
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
@@ -505,6 +571,9 @@ class PlaybackService : MediaLibraryService() {
             val commands = base.availableSessionCommands.buildUpon()
                 .add(cmdLike)
                 .add(cmdShuffle)
+                .add(cmdLess)
+                .add(cmdMore)
+                .add(cmdMix)
                 .build()
             return MediaSession.ConnectionResult.accept(commands, base.availablePlayerCommands)
         }
@@ -536,8 +605,12 @@ class PlaybackService : MediaLibraryService() {
             when (customCommand.customAction) {
                 ACTION_LIKE -> toggleLike()
                 ACTION_SHUFFLE -> currentSongState.updateShuffleState(!currentSongState.shuffle.value)
+                ACTION_LESS -> carFeedback(com.music.aalap.data.recommendation.engine.Feedback.Kind.LESS)
+                ACTION_MORE -> carFeedback(com.music.aalap.data.recommendation.engine.Feedback.Kind.MORE)
+                ACTION_PLAY_MIX -> playMix(args.getString(com.music.aalap.ui.widget.AalapWidgets.EXTRA_MIX))
             }
             session.setCustomLayout(customLayout())
+            refreshCarButtons()
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
         }
 
@@ -550,7 +623,7 @@ class PlaybackService : MediaLibraryService() {
             // Android's "resume" controls (after Aalap was closed or the phone restarted) ask
             // for the recent song only; play there comes back through onPlaybackResumption.
             else if (params?.isRecent == true) Futures.immediateFuture(LibraryResult.ofItem(folder(NODE_RECENT, "Recent"), params))
-            else Futures.immediateFuture(LibraryResult.ofItem(folder(ROOT, "Aalap"), params))
+            else Futures.immediateFuture(LibraryResult.ofItem(folder(ROOT, "Aalap", grid = true), params))
 
         override fun onGetChildren(
             session: MediaLibrarySession,
@@ -628,12 +701,49 @@ class PlaybackService : MediaLibraryService() {
         parentId == NODE_RECENT ->
             com.music.aalap.data.preferences.loadLastPlayback(applicationContext)?.first
                 ?.let { registerTracks(NODE_RECENT, listOf(it)) }.orEmpty()
+        // Four tabs in the car. Mix folders open as a grid of covers; songs as a list.
         parentId == ROOT -> listOf(
+            folder(NODE_FOR_YOU, "For you", grid = true),
+            folder(NODE_LIBRARY, "Library", grid = true),
+            folder(NODE_MOODS, "Moods", grid = true),
+            folder(NODE_RADIO, "Radio", grid = true),
+        )
+        parentId == NODE_FOR_YOU -> listOfNotNull(
+            com.music.aalap.data.preferences.loadLastPlayback(applicationContext)?.first?.let {
+                folder("mix/continue", "Continue", it.coverUri, "Pick up where you left off")
+            },
+            folder("mix/today", "Aaj ka Aalap", com.music.aalap.data.recommendation.HomeMixes.todayCached().firstOrNull()?.song?.coverUri.orEmpty(), "Today's 30"),
+            folder("mix/drive", "Drive mix", "", "Upbeat songs for the road"),
+            folder("mix/quick", "Quick picks", "", "Picked for you"),
+            folder("mix/top", "Top 50 India", "", "Most played today"),
+        )
+        parentId == NODE_LIBRARY -> listOf(
             folder(NODE_LIKED, "Liked Songs"),
-            folder(NODE_DOWNLOADS, "Downloads"),
+            folder(NODE_DOWNLOADS, "Downloads", subtitle = "Plays without internet"),
             folder(NODE_PLAYLISTS, "Playlists"),
             folder(NODE_ALBUMS, "Albums"),
         )
+        parentId == NODE_MOODS -> com.music.aalap.data.api.Mood.entries.map { folder("mood/${it.name}", it.label, subtitle = it.blurb) }
+        parentId == NODE_RADIO -> com.music.aalap.data.api.Discover.topArtists(applicationContext, 10)
+            .map { folder("radio/${android.net.Uri.encode(it)}", "$it radio", subtitle = "Their best, then music like them") }
+        parentId == "mix/continue" -> {
+            val last = com.music.aalap.data.preferences.loadLastPlayback(applicationContext)?.first
+            registerTracks(parentId, listOfNotNull(last) + currentSongState.queue.value.filter { it.id != last?.id }.take(30))
+        }
+        parentId == "mix/today" -> registerTracks(parentId,
+            (com.music.aalap.data.recommendation.HomeMixes.todayCached().ifEmpty { runCatching { com.music.aalap.data.recommendation.HomeMixes.todayPlaylist(applicationContext) }.getOrDefault(emptyList()) }).map { it.song })
+        parentId == "mix/drive" -> registerTracks(parentId,
+            runCatching { com.music.aalap.data.api.Discover.moodMix(applicationContext, com.music.aalap.data.api.Mood.ROAD_TRIP) }.getOrDefault(emptyList()))
+        parentId == "mix/quick" -> registerTracks(parentId, runCatching { com.music.aalap.data.recommendation.HomeMixes.quickPicks(applicationContext) }.getOrDefault(emptyList()))
+        parentId == "mix/top" -> registerTracks(parentId, runCatching { com.music.aalap.data.recommendation.HomeMixes.trendingSongs(applicationContext) }.getOrDefault(emptyList()).take(50))
+        parentId.startsWith("mood/") -> {
+            val mood = runCatching { com.music.aalap.data.api.Mood.valueOf(parentId.removePrefix("mood/")) }.getOrNull()
+            registerTracks(parentId, mood?.let { runCatching { com.music.aalap.data.api.Discover.moodMix(applicationContext, it) }.getOrNull() }.orEmpty())
+        }
+        parentId.startsWith("radio/") -> {
+            val name = android.net.Uri.decode(parentId.removePrefix("radio/"))
+            registerTracks(parentId, runCatching { com.music.aalap.data.recommendation.HomeMixes.artistRadio(applicationContext, com.music.aalap.data.entity.ArtistsModel(name, "")) }.getOrDefault(emptyList()))
+        }
         parentId == NODE_LIKED ->
             registerTracks(NODE_LIKED, lastSuccess(repository.provideLikedSongs()).orEmpty())
         parentId == NODE_DOWNLOADS ->
@@ -683,12 +793,18 @@ class PlaybackService : MediaLibraryService() {
         return songs.map { playable(it) }
     }
 
-    private fun folder(id: String, title: String, coverUri: String = ""): MediaItem =
+    private fun folder(id: String, title: String, coverUri: String = "", subtitle: String = "", grid: Boolean = false): MediaItem =
         MediaItem.Builder()
             .setMediaId(id)
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(title)
+                    .apply { if (subtitle.isNotBlank()) setSubtitle(subtitle) }
+                    // Car layout hints: folders inside this one as a grid of covers, songs as a list.
+                    .setExtras(android.os.Bundle().apply {
+                        putInt("android.media.browse.CONTENT_STYLE_BROWSABLE_HINT", if (grid) 2 else 1)
+                        putInt("android.media.browse.CONTENT_STYLE_PLAYABLE_HINT", 1)
+                    })
                     .setIsBrowsable(true)
                     .setIsPlayable(false)
                     .apply { if (coverUri.isNotBlank()) setArtworkUri(android.net.Uri.parse(coverUri)) }

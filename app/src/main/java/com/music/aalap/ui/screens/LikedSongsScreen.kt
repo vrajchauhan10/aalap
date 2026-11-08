@@ -351,48 +351,13 @@ fun LikedSongsScreen(navController: NavController) {
 
                     itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
                         com.music.aalap.ui.components.SwipeToQueue(song) {
-                        val currentColor = if (song.id == likedSongsViewModel.currentSongId.value)
-                            Color(AppPalette.toArgb()) else com.music.aalap.ui.theme.TextPrimary
 
-                        Row(
-                            horizontalArrangement = Arrangement.Start,
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp, 8.dp)
-                                .combinedClickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                    onLongClick = { menuSong = song },
-                                    onClick = { likedSongsViewModel.playFromList(song, songs, "Liked Songs", context) },
-                                )
-                        ) {
-                            GlideImage(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(4.dp)),
-                                model = song.coverUri,
-                                failure = placeholder(R.drawable.placeholder),
-                                contentScale = ContentScale.Crop,
-                                contentDescription = ""
-                            )
-                            Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-                                Text(
-                                    text = song.title,
-                                    color = currentColor,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1
-                                )
-                                Text(
-                                    text = com.music.aalap.ui.components.shortArtists(song.singer),
-                                    color = Color.Gray,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1
-                                )
-                            }
-                        }
+                        com.music.aalap.ui.components.SongRow(
+                            song = song,
+                            playing = song.id == likedSongsViewModel.currentSongId.value,
+                            onClick = { likedSongsViewModel.playFromList(song, songs, "Liked Songs", context) },
+                            onMenu = { menuSong = song },
+                        )
                         }
                     }
 

@@ -474,98 +474,21 @@ fun SumUpAlbumScreen(
 
                     val currentPlayingIndicatorColor = if(songId == albumViewModel.currentSongId.value) Color(AppPalette.toArgb()) else com.music.aalap.ui.theme.TextPrimary
 
-                    Row(
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp, 8.dp)
-                            .combinedClickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onLongClick = { menuSong = albumSongs[song] },
-                                onClick = {
-                                    albumViewModel.updateQueue(albumSongs)
-                                    SongPlayer.playSong(albumSongs[song].url, context)
-                                    albumViewModel.updateSongState(
-                                        albumSongs[song].coverUri,
-                                        albumSongs[song].title,
-                                        albumSongs[song].singer,
-                                        true,
-                                        albumSongs[song].id,
-                                        song,
-                                        albumName
-                                    )
-                                    com.music.aalap.di.VoicePlay.openPlayerRequest.value = true // the full player opens
-                                },
+                    com.music.aalap.ui.components.SongRow(
+                        song = albumSongs[song],
+                        playing = songId == albumViewModel.currentSongId.value,
+                        number = song + 1,
+                        onClick = {
+                            albumViewModel.updateQueue(albumSongs)
+                            SongPlayer.playSong(albumSongs[song].url, context)
+                            albumViewModel.updateSongState(
+                                albumSongs[song].coverUri, albumSongs[song].title, albumSongs[song].singer,
+                                true, albumSongs[song].id, song, albumName,
                             )
-                    ) {
-
-                        Row(
-                            horizontalArrangement = Arrangement.Start,
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f).padding(end = 12.dp)
-                        ) {
-//                        GlideImage(
-//                            modifier = Modifier.size(60.dp),
-//                            model = albumSongs[song].coverUri,
-//                            contentScale = ContentScale.Crop,
-//                            contentDescription = ""
-//                        )
-                            Column {
-                                Text(
-                                    text = albumSongs[song].title,
-                                    color = currentPlayingIndicatorColor,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = com.music.aalap.ui.components.shortArtists(albumSongs[song].singer),
-                                    color = Color.Gray,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1,
-                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-
-                        Icon(
-                            modifier = Modifier
-                                .size(20.dp)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null
-                                ) {
-                                    if (isLiked) {
-                                        removeLikedSongId(context, songId.toString())
-                                    } else {
-                                        addLikedSongId(context, songId.toString(), albumSongs[song])
-                                        com.music.aalap.ui.components.LikeCelebration.burst()
-                                    }
-                                    isLiked = isSongLiked(context, songId.toString())
-                                    // Mirror the like to the real Spotify account.
-                                    com.music.aalap.data.api.SpotifySync.setTrackSaved(context, albumSongs[song].spotifyTrackId, isLiked)
-                                    albumViewModel.updateLikeState(!albumViewModel.likeState.value)
-
-                                },
-                            painter = if (isLiked){
-                                painterResource(id = R.drawable.added)
-                            }
-                            else{
-                                painterResource(id = R.drawable.ic_add)
-                            }
-                            ,
-                            tint = if (isLiked){
-                                com.music.aalap.ui.theme.TextPrimary
-                            }else{
-                                Color.Gray
-                            },
-                            contentDescription = ""
-                        )
-                    }
+                            com.music.aalap.di.VoicePlay.openPlayerRequest.value = true // the full player opens
+                        },
+                        onMenu = { menuSong = albumSongs[song] },
+                    )
                     }
                 }
             }

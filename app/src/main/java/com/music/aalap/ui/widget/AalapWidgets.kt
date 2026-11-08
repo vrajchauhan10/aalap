@@ -34,15 +34,20 @@ data class WidgetState(
     val progress: Float = 0f, // 0..1
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
+    /** The next two songs in the queue, "Title · Artist" (up-next widget). */
+    val upNext: List<String> = emptyList(),
 )
 
 /** Large widget: cover on the left; song, progress and like / previous / play / next on the right. */
 class AalapWidgetLarge : AalapWidgetBase(R.layout.widget_large, large = true)
 
+/** 4×2 widget: the song playing, the next two songs, and Aaj ka Aalap / Drive mix / Liked in one tap. */
+class AalapWidgetQueue : AalapWidgetBase(R.layout.widget_queue, large = false, queue = true)
+
 /** Small 2×2 widget: cover and song, then previous / play / next. */
 class AalapWidgetCompact : AalapWidgetBase(R.layout.widget_compact, large = false)
 
-abstract class AalapWidgetBase(private val layout: Int, private val large: Boolean) : AppWidgetProvider() {
+abstract class AalapWidgetBase(private val layout: Int, private val large: Boolean, private val queue: Boolean = false) : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         // Newly placed or system refresh: draw the last known state.
@@ -58,7 +63,7 @@ abstract class AalapWidgetBase(private val layout: Int, private val large: Boole
         super.onReceive(context, intent)
         val action = intent.action ?: return
         if (action !in AalapWidgets.ACTIONS) return
-        AalapWidgets.control(context, action, intent.getFloatExtra(AalapWidgets.EXTRA_FRACTION, -1f))
+        AalapWidgets.control(context, action, intent.getFloatExtra(AalapWidgets.EXTRA_FRACTION, -1f), intent.getStringExtra(AalapWidgets.EXTRA_MIX))
     }
 }
 
@@ -68,8 +73,10 @@ object AalapWidgets {
     const val ACTION_PREV = "com.music.aalap.widget.PREV"
     const val ACTION_LIKE = "com.music.aalap.widget.LIKE"
     const val ACTION_SEEK = "com.music.aalap.widget.SEEK"
+    const val ACTION_MIX = "com.music.aalap.widget.MIX"
+    const val EXTRA_MIX = "mix"
     const val EXTRA_FRACTION = "fraction"
-    val ACTIONS = setOf(ACTION_PLAY_PAUSE, ACTION_NEXT, ACTION_PREV, ACTION_LIKE, ACTION_SEEK)
+    val ACTIONS = setOf(ACTION_PLAY_PAUSE, ACTION_NEXT, ACTION_PREV, ACTION_LIKE, ACTION_SEEK, ACTION_MIX)
 
     private val SEEK_ZONES = listOf(
         R.id.widget_seek_0, R.id.widget_seek_1, R.id.widget_seek_2, R.id.widget_seek_3, R.id.widget_seek_4,
@@ -107,7 +114,8 @@ object AalapWidgets {
         val manager = AppWidgetManager.getInstance(app)
         val largeIds = manager.getAppWidgetIds(ComponentName(app, AalapWidgetLarge::class.java))
         val compactIds = manager.getAppWidgetIds(ComponentName(app, AalapWidgetCompact::class.java))
-        if (largeIds.isEmpty() && compactIds.isEmpty()) return
+        val queueIds = manager.getAppWidgetIds(ComponentName(app, AalapWidgetQueue::class.java))
+        if (largeIds.isEmpty() && compactIds.isEmpty() && queueIds.isEmpty()) return
         latest = state
         scope.launch {
             // One redraw at a time, always of the newest state: parallel redraws could
@@ -116,6 +124,7 @@ object AalapWidgets {
                 val s = latest
                 val rounded = artwork(app, s.coverUri)
                 if (largeIds.isNotEmpty()) manager.updateAppWidget(largeIds, views(app, R.layout.widget_large, true, s, rounded))
+                if (queueIds.isNotEmpty()) manager.updateAppWidget(queueIds, queueViews(app, s, rounded))
                 // The small widget fits how it's placed: square at 2×2, a one-row bar when
                 // it's wide and short (e.g. placed before 3.3 as 4×1).
                 compactIds.forEach { id ->
@@ -144,6 +153,32 @@ object AalapWidgets {
         art = result
         return result
     }
+
+    private fun queueViews(context: Context, s: WidgetState, bitmap: Bitmap?): RemoteViews =
+        RemoteViews(context.packageName, R.layout.widget_queue).apply {
+            val idle = s.title.isBlank()
+            setTextViewText(R.id.widget_title, if (idle) context.getString(R.string.widget_idle_title) else s.title)
+            setTextViewText(R.id.widget_artist, if (idle) context.getString(R.string.widget_idle_subtitle) else s.artist)
+            if (bitmap != null) setImageViewBitmap(R.id.widget_art, bitmap) else setImageViewResource(R.id.widget_art, R.drawable.logo)
+            setImageViewResource(R.id.widget_play, if (s.playing) R.drawable.ic_widget_pause else R.drawable.ic_widget_play)
+            setContentDescription(R.id.widget_play, if (s.playing) "Pause" else "Play")
+            val open = PendingIntent.getActivity(
+                context, 0, context.packageManager.getLaunchIntentForPackage(context.packageName),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+            setOnClickPendingIntent(R.id.widget_art, open)
+            setOnClickPendingIntent(R.id.widget_title, open)
+            setOnClickPendingIntent(R.id.widget_play, if (idle) open else action(context, ACTION_PLAY_PAUSE, false, AalapWidgetQueue::class.java))
+            setOnClickPendingIntent(R.id.widget_next, action(context, ACTION_NEXT, false, AalapWidgetQueue::class.java))
+            setTextViewText(R.id.widget_up1, s.upNext.getOrNull(0)?.let { "Next  ·  $it" } ?: "Up next shows here")
+            setTextViewText(R.id.widget_up2, s.upNext.getOrNull(1).orEmpty())
+            setViewVisibility(R.id.widget_up2, if (s.upNext.size > 1) android.view.View.VISIBLE else android.view.View.GONE)
+            listOf(R.id.widget_mix_today to "today", R.id.widget_mix_drive to "drive", R.id.widget_mix_liked to "liked").forEach { (id, mix) ->
+                val i = Intent(context, AalapWidgetQueue::class.java).setAction(ACTION_MIX).putExtra(EXTRA_MIX, mix)
+                setOnClickPendingIntent(id, PendingIntent.getBroadcast(context, 9_000 + mix.hashCode(), i,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+            }
+        }
 
     private fun views(context: Context, layout: Int, large: Boolean, s: WidgetState, bitmap: Bitmap?): RemoteViews =
         RemoteViews(context.packageName, layout).apply {
@@ -194,7 +229,8 @@ object AalapWidgets {
     fun anyPlaced(context: Context): Boolean {
         val m = AppWidgetManager.getInstance(context)
         return m.getAppWidgetIds(ComponentName(context, AalapWidgetLarge::class.java)).isNotEmpty() ||
-            m.getAppWidgetIds(ComponentName(context, AalapWidgetCompact::class.java)).isNotEmpty()
+            m.getAppWidgetIds(ComponentName(context, AalapWidgetCompact::class.java)).isNotEmpty() ||
+            m.getAppWidgetIds(ComponentName(context, AalapWidgetQueue::class.java)).isNotEmpty()
     }
 
     private fun seekAction(context: Context, fraction: Float): PendingIntent {
@@ -208,17 +244,17 @@ object AalapWidgets {
         )
     }
 
-    private fun action(context: Context, action: String, large: Boolean): PendingIntent {
-        val cls = if (large) AalapWidgetLarge::class.java else AalapWidgetCompact::class.java
+    private fun action(context: Context, action: String, large: Boolean, forClass: Class<*>? = null): PendingIntent {
+        val cls = forClass ?: if (large) AalapWidgetLarge::class.java else AalapWidgetCompact::class.java
         val intent = Intent(context, cls).setAction(action)
         return PendingIntent.getBroadcast(
-            context, action.hashCode() + if (large) 1 else 0, intent,
+            context, action.hashCode() + (if (large) 1 else 0) + (if (forClass != null) 2 else 0), intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
     }
 
     /** Sends a widget button press to the media session (same path as the notification). */
-    fun control(context: Context, action: String, fraction: Float = -1f) {
+    fun control(context: Context, action: String, fraction: Float = -1f, mix: String? = null) {
         val app = context.applicationContext
         val token = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         val future = MediaController.Builder(app, token).buildAsync()
@@ -234,12 +270,16 @@ object AalapWidgets {
                 ACTION_LIKE -> controller.sendCustomCommand(
                     SessionCommand(PlaybackService.ACTION_LIKE, android.os.Bundle.EMPTY), android.os.Bundle.EMPTY,
                 )
+                ACTION_MIX -> controller.sendCustomCommand(
+                    SessionCommand(PlaybackService.ACTION_PLAY_MIX, android.os.Bundle.EMPTY),
+                    android.os.Bundle().apply { putString(EXTRA_MIX, mix) },
+                )
             }
             // Stay connected until the music is playing (finding the song can take several
             // seconds): disconnecting earlier let Android shut the player down mid-start.
             val handler = android.os.Handler(app.mainLooper)
             val release = Runnable { MediaController.releaseFuture(future) }
-            val starts = action == ACTION_PLAY_PAUSE || action == ACTION_NEXT || action == ACTION_PREV
+            val starts = action == ACTION_PLAY_PAUSE || action == ACTION_NEXT || action == ACTION_PREV || action == ACTION_MIX
             if (starts && !controller.isPlaying) {
                 controller.addListener(object : androidx.media3.common.Player.Listener {
                     override fun onIsPlayingChanged(isPlaying: Boolean) {

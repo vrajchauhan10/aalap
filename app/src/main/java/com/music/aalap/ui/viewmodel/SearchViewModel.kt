@@ -93,6 +93,10 @@ class SearchViewModel @Inject constructor(private val repository: AppRepository,
 
     fun search(query: String) {
         searchJob?.cancel()
+        // A different search: the last artist's card goes at once instead of lingering
+        // until the new results arrive.
+        val q = query.lowercase().trim()
+        _artistTop.value?.artist?.name?.lowercase()?.let { a -> if (q.isEmpty() || !(a.startsWith(q) || q.startsWith(a))) _artistTop.value = null }
         searchJob = viewModelScope.launch(Dispatchers.IO) {
             delay(150) // short debounce for snappy real-time results
             repository.searchEverything(query).collect { result ->

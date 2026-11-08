@@ -431,54 +431,14 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                     item(key = "batch") { com.music.aalap.ui.components.BatchDownloadBar(playlistId) }
                     itemsIndexed(displaySongs, key = { index, _ -> rowKeys[index] }) { index, song ->
                         com.music.aalap.ui.components.SwipeToQueue(song) {
-                        val currentColor = if (song.id == playlistViewModel.currentSongId.value)
-                            Color(AppPalette.toArgb()) else com.music.aalap.ui.theme.TextPrimary
 
-                        Row(
-                            horizontalArrangement = Arrangement.Start,
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp, 8.dp)
-                                .combinedClickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                    onLongClick = { menuSong = song },
-                                    onClick = { playlistViewModel.playFromList(song, displaySongs, playlist.name, context) },
-                                )
-                        ) {
-                            GlideImage(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(4.dp)),
-                                model = song.coverUri,
-                                failure = placeholder(R.drawable.placeholder),
-                                contentScale = ContentScale.Crop,
-                                contentDescription = ""
-                            )
-                            Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-                                Text(
-                                    text = song.title,
-                                    color = currentColor,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1
-                                )
-                                Text(
-                                    text = com.music.aalap.ui.components.shortArtists(song.singer),
-                                    color = Color.Gray,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1
-                                )
-                            }
-                            // On a chart every song is a top hit, so only your own tags show there.
-                            com.music.aalap.ui.components.SongTasteTag(
-                                song,
-                                personalOnly = com.music.aalap.data.api.CHARTS.any { it.id == playlistId },
-                                modifier = Modifier.padding(start = 8.dp),
-                            )
-                        }
+                        com.music.aalap.ui.components.SongRow(
+                            song = song,
+                            playing = song.id == playlistViewModel.currentSongId.value,
+                            onClick = { playlistViewModel.playFromList(song, displaySongs, playlist.name, context) },
+                            onMenu = { menuSong = song },
+                            trailing = { com.music.aalap.ui.components.SongTasteTag(song, personalOnly = com.music.aalap.data.api.CHARTS.any { it.id == playlistId }, modifier = Modifier.padding(start = 8.dp)) },
+                        )
                         }
                     }
 

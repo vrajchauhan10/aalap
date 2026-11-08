@@ -132,11 +132,16 @@ fun MyNavHost(
             when {
                 initialState.destination.route in SheetRoutes -> EnterTransition.None
                 isTabSwitch(initialState.destination.route, targetState.destination.route) -> TabEnter
+                PullClose.recent -> PullEnter
                 else -> PopEnter
             }
         },
         popExitTransition = {
-            if (isTabSwitch(initialState.destination.route, targetState.destination.route)) TabExit else PopExit
+            when {
+                isTabSwitch(initialState.destination.route, targetState.destination.route) -> TabExit
+                PullClose.recent -> PullExit
+                else -> PopExit
+            }
         },
     ){
         composable(Routes.Login.route){
@@ -436,6 +441,18 @@ private fun PullDownToClose(navController: NavHostController, content: @Composab
     androidx.compose.foundation.layout.Box(
         androidx.compose.ui.Modifier
             .fillMaxSize()
-            .swipeDownToDismiss { navController.navigateUp() }
+            .swipeDownToDismiss { PullClose.at = System.currentTimeMillis(); navController.navigateUp() }
     ) { content() }
 }
+
+/** Set when a page is pulled down to close, so it leaves downwards rather than sideways. */
+private object PullClose {
+    @Volatile var at = 0L
+    val recent get() = System.currentTimeMillis() - at < 700
+}
+
+/** A pulled-down page carries on down from where the finger let go, and fades. */
+private val PullExit: ExitTransition =
+    androidx.compose.animation.slideOutVertically(tween(300, easing = MotionEasing)) { it / 2 } + fadeOut(tween(260))
+/** The page beneath simply fades back in (no sideways drift) under a pulled-down page. */
+private val PullEnter: EnterTransition = fadeIn(tween(220))

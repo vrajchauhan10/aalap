@@ -296,44 +296,13 @@ fun DownloadsScreen(navController: NavController) {
                     repeat(songs.size) { index ->
                         com.music.aalap.ui.components.SwipeToQueue(songs[index]) {
                         val song = songs[index]
-                        val currentColor = if (song.id == playerViewModel.currentSongId.value)
-                            Color(AppPalette.toArgb()) else com.music.aalap.ui.theme.TextPrimary
 
-                        Row(
-                            horizontalArrangement = Arrangement.Start,
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp, 8.dp)
-                                .combinedClickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                    onLongClick = { menuSong = song },
-                                    onClick = { playerViewModel.playFromList(song, songs, "Downloaded", context) },
-                                )
-                        ) {
-                            GlideImage(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(4.dp)),
-                                model = song.coverUri,
-                                failure = placeholder(R.drawable.placeholder),
-                                contentScale = ContentScale.Crop,
-                                contentDescription = ""
-                            )
-                            Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-                                Text(text = song.title, color = currentColor, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-                                Text(text = com.music.aalap.ui.components.shortArtists(song.singer), color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-                            }
-                            // Visible way into the song menu (export, remove…); long-press alone was hidden.
-                            androidx.compose.material3.IconButton(onClick = { menuSong = song }) {
-                                androidx.compose.material3.Icon(
-                                    painter = androidx.compose.ui.res.painterResource(R.drawable.ic_dots),
-                                    contentDescription = "More options for ${song.title}",
-                                    tint = Color.Gray,
-                                )
-                            }
-                        }
+                        com.music.aalap.ui.components.SongRow(
+                            song = song,
+                            playing = song.id == playerViewModel.currentSongId.value,
+                            onClick = { playerViewModel.playFromList(song, songs, "Downloaded", context) },
+                            onMenu = { menuSong = song },
+                        )
                         }
                     }
                 }
