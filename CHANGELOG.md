@@ -4,6 +4,11 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.8.0 — 11 Nov 2026 (build 94)
+- **Lighter player screen.** With the player open, only the progress bar and the times update
+  (once a second), instead of the whole screen being redrawn twice a second. Less battery and
+  heat when you keep the player open while listening.
+
 ## 8.7.0 — 11 Nov 2026 (build 93)
 - **Quick picks are only real songs, from the official uploads.** Radio stations ("The
   Romantic Station by …") and fans' re-uploads ("… Audio Song | Movie | Actors") no longer

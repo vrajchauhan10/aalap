@@ -175,9 +175,10 @@ fun PlayerScreen(navController: NavController) {
     // rewritten while drawing, which asks for another drawing: a redraw loop while playing.
     // One reading of the player (SongPlayer.progress) for the bar and both times, so they can't
     // disagree, and only for this song: the last song's position no longer shows on the new one.
-    var progress by remember(songId) { mutableStateOf(SongPlayer.progress()) }
-    val songProgressText = playerViewModel.formatDuration(progress.positionMs)
-    val songDurationText = playerViewModel.formatDuration(progress.durationMs)
+    // Read only inside [ProgressBar]: read here, every tick rebuilt the whole player page
+    // (cover pager, buttons, lyrics…) instead of just the bar and the times. Measured on the S24
+    // with the player open: ~33% of one core, most of it redrawing.
+    val progressState = remember(songId) { mutableStateOf(SongPlayer.progress()) }
 
     //playerViewModel.updateSongState(songCoverUri, songTitle, songSinger, songPlayingState)
 
@@ -284,13 +285,13 @@ fun PlayerScreen(navController: NavController) {
     // from the last song kept moving its old values, so the next one sat at 0:00.
     LaunchedEffect(songPlayingState, playerLifecycle, songId) {
         playerLifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
-            // Once while paused (the song may have been loaded or moved meanwhile), then twice a
+            // Once while paused (the song may have been loaded or moved meanwhile), then once a
             // second while playing: the times change once a second, the bar barely between.
             // FLAC (and any slow start) learns its length after the screen first drew; it's
             // picked up here.
             do {
-                progress = SongPlayer.progress()
-                if (songPlayingState) delay(500L)
+                progressState.value = SongPlayer.progress()
+                if (songPlayingState) delay(1_000L)
             } while (songPlayingState)
         }
     }
@@ -433,8 +434,7 @@ fun PlayerScreen(navController: NavController) {
                     .height(300.dp)
                     .padding(0.dp, 0.dp, 0.dp, 50.dp)
             ){
-                // Reads each 300ms tick (songProgress recomposition) so it reflects
-                // the current engine — Spotify vs Lossless (SpotiFLAC) vs YouTube.
+                // Source and quality are Compose state in SongPlayer: shown as they change.
                 PlayerInfo(
                     songTitle, songSinger, songId, context, isLiked,
                     source = SongPlayer.currentSource,
@@ -448,75 +448,7 @@ fun PlayerScreen(navController: NavController) {
                     spotifyTrackId = queueSongs.firstOrNull { it.id == songId }?.spotifyTrackId.orEmpty(),
                 )
 
-                // Smooth scrubbing: while dragging, the thumb follows the finger
-                // locally (no seek per delta — that fired a web seek on every pixel
-                // and fought the polled position, making it jerky). We seek ONCE on
-                // release.
-                var isDragging by remember { mutableStateOf(false) }
-                var dragValue by remember { mutableStateOf(0f) }
-                val liveFraction = progress.fraction
-                CustomSlider(
-                    value = if (isDragging) dragValue else liveFraction,
-                    onValueChange = { newValue ->
-                        isDragging = true
-                        dragValue = newValue
-                    },
-                    onValueChangeFinished = {
-                        val target = (dragValue * progress.durationMs).toLong()
-                        SongPlayer.seekTo(target)
-                        // Shown at once, not after the next tick (it jumped back for a moment).
-                        progress = progress.copy(positionMs = target)
-                        isDragging = false
-                        if (!songPlayingState) {
-                            SongPlayer.play()
-                            playerViewModel.updateSongState(
-                                playerViewModel.currentSongCoverUri.value,
-                                playerViewModel.currentSongTitle.value,
-                                playerViewModel.currentSongSinger.value,
-                                true,
-                                playerViewModel.currentSongId.value,
-                                playerViewModel.currentSongIndex.value,
-                                playerViewModel.currentSongAlbum.value
-                            )
-                        }
-                    },
-                    valueRange = 0f..1f,
-                    steps = 0,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp, 20.dp, 16.dp, 0.dp),
-                    colors = SliderDefaults.colors(
-                        thumbColor = com.music.aalap.ui.theme.SaffronGold,
-                        activeTrackColor = com.music.aalap.ui.theme.SaffronGold,
-                        inactiveTrackColor = Color.White.copy(alpha = 0.25f)
-                    )
-                )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(25.dp, 0.dp)
-                    ,
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        // While scrubbing, show the dragged time so the label tracks the finger.
-                        text = if (isDragging)
-                            playerViewModel.formatDuration((dragValue * progress.durationMs).toLong())
-                        else songProgressText,
-                        color = Color.Gray,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = songDurationText,
-                        color = Color.Gray,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
+                ProgressBar(progressState, songPlayingState, playerViewModel)
 
                 Spacer(modifier = Modifier.padding(5.dp))
                 PlayerFull(songPlayingState, playerViewModel, context, isLiked, shuffle, repeat, queueSongs)
@@ -740,6 +672,87 @@ fun PlayerInfo(
                     // Mirror the like to the real Spotify account.
                     com.music.aalap.data.api.SpotifySync.setTrackSaved(context, spotifyTrackId, isLiked.value)
                 },
+        )
+    }
+}
+
+/**
+ * The progress bar and the two times: the only part of the player that changes every second,
+ * so the only part that is rebuilt by the timer.
+ */
+@Composable
+private fun ProgressBar(
+    progressState: MutableState<com.music.aalap.playback.PlaybackSync.Progress>,
+    songPlayingState: Boolean,
+    playerViewModel: PlayerViewModel,
+) {
+    val progress = progressState.value
+    // Smooth scrubbing: while dragging, the thumb follows the finger
+    // locally (no seek per delta — that fired a web seek on every pixel
+    // and fought the polled position, making it jerky). We seek ONCE on
+    // release.
+    var isDragging by remember { mutableStateOf(false) }
+    var dragValue by remember { mutableStateOf(0f) }
+    val liveFraction = progress.fraction
+    CustomSlider(
+        value = if (isDragging) dragValue else liveFraction,
+        onValueChange = { newValue ->
+            isDragging = true
+            dragValue = newValue
+        },
+        onValueChangeFinished = {
+            val target = (dragValue * progress.durationMs).toLong()
+            SongPlayer.seekTo(target)
+            // Shown at once, not after the next tick (it jumped back for a moment).
+            progressState.value = progress.copy(positionMs = target)
+            isDragging = false
+            if (!songPlayingState) {
+                SongPlayer.play()
+                playerViewModel.updateSongState(
+                    playerViewModel.currentSongCoverUri.value,
+                    playerViewModel.currentSongTitle.value,
+                    playerViewModel.currentSongSinger.value,
+                    true,
+                    playerViewModel.currentSongId.value,
+                    playerViewModel.currentSongIndex.value,
+                    playerViewModel.currentSongAlbum.value
+                )
+            }
+        },
+        valueRange = 0f..1f,
+        steps = 0,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp, 20.dp, 16.dp, 0.dp),
+        colors = SliderDefaults.colors(
+            thumbColor = com.music.aalap.ui.theme.SaffronGold,
+            activeTrackColor = com.music.aalap.ui.theme.SaffronGold,
+            inactiveTrackColor = Color.White.copy(alpha = 0.25f)
+        )
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(25.dp, 0.dp)
+        ,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            // While scrubbing, show the dragged time so the label tracks the finger.
+            text = if (isDragging)
+                playerViewModel.formatDuration((dragValue * progress.durationMs).toLong())
+            else playerViewModel.formatDuration(progress.positionMs),
+            color = Color.Gray,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            text = playerViewModel.formatDuration(progress.durationMs),
+            color = Color.Gray,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium
         )
     }
 }

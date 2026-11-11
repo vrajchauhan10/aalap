@@ -4,6 +4,16 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-11 (3) — 8.8.0 (94) player page: progress no longer recomposes the whole screen
+- Measured on the S24 (release 8.7.0), screen off, playing: Aalap ~6.9% of one core over 90 s
+  (ExoPlayer 2.9%, HwBinder 2.1%, main 0.9%), battery 36.3 → 35.7 °C. Was ~20% on 8.5.1.
+- Player page open (8.6.0): ~33% of one core (RenderThread 18%, main 14.7%). Cause: `progress`
+  was read at the top of PlayerScreen, so the 500 ms ticker recomposed the whole screen.
+  Now `progressState` is read only in the new `ProgressBar` composable (slider + times), and
+  the ticker runs at 1 Hz (CLAUDE.md: UI tickers ≤ 1 Hz). `SongPlayer.currentSource` /
+  `currentQuality` are Compose state (they were refreshed only by those full recompositions).
+- Tests: app 172 passed. Not yet re-measured on the device with the player open (phone locked).
+
 ## 2026-11-11 (2) — 8.7.0 (93) official-only YouTube home songs, quick picks per build
 - Found on the S24 after updating to 8.6.0: quick picks had "The Romantic Station by Bruno
   Mars" (two-row card, watchEndpoint playlistId RD…) and a UGC re-upload. `YouTube.homeSongs`

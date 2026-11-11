@@ -1,5 +1,7 @@
 package com.music.aalap.di
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.content.Context
 import android.net.ConnectivityManager
 import android.util.Log
@@ -73,11 +75,13 @@ object SongPlayer {
     // Which engine is feeding the CURRENT track, for the on-screen source badge.
     // "Lossless" (SpotiFLAC: Tidal/Qobuz/Amazon) is NOT Spotify — surfaced so the
     // user knows real Spotify vs a lossless mirror vs the YouTube fallback.
-    @Volatile var currentSource: String = "YouTube"
+    // Compose state, so the player shows a change by itself (it used to be picked up by the
+    // progress timer rebuilding the whole player page every half second).
+    var currentSource: String by androidx.compose.runtime.mutableStateOf("YouTube")
         private set
     // Human-readable quality of the CURRENT stream (e.g. "FLAC 16-bit",
     // "OPUS 141 kbps"), shown next to the source badge.
-    @Volatile var currentQuality: String = ""
+    var currentQuality: String by androidx.compose.runtime.mutableStateOf("")
         private set
     private val qualityCache = CappedMap<String, String>()
     // Maps a "title artist" play query -> the track's real Spotify id, so the
