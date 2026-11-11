@@ -4,6 +4,12 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.8.1 — 11 Nov 2026 (build 95)
+- **Clearer battery tip in Profile.** It now matches the other Profile cards, says plainly
+  that Dolby Atmos is warming the phone, and its "Turn off Dolby Atmos" button opens the
+  Dolby Atmos switch directly (Sound quality and effects) instead of the general sound page.
+  "Not now" hides it for two weeks, and it disappears once Dolby Atmos is off.
+
 ## 8.8.0 — 11 Nov 2026 (build 94)
 - **Lighter player screen.** With the player open, only the progress bar and the times update
   (once a second), instead of the whole screen being redrawn twice a second. Less battery and

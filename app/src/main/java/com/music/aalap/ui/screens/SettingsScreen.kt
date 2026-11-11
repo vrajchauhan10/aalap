@@ -1068,24 +1068,82 @@ private fun ProfileStat(value: String, label: String, modifier: Modifier, onClic
 @Composable
 private fun BatteryTip() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val blocked = remember { com.music.aalap.audio.LowPowerAudio.blocked(context) }
-    if (!blocked) return
+    val prefs = remember { context.getSharedPreferences("battery_tip", android.content.Context.MODE_PRIVATE) }
+    var blocked by remember { mutableStateOf(com.music.aalap.audio.LowPowerAudio.blocked(context)) }
+    var hiddenUntil by remember { mutableStateOf(prefs.getLong("hidden_until", 0L)) }
+    // Checked again on coming back from the phone's settings: once Dolby Atmos is off, the card
+    // goes away by itself.
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) blocked = com.music.aalap.audio.LowPowerAudio.blocked(context)
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
+    if (!blocked || System.currentTimeMillis() < hiddenUntil) return
+    // Straight to the screen with the switch: Android's standard "sound effects" screen is
+    // Samsung's "Sound quality and effects" (Dolby Atmos at the top) and other makers' effects
+    // screens; the general sound settings only when a phone has none.
+    val openEffects = {
+        val effects = android.content.Intent(android.media.audiofx.AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL)
+            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(effects) }.recoverCatching {
+            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_SOUND_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+        Unit
+    }
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(com.music.aalap.ui.theme.Saffron.copy(alpha = 0.14f))
-            .clickable {
-                runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_SOUND_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            }
+            .padding(top = 16.dp, bottom = 8.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(com.music.aalap.ui.theme.Surface)
+            .border(1.dp, com.music.aalap.ui.theme.Hairline, RoundedCornerShape(20.dp))
             .padding(16.dp),
     ) {
-        Text("Your phone is working harder for music", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(com.music.aalap.ui.theme.Saffron.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    androidx.compose.ui.res.painterResource(com.music.aalap.R.drawable.ic_equalizer), contentDescription = null,
+                    tint = com.music.aalap.ui.theme.Saffron, modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Save battery while listening", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("Dolby Atmos is keeping your phone busy", color = com.music.aalap.ui.theme.Saffron, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            }
+        }
         Text(
-            "A sound effect such as Dolby Atmos is on, so the phone can't use its low-power audio chip and gets warm on long listens. " +
-                "Turn it off in Settings → Sounds and vibration → Sound quality and effects. Tap to open sound settings.",
-            color = com.music.aalap.ui.theme.TextMuted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 4.dp),
+            "With Dolby Atmos on, your phone can't use its low-power music chip, so it warms up on long listens. Turn Dolby Atmos off to keep it cool.",
+            color = com.music.aalap.ui.theme.TextMuted, fontSize = 13.sp, lineHeight = 19.sp,
+            modifier = Modifier.padding(top = 12.dp),
         )
+        Row(
+            Modifier.fillMaxWidth().padding(top = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End,
+        ) {
+            androidx.compose.material3.TextButton(onClick = {
+                // Out of the way for two weeks, then a gentle reminder if it's still on.
+                val until = System.currentTimeMillis() + 14L * 24 * 3_600_000
+                prefs.edit().putLong("hidden_until", until).apply()
+                hiddenUntil = until
+            }) { Text("Not now", color = com.music.aalap.ui.theme.TextMuted, fontSize = 14.sp) }
+            Spacer(Modifier.width(8.dp))
+            androidx.compose.material3.Button(
+                onClick = openEffects,
+                shape = RoundedCornerShape(50),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = com.music.aalap.ui.theme.Saffron,
+                    contentColor = com.music.aalap.ui.theme.OnSaffron,
+                ),
+            ) { Text("Turn off Dolby Atmos", fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+        }
     }
 }

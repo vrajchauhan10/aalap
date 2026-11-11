@@ -4,6 +4,14 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-11 (4) — 8.8.1 (95) battery tip card
+- `SettingsScreen.BatteryTip`: Surface card (as Your taste), icon, "Turn off Dolby Atmos" opens
+  `AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL` (on Samsung: soundalive
+  SoundAliveMainActivity, Dolby Atmos first; verified on the S24), falling back to
+  ACTION_SOUND_SETTINGS. "Not now" hides 14 days (prefs `battery_tip`). `LowPowerAudio.blocked`
+  rechecked on ON_RESUME so the card goes once Dolby is off. Checked on device with the debug
+  copy (removed after).
+
 ## 2026-11-11 (3) — 8.8.0 (94) player page: progress no longer recomposes the whole screen
 - Measured on the S24 (release 8.7.0), screen off, playing: Aalap ~6.9% of one core over 90 s
   (ExoPlayer 2.9%, HwBinder 2.1%, main 0.9%), battery 36.3 → 35.7 °C. Was ~20% on 8.5.1.
