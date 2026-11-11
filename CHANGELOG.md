@@ -4,6 +4,14 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.7.0 — 11 Nov 2026 (build 93)
+- **Quick picks are only real songs, from the official uploads.** Radio stations ("The
+  Romantic Station by …") and fans' re-uploads ("… Audio Song | Movie | Actors") no longer
+  appear; only a song's official audio or official video is suggested.
+- **Fresh quick picks right after an update**, instead of the old version's list for the rest
+  of the day.
+- Pav Dharia is recognised as a Punjabi singer.
+
 ## 8.6.0 — 11 Nov 2026 (build 92)
 - **The right song, the right recording.** Every stream's length is checked against the real
   song. A music video with an extra intro, a short clip or an extended upload (heard as "ends

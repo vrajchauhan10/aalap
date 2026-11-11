@@ -183,6 +183,13 @@ object YouTube {
         return findAll(root, "continuationCommand").firstOrNull()?.get("token").str()
     }
 
+    /** True when YouTube marks [r] as anything but the official audio (ATV) or video (OMV). */
+    private fun isUserUpload(r: JsonObject): Boolean {
+        val type = findAll(r, "watchEndpointMusicConfig").firstNotNullOfOrNull { it["musicVideoType"].str() }
+            ?: return false
+        return type != "MUSIC_VIDEO_TYPE_ATV" && type != "MUSIC_VIDEO_TYPE_OMV"
+    }
+
     /** The largest thumbnail anywhere in [r] (the last entry of its first thumbnails list). */
     private fun bestThumb(r: JsonObject): String {
         fun first(e: JsonElement?): JsonArray? = when (e) {
@@ -243,10 +250,19 @@ object YouTube {
      */
     suspend fun homeSongs(maxPages: Int = 2): Result<List<LibrarySong>> = runCatching {
         pages("FEmusic_home", maxPages) { json ->
-            val list = parseSongs(json).toMutableList()
+            // Home mixes in fans' re-uploads ("Mera Yaar-Audio Song | Bhaag Milkha Bhaag | …" by
+            // a fan channel) and radio stations ("The Romantic Station by Bruno Mars"): only the
+            // official audio or official video of a song is kept.
+            val userUploads = findAll(json, "musicResponsiveListItemRenderer")
+                .filter { isUserUpload(it) }
+                .mapNotNull { r -> r["playlistItemData"].obj()?.get("videoId").str() ?: findAll(r, "watchEndpoint").firstOrNull()?.get("videoId").str() }
+                .toSet()
+            val list = parseSongs(json).filterNot { it.videoId in userUploads }.toMutableList()
             // Card shelves (musicTwoRowItemRenderer) hold songs too when they open a watch page.
             findAll(json, "musicTwoRowItemRenderer").forEach { r ->
-                val vid = r["navigationEndpoint"].obj()?.get("watchEndpoint").obj()?.get("videoId").str() ?: return@forEach
+                val watch = r["navigationEndpoint"].obj()?.get("watchEndpoint").obj() ?: return@forEach
+                if (watch["playlistId"].str()?.startsWith("RD") == true || isUserUpload(r)) return@forEach
+                val vid = watch["videoId"].str() ?: return@forEach
                 val title = runsText(r["title"]).ifBlank { return@forEach }
                 val sub = runsText(r["subtitle"]).split(" • ").map { it.trim() }
                 val artists = sub.firstOrNull { it.isNotBlank() && it != "Song" && it != "Video" && !it.contains("views") }.orEmpty()

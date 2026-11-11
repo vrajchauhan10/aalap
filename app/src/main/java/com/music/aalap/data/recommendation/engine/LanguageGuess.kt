@@ -14,7 +14,7 @@ object LanguageGuess {
      * songs slipped into Hindi listening. Lower-case, as artist names are compared.
      */
     private val PUNJABI_ARTISTS = setOf(
-        "diljit dosanjh", "sidhu moose wala", "ap dhillon", "karan aujla", "shubh", "jass manak", "ammy virk",
+        "diljit dosanjh", "sidhu moose wala", "pav dharia", "ap dhillon", "karan aujla", "shubh", "jass manak", "ammy virk",
         "harrdy sandhu", "gurnam bhullar", "babbu maan", "parmish verma", "garry sandhu", "jassie gill",
         "satinder sartaaj", "gippy grewal", "mankirt aulakh", "arjan dhillon", "sunanda sharma", "nimrat khaira",
         "afsana khan", "r nait", "amrit maan", "prem dhillon", "tegi pannu", "cheema y", "gur sidhu", "navaan sandhu",

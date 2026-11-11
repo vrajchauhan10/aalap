@@ -96,7 +96,9 @@ object HomeMixes {
      * listen to only come in when the new ones run short.
      */
     suspend fun quickPicks(c: Context, force: Boolean = false): List<SongsModel> {
-        val stamp = today() + "#" + prefs(c).getInt("quick.gen", 0)
+        // The app's build is part of the stamp: after an update, today's picks are made again by
+        // the new version instead of keeping the old version's list until tomorrow.
+        val stamp = today() + "#" + prefs(c).getInt("quick.gen", 0) + "#" + com.music.aalap.BuildConfig.VERSION_CODE
         if (force) {
             prefs(c).edit().putInt("quick.gen", prefs(c).getInt("quick.gen", 0) + 1).apply()
             return quickPicks(c, force = false)

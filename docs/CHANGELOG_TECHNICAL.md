@@ -4,6 +4,19 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-11 (2) — 8.7.0 (93) official-only YouTube home songs, quick picks per build
+- Found on the S24 after updating to 8.6.0: quick picks had "The Romantic Station by Bruno
+  Mars" (two-row card, watchEndpoint playlistId RD…) and a UGC re-upload. `YouTube.homeSongs`
+  now drops items whose musicVideoType is not ATV/OMV (`isUserUpload`; items without a type are
+  kept) and cards whose watchEndpoint playlistId starts with "RD" (radio). Other parsers
+  (history, liked, charts) unchanged.
+- `HomeMixes.quickPicks` stamp includes BuildConfig.VERSION_CODE so an update rebuilds the day's
+  list once. "pav dharia" added to LanguageGuess.PUNJABI_ARTISTS.
+- Verified on device with 8.6.0: in-app update offer (dialog, banner, chip), install over
+  8.5.1, sharp official cover, no recording mismatch. Not measured: screen-off CPU (screen
+  stayed on); player page visible ~33% of one core (RenderThread 18%, main 14.7%,
+  ExoPlayer 2.5%). Tests: 178 passed.
+
 ## 2026-11-11 — 8.6.0 (92) heat, same-recording guard, language balance, quick picks 60/40
 - Heat, measured on the S24 (release 8.5.1, playing): screen on ~17% of one core, screen off
   ~20% (MediaCodec 5.8%, ExoPlayer 3%, RenderThread 3.8%). Audio offload never engaged:
