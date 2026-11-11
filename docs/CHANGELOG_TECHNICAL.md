@@ -4,6 +4,24 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-11 (5) — 8.8.2 (96) automatic language: queue stays in the seed's language
+- Found on the S24 (history): after "Daayre" (Hindi) the queue played 8 Telugu/Tamil songs
+  (several sung by Arijit Singh / Armaan Malik / Javed Ali). Cause (older than 8.6.0): with no
+  language mix, candidates with a world score (`global > 0`) were never language-checked, and
+  many South songs had no language (0.5 = neutral).
+- `QueueEngine`: `queueLang` = language of the chosen song (anchor ?: seed), else the
+  session's when ≥ 60%; candidates whose known language differs are dropped
+  (`LanguageGuess.same`, Hindi = Urdu). When < 8 same-language candidates, a same-language
+  `languageRadio` starts and joins later picks. Mix chosen → unchanged behaviour.
+- `LanguageGuess`: `labelled()` ("(Telugu)", "- Tamil Version"), `script()` (+Kannada,
+  Malayalam, Bengali), South-only artists by language with a "also sings Hindi" exclusion list
+  (any listed artist), Telugu/Tamil title words. `VibeStore.language`: Saavn → label → script
+  → artist DB → ofArtist → words.
+- Tests: LanguageArtistTest (the 9 songs from the S24 history are South; 25 Hindi songs incl.
+  "Chaleya", "Jai Ho", "Srivalli (Hindi)" stay Hindi); all 175 pass. Device (debug copy,
+  QueueEndpoint): after "Daayre" 8/8 Hindi, energy 0.30–0.50 (seed 0.48); after "Neeve" 6/6
+  Telugu. Not checked with the user's own history.
+
 ## 2026-11-11 (4) — 8.8.1 (95) battery tip card
 - `SettingsScreen.BatteryTip`: Surface card (as Your taste), icon, "Turn off Dolby Atmos" opens
   `AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL` (on Samsung: soundalive

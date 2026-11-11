@@ -282,6 +282,18 @@ object QueueEngine {
         // alongside; joins from the pick it's ready for).
         val mix = targets.languageMix
         val langRadio = if (mix.isEmpty()) null else scope.async { languageRadio(context, mix, state.lastVibe ?: Vibe.UNKNOWN) }
+        // Automatic language (no mix chosen): the queue stays in the language of the song you
+        // chose (else the session's, when it's clearly one). Other apps' "up next" drifts across
+        // languages (a Hindi song led to Tamil hits), so a song known to be in another language
+        // doesn't play, whoever suggests it. Feel, energy and tempo still pick among the rest.
+        val queueLang = if (mix.isNotEmpty()) "" else
+            VibeStore.language(context, anchor ?: seed).ifBlank {
+                Session(sessionSongs, profile.dayPartFeel).languages.entries.maxByOrNull { it.value }
+                    ?.takeIf { it.value >= 0.6 }?.key.orEmpty()
+            }
+        // More songs in that language and feel, fetched only when the suggestions run short.
+        var sameLangRadio: kotlinx.coroutines.Deferred<Map<String, Double>>? = null
+        if (queueLang.isNotBlank()) RecoTrace.log("  language: staying in $queueLang (language mix is automatic)")
         RecoTrace.log("━━━━ UP NEXT after '${seed.title}' — ${seed.artists} ━━━━")
         RecoTrace.log("  session: ${sessionSongs.size} songs, feel ${Session(sessionSongs, profile.dayPartFeel).vibe}; " +
             "aim ${"%.0f".format(targets.familiar * 100)}% known songs" + (if (poolSongs.isNotEmpty()) ", ${"%.0f".format(targets.fromList * 100)}% from '${play.poolName}'" else ""))
@@ -305,7 +317,7 @@ object QueueEngine {
 
             // Candidates: what the world plays next, your habits, and (only if they fit)
             // the playlist you started from, your all-time favourites and today's trending songs.
-            val langPool = langRadio?.takeIf { it.isCompleted && !it.isCancelled }?.let { runCatching { it.await() }.getOrNull() }.orEmpty()
+            val langPool = (langRadio ?: sameLangRadio)?.takeIf { it.isCompleted && !it.isCancelled }?.let { runCatching { it.await() }.getOrNull() }.orEmpty()
             val globalOf = langPool + fused.associate { it.id to it.score / top }
             val sourcesOf = fused.associate { it.id to it.sources }
             val extraPool = poolSongs.filter { it.id !in excluded }.shuffled(rnd).take(30)
@@ -317,6 +329,7 @@ object QueueEngine {
             extraPool.forEach { songs[it.id] = it }
             val vibes = VibeStore.vibes(context, songs.values)
             val session = Session(sessionSongs, profile.dayPartFeel)
+            var otherLanguage = 0
             val features = songs.values.mapNotNull { s ->
                 if (s.id in excluded || SongBridge.appId(s) in excludeAppIds || feedback.blocked(s)) return@mapNotNull null
                 val v = vibes[s.id] ?: Vibe.UNKNOWN
@@ -327,6 +340,8 @@ object QueueEngine {
                 // Songs nobody suggested after this one only join if they fit the session (feel and language).
                 if (global == 0.0 && habit == 0.0 && (sessionRank[s.id] ?: 0.0) < 0.3 &&
                     (session.vibeScore(v) < (if (fromList) 0.5 else 0.62) || session.languageScore(lang) < 0.5)) return@mapNotNull null
+                // Automatic language: nothing in another language, whoever suggests it.
+                if (queueLang.isNotBlank() && lang.isNotBlank() && !LanguageGuess.same(lang, queueLang)) { otherLanguage++; return@mapNotNull null }
                 // A language you turned off in your mix doesn't play (unless it's all there is).
                 if (mix.isNotEmpty() && (mix[lang] ?: 0.0) <= 0.0 && lang.isNotBlank() && global < 0.5) return@mapNotNull null
                 Features(
@@ -341,8 +356,13 @@ object QueueEngine {
                     feedback = feedback.factor(s, v),
                 )
             }
+            if (queueLang.isNotBlank() && sameLangRadio == null &&
+                features.count { it.language.isNotBlank() && LanguageGuess.same(it.language, queueLang) } < 8) {
+                sameLangRadio = scope.async { languageRadio(context, mapOf(queueLang to 1.0), state.lastVibe ?: Vibe.UNKNOWN) }
+            }
             if (RecoTrace.on) {
-                RecoTrace.log("  ${fused.size} songs the world plays next, ${habits.size} habits, ${features.size} candidates in all")
+                RecoTrace.log("  ${fused.size} songs the world plays next, ${habits.size} habits, ${features.size} candidates in all" +
+                    if (otherLanguage > 0) ", $otherLanguage in other languages left out" else "")
                 features.map { QueuePicker.score(it, session, profile.isNew, state, targets) }.sortedByDescending { it.final }.take(8).forEachIndexed { i, sc ->
                     RecoTrace.log("    ${i + 1}. ${sc.song.title} — ${sc.song.artists.substringBefore(",")}  " +
                         "world %.2f  session %.2f  fit %.2f  taste %.2f  habit %.2f%s → %.3f".format(

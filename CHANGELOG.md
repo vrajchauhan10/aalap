@@ -4,6 +4,14 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.8.2 — 11 Nov 2026 (build 96)
+- **Your queue stays in your song's language.** With the language mix on Automatic, what plays
+  next stays in the language of the song you chose, with a similar mood and pace. A Hindi song
+  no longer leads into Telugu or Tamil songs (even ones sung by Hindi singers like Arijit
+  Singh), and a Telugu song stays Telugu. Turn on a language mix to blend languages.
+- Better at recognising Tamil, Telugu, Kannada and Malayalam songs: from "(Telugu)"-style
+  labels, their letters, their singers and composers, and common title words.
+
 ## 8.8.1 — 11 Nov 2026 (build 95)
 - **Clearer battery tip in Profile.** It now matches the other Profile cards, says plainly
   that Dolby Atmos is warming the phone, and its "Turn off Dolby Atmos" button opens the

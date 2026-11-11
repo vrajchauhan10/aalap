@@ -148,7 +148,10 @@ object VibeStore {
         song.info.language.takeIf { it.isNotBlank() }?.let { return it.lowercase() }
         languages.get(song.id)?.let { return it }
         val key = SongMatcher.artistKeys(song.artists).firstOrNull().orEmpty()
-        return artistInfo(RecoDb.get(context), key).language
+        // What the song says about itself first ("(Telugu)", Tamil letters), then its singers.
+        return LanguageGuess.labelled(song.title, song.info.album)
+            .ifBlank { LanguageGuess.script(song.title + " " + song.artists) }
+            .ifBlank { artistInfo(RecoDb.get(context), key).language }
             .ifBlank { LanguageGuess.ofArtist(song.artists) }
             .ifBlank { guessLanguage(song.title, song.info.album) }.lowercase().also { languages.put(song.id, it) }
     }
