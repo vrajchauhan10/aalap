@@ -93,7 +93,7 @@ class Api @Inject constructor(
 
     private fun SpotifyTrack.toSongModel(): SongsModel {
         val singer = artists.joinToString(", ") { it.name }
-        val cover = album?.images?.firstOrNull()?.url ?: ""
+        val cover = Covers.hd(album?.images?.maxByOrNull { it.width ?: 0 }?.url ?: album?.images?.firstOrNull()?.url ?: "")
         return SongsModel(
             // Local files in a playlist have no track id; keyed by name they would all
             // share one id, which crashed lists keyed by id (#88, #91).

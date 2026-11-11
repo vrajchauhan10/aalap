@@ -34,3 +34,15 @@ class SongVersionTest {
         assertEquals(emptySet<String>(), SongVersion.of("Democracy"))
     }
 }
+
+class RecordingLengthTest {
+    @org.junit.Test fun lengths() {
+        val v = com.music.aalap.data.recommendation.engine.SongVersion
+        org.junit.Assert.assertFalse(v.differentRecording(262_000, 265_000))   // same song, encoder padding
+        org.junit.Assert.assertFalse(v.differentRecording(262_000, 272_000))   // 10 s: within 12 s
+        org.junit.Assert.assertTrue(v.differentRecording(262_000, 330_000))    // music video with intro
+        org.junit.Assert.assertTrue(v.differentRecording(262_000, 30_000))     // a clip
+        org.junit.Assert.assertFalse(v.differentRecording(0, 30_000))          // unknown length: no verdict
+        org.junit.Assert.assertFalse(v.differentRecording(600_000, 650_000))   // long song: within a tenth
+    }
+}

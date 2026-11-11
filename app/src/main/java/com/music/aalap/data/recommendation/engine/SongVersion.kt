@@ -29,4 +29,11 @@ object SongVersion {
 
     /** Whether a found title is the same take as the one asked for. */
     fun same(asked: String, found: String): Boolean = of(asked) == of(found)
+
+    /**
+     * True when a stream [actualMs] long can't be the song that's [expectedMs] long: more than
+     * 12 s and more than a tenth apart (a music video with an intro, a clip, an extended mix).
+     */
+    fun differentRecording(expectedMs: Long, actualMs: Long): Boolean =
+        expectedMs > 0 && actualMs > 0 && kotlin.math.abs(expectedMs - actualMs) > maxOf(12_000L, expectedMs / 10)
 }

@@ -4,6 +4,24 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.6.0 — 11 Nov 2026 (build 92)
+- **The right song, the right recording.** Every stream's length is checked against the real
+  song. A music video with an extra intro, a short clip or an extended upload (heard as "ends
+  early", "a line plays twice", "too slow/fast", "a different song") is dropped and the same
+  song plays from the next source instead.
+- **Fewer songs cut off mid-play.** When a source's stream breaks, Aalap carries on with the
+  same song from another source at the same spot, instead of skipping to the next song.
+- **Cooler on long listens.** The player wakes far less often (a deeper audio buffer), and the
+  per-song tempo measuring stops while Aalap is in the background.
+- **Tells you what's warming your phone.** When the phone can't use its low-power audio chip
+  (Dolby Atmos does that on Samsung), Profile says so and opens the sound settings.
+- **Recommendations stay in your languages.** Punjabi singers are recognised by name, and a
+  language you aren't listening to stays a rare guest in your radio and mixes.
+- **Quick picks: 60% new, 40% yours.** Today's trending hits and new finds you haven't heard,
+  mixed with your likes and most played; a different set on every refresh.
+- **Sharp cover art on the player.** The big cover now always loads the full-size picture
+  (640–1080 px) instead of a small thumbnail stretched to fit.
+
 ## 8.5.1 — 8 Nov 2026 (build 91)
 - **Updates download even when GitHub's link is down.** GitHub's normal download link was
   answering with an error for every release; Aalap now tries GitHub's other route for the

@@ -33,7 +33,7 @@ object SongBridge {
             title = song.title,
             album = song.info.album,
             singer = song.artists,
-            coverUri = song.info.cover,
+            coverUri = com.music.aalap.data.api.Covers.hd(song.info.cover),
             url = query,
             spotifyTrackId = song.info.spotifyId,
             explicit = song.info.explicit,

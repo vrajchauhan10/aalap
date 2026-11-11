@@ -241,6 +241,18 @@ object QueuePicker {
             }
         }
 
+        // A language you aren't listening to right now (under a tenth of the session, when the
+        // session's languages are clear) stays a rare guest: it was taking over Hindi sessions
+        // through the charts and other apps' "up next", which lean Punjabi.
+        if (mixTop == 0.0 && f.language.isNotBlank() && session.languages.isNotEmpty() && !f.liked && f.habit < 0.3) {
+            val inSession = session.languages[f.language] ?: 0.0
+            if (inSession < 0.1) {
+                val have = if (state.picks == 0) 0.0 else (state.languages[f.language] ?: 0).toDouble() / state.picks
+                s *= if (have >= 0.1) 0.3 else 0.6
+                tags += "other-language"
+            }
+        }
+
         // Your language mix: keep each language near its share, and none you turned off.
         if (mixTop > 0 && f.language.isNotBlank()) {
             val want = targets.languageMix[f.language] ?: 0.0

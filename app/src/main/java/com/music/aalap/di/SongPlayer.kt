@@ -429,6 +429,9 @@ object SongPlayer {
     fun onAppVisible(visible: Boolean) {
         Log.d(TAG, "app ${if (visible) "visible" else "in the background"}")
         inBackground = !visible
+        // Measuring each song's tempo (for recommendations) only while Aalap is open: in the
+        // background every sample would be read again on the audio thread, song after song.
+        com.music.aalap.audio.AudioAnalysis.enabled = visible
         android.os.Handler(android.os.Looper.getMainLooper()).post { applyOffload() }
     }
 
@@ -976,7 +979,9 @@ object SongPlayer {
 
         // Sources in order of preference: JioSaavn (when quick) → YouTube Music → Gaana. All
         // are started together so a fallback is ready the moment it's needed.
-        val saavnOn = com.music.aalap.data.preferences.isJioSaavnEnabled(appContext)
+        // Sources that gave a different recording of this song (wrong length) aren't asked again.
+        val skip = wrongSource[song]?.split(',')?.toSet().orEmpty()
+        val saavnOn = com.music.aalap.data.preferences.isJioSaavnEnabled(appContext) && "JioSaavn" !in skip
         val info = losslessTrackInfo(song)
         val fullArtist = metadataRegistry[song]?.artist?.ifBlank { null } ?: info.artist
         val searchText = searchTextForPlayback(song)
@@ -992,7 +997,7 @@ object SongPlayer {
         // YouTube is the heaviest lookup (it runs YouTube's own scrambled JavaScript to unlock
         // the stream), so it starts only when JioSaavn hasn't the song quickly; it used to run
         // for every song, alongside, and kept the processor busy after JioSaavn had answered.
-        val ytJob = if (youtubeEnabled) scope.async(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+        val ytJob = if (youtubeEnabled && "YouTube" !in skip) scope.async(start = kotlinx.coroutines.CoroutineStart.LAZY) {
             runCatching { resolveYtPlayback(song, quality.audioQuality, appContext) }.getOrNull()
         } else null
         if (!saavnOn) ytJob?.start()
@@ -1001,7 +1006,7 @@ object SongPlayer {
                 com.music.aalap.saavn.JioSaavnSource.resolve(info.title, fullArtist, info.durationSec, searchText)
             }
         } else null
-        val gaanaJob = if (com.music.aalap.data.preferences.isGaanaEnabled(appContext)) scope.async {
+        val gaanaJob = if (com.music.aalap.data.preferences.isGaanaEnabled(appContext) && "Gaana" !in skip) scope.async {
             kotlinx.coroutines.withTimeoutOrNull(12_000L) {
                 com.music.aalap.gaana.GaanaSource.resolve(info.title, fullArtist, info.durationSec, info.isrc, searchText)
             }
@@ -1643,6 +1648,16 @@ object SongPlayer {
                 enableAudioTrackPlaybackParams: Boolean,
             ): androidx.media3.exoplayer.audio.AudioSink =
                 androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
+                    // A deeper audio buffer (1–2 s instead of 0.25–0.75 s): the player and the
+                    // decoder wake a few times a second instead of dozens. Matters most when
+                    // the phone can't hand music to its audio chip (Samsung's Dolby Atmos turns
+                    // that off), where Aalap decodes every song itself for hours.
+                    .setAudioTrackBufferSizeProvider(
+                        androidx.media3.exoplayer.audio.DefaultAudioTrackBufferSizeProvider.Builder()
+                            .setMinPcmBufferDurationUs(1_000_000)
+                            .setMaxPcmBufferDurationUs(2_000_000)
+                            .build(),
+                    )
                     .setEnableFloatOutput(enableFloatOutput)
                     .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                     .setAudioProcessorChain(
@@ -1734,6 +1749,57 @@ object SongPlayer {
      * fresh one is fetched; if that succeeds we resume from where we left off.
      * Non-IO errors (decode, DRM, etc.) skip straight to the next track.
      */
+    // ── Same song, same recording ──
+    // A source can return a song with the right title but a different recording: the music
+    // video (extra intro, dialogue), a short clip, an extended or sped-up upload. Heard as
+    // "the song ends early", "a line plays twice", "it's too fast/slow" or "a different song".
+    // Spotify knows how long the real song is, so once a stream starts its length is compared;
+    // a clear mismatch drops that source for this song and the next source is used instead.
+
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    /** Song → sources (comma-separated) that gave a different recording or failed mid-song. */
+    private val wrongSource = CappedMap<String, String>(500)
+    @Volatile private var versionCheckedFor: String? = null
+
+    private fun checkVersion() {
+        val p = player ?: return
+        val song = currentRequest.takeIf { it.isNotBlank() } ?: return
+        if (versionCheckedFor == song || isCrossfading) return
+        val actual = p.duration.takeIf { it != androidx.media3.common.C.TIME_UNSET && it > 0 } ?: return
+        versionCheckedFor = song
+        val expected = durationRegistry[song]?.toLong() ?: return
+        val source = sourceCache[song] ?: return
+        if (source !in STREAM_SOURCES || !com.music.aalap.data.recommendation.engine.SongVersion.differentRecording(expected, actual)) return
+        Log.w("AalapSource", "$source gave a different recording (${actual / 1000}s, the song is ${expected / 1000}s): $song")
+        replaceSource(song, source)
+    }
+
+    /** Drops [source] for [song] and plays the same song from the next source that has it. */
+    private fun replaceSource(song: String, source: String, resumeAtMs: Long = -1L) {
+        wrongSource[song] = listOfNotNull(wrongSource[song], source).joinToString(",")
+        streamCache.remove(song); sourceCache.remove(song)
+        val ctx = appCtx ?: return
+        scope.launch {
+            // Nothing else has it: the stream already playing carries on.
+            val fresh = resolveStreamUrl(song, ctx, forPlayback = true) ?: return@launch
+            withContext(Dispatchers.Main) {
+                if (currentRequest != song) return@withContext
+                val pos = if (resumeAtMs >= 0) resumeAtMs else player?.currentPosition ?: 0L
+                versionCheckedFor = null
+                player?.setMediaItem(buildMediaItem(fresh, streamMimeType(fresh)))
+                player?.prepare()
+                // Early in the song, start over; later, carry on near the same spot.
+                if (pos > 30_000L) player?.seekTo(pos)
+                player?.play()
+            }
+        }
+    }
+
+    private val STREAM_SOURCES = setOf("JioSaavn", "YouTube", "Gaana")
+    /** The source a song was playing from when its stream broke (its cache entry is cleared). */
+    private val lastSourceFor = CappedMap<String, String>(200)
+    private fun streamSourceFor(song: String): String? = lastSourceFor[song]?.ifBlank { null }
+
     private val midPlayErrorListener = object : Player.Listener {
         // Track end is detected here, not in the UI: Compose stops when the screen is
         // off or the app is in the background, so the queue used to stall there.
@@ -1751,6 +1817,8 @@ object SongPlayer {
                 soulseekLookahead(ctx)
             }
             onPreloadedTrackStarted?.invoke(query)
+            // The preloaded stream's length is known by now: check it's the same recording.
+            mainHandler.postDelayed({ checkVersion() }, 1_000L)
         }
 
         // Play/pause from the notification, headset or car goes straight to the player;
@@ -1786,6 +1854,7 @@ object SongPlayer {
             // Mid-crossfade the outgoing player may end first; the blend advances itself.
             // An emptied playlist also reports ENDED (playSong clears it on every tap);
             // treating that as a finished song skipped the track the user just picked.
+            if (playbackState == Player.STATE_READY) mainHandler.post { checkVersion() }
             if (playbackState != Player.STATE_ENDED || (player?.mediaItemCount ?: 0) == 0) return
             // Remembered, so a blend that then can't find the next song still moves on.
             if (isCrossfading) endedWhileCrossfading = true else onTrackEnded?.invoke()
@@ -1798,6 +1867,8 @@ object SongPlayer {
             preloadedNext = null
             Log.w(TAG, "mid-play error for $song: ${error.errorCodeName} (code ${error.errorCode})")
             // Drop the cached URL — it may have expired (YouTube signing, lossless CDN).
+            val sourceBefore = sourceCache[song]
+            lastSourceFor[song] = sourceBefore.orEmpty()
             streamCache.remove(song)
             sourceCache.remove(song)
             val ctx = appCtx ?: run { onStreamFailed?.invoke(song); return }
@@ -1827,7 +1898,14 @@ object SongPlayer {
                         return@launch
                     }
                 }
-                // Non-IO error or re-resolve failed — advance to the next track.
+                // Not a network blip: this source's stream is broken. Before giving up on the song
+                // (which skipped it mid-play), try the same song from the next source, same spot.
+                val failedSource = sourceCache[song] ?: streamSourceFor(song)
+                if (failedSource in STREAM_SOURCES && failedSource !in (wrongSource[song]?.split(',') ?: emptyList())) {
+                    Log.w("AalapSource", "$failedSource stream broke mid-song (${error.errorCodeName}): trying the next source for $song")
+                    withContext(Dispatchers.Main) { replaceSource(song, failedSource!!, pos) }
+                    return@launch
+                }
                 withContext(Dispatchers.Main) { onStreamFailed?.invoke(song) }
             }
         }

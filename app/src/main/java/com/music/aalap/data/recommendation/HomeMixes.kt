@@ -89,9 +89,11 @@ object HomeMixes {
     // ── Quick picks: YouTube Music's own suggestions + the engine, ranked for you ──
 
     /**
-     * Quick picks: new every day and on every pull-to-refresh. A third each: what's
-     * trending (India's Top 50 and Trending charts), YouTube Music's suggestions for
-     * you, and new songs the engine found from your taste, all ordered for you.
+     * Quick picks: 60% new to you (today's trending hits, YouTube Music's suggestions and new
+     * finds from your taste, none you've played before) and 40% songs you know (your likes and
+     * most played). A different set on every pull-to-refresh, and songs shown in the last few
+     * sets wait their turn, so it stops being the same list. Songs in a language you don't
+     * listen to only come in when the new ones run short.
      */
     suspend fun quickPicks(c: Context, force: Boolean = false): List<SongsModel> {
         val stamp = today() + "#" + prefs(c).getInt("quick.gen", 0)
@@ -100,21 +102,63 @@ object HomeMixes {
             return quickPicks(c, force = false)
         }
         readSongs("quick", stamp)?.let { return it }
+        val rnd = Random(stamp.hashCode().toLong())
+        val history = com.music.aalap.data.preferences.getListeningHistory(c)
+        val heard = history.mapTo(HashSet()) { it.songId }
+        val liked = com.music.aalap.data.preferences.LikedLibrary.all(c)
+        val likedIds = liked.mapTo(HashSet()) { it.id }
+        val recentlyShown = prefs(c).getStringSet("quick.shown", emptySet()).orEmpty()
+        fun fresh(s: SongsModel) = s.id !in heard && s.id !in likedIds
+        fun notShown(s: SongsModel) = "${s.id}" !in recentlyShown
+
+        // Your languages, from what you've played (each song's artist, else its title words).
+        val langOf = { s: SongsModel -> com.music.aalap.data.recommendation.engine.LanguageGuess.ofArtist(s.singer).ifBlank { com.music.aalap.data.recommendation.engine.LanguageGuess.of(s.title, s.album) } }
+        val playedLang = history.takeLast(300).map { com.music.aalap.data.recommendation.engine.LanguageGuess.ofArtist(it.singer).ifBlank { com.music.aalap.data.recommendation.engine.LanguageGuess.of(it.title, it.album) } }
+            .filter { it.isNotBlank() }
+        val langShare = playedLang.groupingBy { it }.eachCount().mapValues { it.value.toDouble() / playedLang.size.coerceAtLeast(1) }
+        fun yourLanguage(s: SongsModel): Boolean {
+            val l = langOf(s)
+            return l.isBlank() || langShare.isEmpty() || (langShare[l] ?: 0.0) >= 0.1
+        }
+
+        // ── 60%: new to you ──
         val db = RecoDb.get(c)
         val fromYouTube = if (com.music.aalap.data.preferences.isYoutubeLoggedIn(c))
-            com.metrolist.innertube.YouTube.homeSongs().getOrNull().orEmpty()
+            runCatching { com.metrolist.innertube.YouTube.homeSongs().getOrNull().orEmpty() }.getOrDefault(emptyList())
                 .map { Candidate(title = it.title, artists = it.artists, durationSec = it.durationSec, album = it.album, cover = it.thumbnail, ytId = it.videoId) }
                 .let { db.resolveAll(it) }.map(SongBridge::toSongsModel)
         else emptyList()
-        val rnd = Random(stamp.hashCode().toLong())
-        // Fresh engine picks (Spotify + YouTube + JioSaavn) from your taste.
-        val engine = runCatching { QueueEngine.freshPicks(c, salt = stamp.hashCode().toLong(), limit = 15) }.getOrDefault(emptyList())
-        // What's trending now, the songs closest to your taste first.
-        val trending = QueueEngine.rerank(c, trendingSongs(c), familiar = 0.3f).take(20).shuffled(rnd).take(10)
-        val yt = QueueEngine.rerank(c, fromYouTube, familiar = 0.5f).take(10)
-        val mixed = ArrayList<SongsModel>()
-        for (i in 0 until 10) { trending.getOrNull(i)?.let(mixed::add); yt.getOrNull(i)?.let(mixed::add); engine.getOrNull(i)?.let(mixed::add) }
-        val result = Diversifier.spreadArtists(com.music.aalap.data.recommendation.engine.MixClean.songs(mixed.distinctBy { it.id }).take(24)) { it.singer }
+        val finds = runCatching { QueueEngine.freshPicks(c, salt = stamp.hashCode().toLong(), limit = 25) }.getOrDefault(emptyList())
+        val trending = trendingSongs(c)
+        fun pool(list: List<SongsModel>) = QueueEngine.rerank(c, list.filter(::fresh), familiar = 0f)
+            .let { ranked -> ranked.filter(::notShown) + ranked.filterNot(::notShown) }
+            // The best few, in a new order each time.
+            .take(24).shuffled(rnd)
+        val newSongs = ArrayList<SongsModel>()
+        val pools = listOf(pool(trending), pool(fromYouTube), pool(finds))
+        for (i in 0 until 24) pools.forEach { p -> p.getOrNull(i)?.let(newSongs::add) }
+        val newKept = newSongs.distinctBy { it.id }.let { list -> list.filter(::yourLanguage) + list.filterNot(::yourLanguage) }
+
+        // ── 40%: songs you know and like ──
+        val mostPlayed = com.music.aalap.data.api.Discover.allTimeFavourites(c, 30)
+        val known = (liked.shuffled(rnd).take(30) + mostPlayed).distinctBy { it.id }
+            .filter { it.url.isNotBlank() }
+            .let { list -> list.filter(::notShown).shuffled(rnd) + list.filterNot(::notShown).shuffled(rnd) }
+
+        // 3 new, 2 known, 3 new, 2 known…: 24 songs, 14 new and 10 known (fewer known for a new
+        // listener: the new songs fill in).
+        val out = ArrayList<SongsModel>()
+        var n = 0; var k = 0
+        while (out.size < 24 && (n < newKept.size || k < known.size)) {
+            repeat(3) { if (out.size < 24 && n < newKept.size) out += newKept[n++] }
+            repeat(2) { if (out.size < 24 && k < known.size) out += known[k++] }
+            if (n >= newKept.size) while (out.size < 24 && k < known.size) out += known[k++]
+        }
+        val result = Diversifier.spreadArtists(com.music.aalap.data.recommendation.engine.MixClean.songs(out.distinctBy { it.id })) { it.singer }
+        // The last three sets are remembered, so the next one leads with other songs.
+        val shownBefore = prefs(c).getString("quick.shownList", "").orEmpty().split(',').filter { it.isNotBlank() }
+        val keep = (result.map { "${it.id}" } + shownBefore).take(72)
+        prefs(c).edit().putString("quick.shownList", keep.joinToString(",")).putStringSet("quick.shown", keep.toSet()).apply()
         writeSongs("quick", stamp, result)
         return result
     }

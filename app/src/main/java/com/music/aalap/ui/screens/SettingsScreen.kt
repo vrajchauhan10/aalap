@@ -139,6 +139,7 @@ fun SettingsScreen(navController: NavController) {
             ConnectedServicesSection(navController)
             YourTasteSection()
 
+            BatteryTip()
             SectionTitle("Playback")
             var fastLoading by remember { mutableStateOf(com.music.aalap.data.preferences.isFastLoading(context)) }
             SettingsSwitchRow(
@@ -1055,5 +1056,36 @@ private fun ProfileStat(value: String, label: String, modifier: Modifier, onClic
     ) {
         Text(value, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text(label, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
+    }
+}
+
+
+/**
+ * Shown only when the phone won't let music play on its low-power audio chip (on Samsung this is
+ * what Dolby Atmos does): then every song is decoded by the main processor for as long as music
+ * plays, which is what warms the phone in an hour. Says how to switch it back.
+ */
+@Composable
+private fun BatteryTip() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val blocked = remember { com.music.aalap.audio.LowPowerAudio.blocked(context) }
+    if (!blocked) return
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(com.music.aalap.ui.theme.Saffron.copy(alpha = 0.14f))
+            .clickable {
+                runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_SOUND_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            }
+            .padding(16.dp),
+    ) {
+        Text("Your phone is working harder for music", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "A sound effect such as Dolby Atmos is on, so the phone can't use its low-power audio chip and gets warm on long listens. " +
+                "Turn it off in Settings → Sounds and vibration → Sound quality and effects. Tap to open sound settings.",
+            color = com.music.aalap.ui.theme.TextMuted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }

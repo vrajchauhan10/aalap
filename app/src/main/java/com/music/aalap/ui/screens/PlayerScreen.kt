@@ -402,7 +402,7 @@ fun PlayerScreen(navController: NavController) {
                             .padding(20.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .alpha(if (canvasUrl != null) 0f else 1f),
-                        model = songCoverUri,
+                        model = com.music.aalap.data.api.Covers.hd(songCoverUri),
                         contentScale = ContentScale.Crop,
                         contentDescription = "")
                 } else {
@@ -418,7 +418,7 @@ fun PlayerScreen(navController: NavController) {
                                 .padding(20.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .alpha(if (canvasUrl != null) 0f else 1f),
-                            model = queueSongs.getOrNull(page)?.coverUri ?: songCoverUri,
+                            model = com.music.aalap.data.api.Covers.hd(queueSongs.getOrNull(page)?.coverUri ?: songCoverUri),
                             contentScale = ContentScale.Crop,
                             contentDescription = "")
                     }

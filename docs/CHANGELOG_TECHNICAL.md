@@ -4,6 +4,33 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-11 — 8.6.0 (92) heat, same-recording guard, language balance, quick picks 60/40
+- Heat, measured on the S24 (release 8.5.1, playing): screen on ~17% of one core, screen off
+  ~20% (MediaCodec 5.8%, ExoPlayer 3%, RenderThread 3.8%). Audio offload never engaged:
+  APM "do not support offload in Dolby" (Dolby Atmos on). Nov 9 CPUTOP (bugreport): Aalap
+  ~2%, audioserver ~3.2% of all cores over ~6 h. Changes: DefaultAudioTrackBufferSizeProvider
+  1–2 s PCM; AudioAnalysis disabled while not visible; `LowPowerAudio.blocked()`
+  (AudioManager.isOffloadedPlaybackSupported AAC 44.1k) → Profile tip. Not re-measured on a
+  release build after the change (phone hot/locked).
+- Same recording: `checkVersion()` on STATE_READY / preloaded transition compares
+  player.duration with durationRegistry (`SongVersion.differentRecording`: >12 s and >10%,
+  tested); mismatch → `wrongSource[song]` += source, re-resolve skipping it
+  (`resolveStreamUrl` skip set for JioSaavn/YouTube/Gaana). Non-IO mid-play errors now try
+  the next source at the same position before `onStreamFailed`. Not exercised on a device.
+- Language: `LanguageGuess.ofArtist` (Punjabi-only singers; mixed ones left to titles) in
+  VibeStore.language; QueuePicker "other-language" ×0.6 (×0.3 once 10% of picks) for a
+  language under 10% of the session (not liked/habit). Tests added.
+- Quick picks rewritten: 14 new (unheard, not liked; trending/YT home/fresh finds, reranked,
+  shuffled per refresh, last 3 sets deprioritised) + 10 known (likes + most played), 3:2
+  interleave; other-language new songs go last.
+- Covers: `data/api/Covers.hd()` upgrades thumbnail URLs (Google `=w1080-h1080`, Spotify
+  `ab67616d0000b273`, JioSaavn 500x500, ytimg hqdefault); used in Api track mapping
+  (largest Spotify image), SongBridge.coverUri and PlayerScreen. CoversTest added.
+- Profile audit (code trace): auto-download liked (OfflineState → AutoDownloader.maybeRun on
+  network/manual/toggle, Wi-Fi only), Wi-Fi/mobile quality (currentStreamingQuality in
+  SongPlayer), fast loading, Blend sync (start/pull/onSongStarted), follow my pace
+  (RecentPace → Your Mix + voice mixes) all have live readers. No change needed.
+
 ## 2026-11-08 (2) — 8.5.1 (91) update download fallback, filling update banner
 - github.com/<repo>/releases/download/... answered 504 (92-byte body) for every release
   (8.5.0 and 8.4.1, ~6 tries over several minutes, GitHub status "operational"); the API
