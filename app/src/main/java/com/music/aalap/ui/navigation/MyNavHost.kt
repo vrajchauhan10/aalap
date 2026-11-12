@@ -185,6 +185,22 @@ fun MyNavHost(
             SheetLayer(onClosed = { navHostController.popBackStack() }) { PlayerScreen(navHostController) }
         }
 
+        // Artist, album or sound opened from the player: a page on top of the player, which
+        // stays open underneath, so back shows it again at once (see PlayerReturn).
+        dialog("${PlayerReturn.ROUTE}/{inner}", dialogProperties = SheetWindow) { entry ->
+            val inner = entry.arguments?.getString("inner").orEmpty()
+            PageLayer(onClosed = { navHostController.popBackStack() }) {
+                val uri = android.net.Uri.parse("app://x/" + inner)
+                val parts = inner.substringBefore('?').split('/')
+                when (parts.firstOrNull()) {
+                    Routes.Artist.route -> ArtistScreen(navHostController, android.net.Uri.decode(parts.getOrNull(1).orEmpty()), uri.getQueryParameter("id").orEmpty())
+                    Routes.Album.route -> AlbumScreen(navController = navHostController, albumName = android.net.Uri.decode(parts.drop(1).joinToString("/")), artist = uri.getQueryParameter("artist").orEmpty())
+                    Routes.Sound.route -> com.music.aalap.ui.screens.SoundScreen(navHostController)
+                    else -> LaunchedEffect(Unit) { navHostController.popBackStack() }
+                }
+            }
+        }
+
         dialog(Routes.Queue.route, dialogProperties = SheetWindow) {
             SheetLayer(onClosed = { navHostController.popBackStack() }) { QueueScreen(navHostController) }
         }

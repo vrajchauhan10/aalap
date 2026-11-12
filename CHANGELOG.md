@@ -4,6 +4,11 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.11.0 — 12 Nov 2026 (build 99)
+- **Pages stack on top of the player.** The artist, album or sound page you open from the player
+  now slides in over it, and going back slides it away to show the player still there, with
+  no flash of Home or the mini player in between.
+
 ## 8.10.0 — 12 Nov 2026 (build 98)
 - **Bigger cover on the player.** The cover is back to its full size, and the empty space
   above the play buttons and under the song name is gone.

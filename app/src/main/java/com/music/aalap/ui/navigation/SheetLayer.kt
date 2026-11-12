@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -83,8 +84,7 @@ fun SheetLayer(onClosed: () -> Unit, content: @Composable () -> Unit) {
     }
     val height = with(LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
     // 0 = fully open, 1 = down in the mini player.
-    // Coming back from a page opened in the player: it's simply there again, not sliding up.
-    val down = remember { Animatable(if (PlayerReturn.takeInstant()) 0f else 1f) }
+    val down = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
     val closing = remember { booleanArrayOf(false) }
     // Counted once while this sheet is fully open; uncounted when it starts closing or goes away.
@@ -142,3 +142,57 @@ fun SheetLayer(onClosed: () -> Unit, content: @Composable () -> Unit) {
         com.music.aalap.ui.components.PetalShower()
     }
 }
+
+/**
+ * A page laid over the player (artist, album, sound opened from it): it glides in from the
+ * right like any page, and back (or pulling down) slides it off to the right, showing the
+ * player that stayed open underneath.
+ */
+@Composable
+fun PageLayer(onClosed: () -> Unit, content: @Composable () -> Unit) {
+    val view = LocalView.current
+    SideEffect {
+        (view.parent as? DialogWindowProvider)?.window?.let { w ->
+            w.setDimAmount(0f)
+            w.setWindowAnimations(0)
+            WindowCompat.setDecorFitsSystemWindows(w, false)
+            w.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
+            w.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+            w.statusBarColor = android.graphics.Color.TRANSPARENT
+            w.navigationBarColor = android.graphics.Color.TRANSPARENT
+            if (android.os.Build.VERSION.SDK_INT >= 29) w.isNavigationBarContrastEnforced = false
+            if (android.os.Build.VERSION.SDK_INT >= 30) w.attributes = w.attributes.apply {
+                fitInsetsTypes = 0
+                gravity = android.view.Gravity.TOP
+            }
+        }
+    }
+    val width = with(LocalDensity.current) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    // 0 = in place, 1 = off to the right.
+    val away = remember { Animatable(1f) }
+    val scope = rememberCoroutineScope()
+    val closing = remember { booleanArrayOf(false) }
+    LaunchedEffect(Unit) { away.animateTo(0f, tween(340, easing = SheetEasing)) }
+    val close: () -> Unit = {
+        if (!closing[0]) {
+            closing[0] = true
+            scope.launch {
+                away.animateTo(1f, tween(300, easing = SheetEasing))
+                onClosed()
+            }
+        }
+    }
+    BackHandler(onBack = close)
+    CompositionLocalProvider(LocalCloseSheet provides close) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationX = away.value * width
+                    shadowElevation = 24f
+                }
+                .background(com.music.aalap.ui.theme.AppBackground),
+        ) { content() }
+    }
+}
+

@@ -4,6 +4,17 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-12 (3) — 8.11.0 (99) pages opened from the player stack over it
+- 8.10.0 popped the player dialog when a composable page opened and re-opened it when that page
+  was destroyed, so back showed Home + mini player for the length of the pop transition.
+- Now `PlayerReturn.open` navigates to a dialog route `overplayer/{inner}` (inner = the normal
+  route, encoded). Dialog entries stack, so the player dialog stays open underneath (as the
+  queue already did). `PageLayer` (SheetLayer.kt) slides it in from the right and, on back,
+  off to the right before popping. The 8.10.0 lifecycle re-open and `takeInstant` are removed.
+- Deeper pages opened from that layer (e.g. artist → album) are normal pages and leave the player,
+  as before 8.10.0.
+- Checked on the S24 (debug copy): back from the artist page shows the player directly.
+
 ## 2026-11-12 (2) — 8.10.0 (98) player spacing, back returns to the player
 - PlayerScreen: the info/progress/controls block lost its fixed `height(300.dp)` +
   50 dp bottom padding (now wraps, `spacedBy(4.dp)`); slider top padding 20 → 8 dp, PlayerInfo
