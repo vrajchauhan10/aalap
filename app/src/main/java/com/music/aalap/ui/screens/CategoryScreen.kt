@@ -105,7 +105,7 @@ private fun CategoryGrid(entries: List<LibraryEntry>, navController: NavControll
     }
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(12.dp, 8.dp, 12.dp, 130.dp),
+        contentPadding = PaddingValues(12.dp, 8.dp, 12.dp, com.music.aalap.ui.components.BottomClearance),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxSize(),

@@ -92,18 +92,6 @@ private val translateLanguages by lazy {
 fun SettingsScreen(navController: NavController) {
     val context = LocalContext.current
 
-    var wifiQ by remember { mutableStateOf(getWifiQuality(context)) }
-    var cellQ by remember { mutableStateOf(getCellularQuality(context)) }
-    var dlQ by remember { mutableStateOf(getDownloadQuality(context)) }
-    var crossfadeMs by remember { mutableStateOf(getCrossfadeMs(context).toFloat()) }
-    var videoFallback by remember { mutableStateOf(isVideoFallbackEnabled(context)) }
-    var selectedLanguage by remember { mutableStateOf(getLyricTranslateLang(context)) }
-    var languageQuery by remember { mutableStateOf("") }
-    val youtubeConnected = isYoutubeLoggedIn(context)
-    var primarySource by remember {
-        mutableStateOf(getPrimaryMusicSource(context) ?: MusicSource.YOUTUBE_MUSIC)
-    }
-
     Scaffold(
         containerColor = AppBackground,
         topBar = {
@@ -140,6 +128,69 @@ fun SettingsScreen(navController: NavController) {
             YourTasteSection()
 
             BatteryTip()
+            Spacer(Modifier.height(8.dp))
+            // Every setting lives on its own page, so Profile stays about you.
+            NavRow("Settings", "Playback, downloads, recommendations, sound, voice, lyrics, appearance") {
+                navController.navigate(com.music.aalap.ui.navigation.Routes.AppSettings.route)
+            }
+            Text(
+                "Aalap ${com.music.aalap.BuildConfig.VERSION_NAME}",
+                color = com.music.aalap.ui.theme.TextMuted,
+                fontSize = 12.sp,
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            // Clears the floating mini player + tab bar so Log out can scroll fully into view.
+            Spacer(Modifier.height(com.music.aalap.ui.components.BottomClearance))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AppSettingsScreen(navController: NavController) {
+    val context = LocalContext.current
+
+    var wifiQ by remember { mutableStateOf(getWifiQuality(context)) }
+    var cellQ by remember { mutableStateOf(getCellularQuality(context)) }
+    var dlQ by remember { mutableStateOf(getDownloadQuality(context)) }
+    var crossfadeMs by remember { mutableStateOf(getCrossfadeMs(context).toFloat()) }
+    var videoFallback by remember { mutableStateOf(isVideoFallbackEnabled(context)) }
+    var selectedLanguage by remember { mutableStateOf(getLyricTranslateLang(context)) }
+    var languageQuery by remember { mutableStateOf("") }
+    val youtubeConnected = isYoutubeLoggedIn(context)
+    var primarySource by remember {
+        mutableStateOf(getPrimaryMusicSource(context) ?: MusicSource.YOUTUBE_MUSIC)
+    }
+
+    Scaffold(
+        containerColor = AppBackground,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Settings", color = com.music.aalap.ui.theme.TextPrimary, fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = com.music.aalap.ui.theme.TextPrimary,
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .size(26.dp)
+                            .clickable { navController.popBackStack() }
+                    )
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = AppBackground)
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .consumeWindowInsets(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
             SectionTitle("Playback")
             var fastLoading by remember { mutableStateOf(com.music.aalap.data.preferences.isFastLoading(context)) }
             SettingsSwitchRow(
@@ -164,6 +215,9 @@ fun SettingsScreen(navController: NavController) {
 
             SectionTitle("Recommendations")
             com.music.aalap.ui.components.RecommendationSettings()
+
+            SectionTitle("Home")
+            com.music.aalap.ui.components.HomeSectionsSetting()
 
             SectionTitle("Sound and your music")
             NavRow("Sound and equalizer", "Presets, bass boost, normalize volume, playback speed") {
@@ -431,7 +485,7 @@ fun SettingsScreen(navController: NavController) {
                 com.music.aalap.ui.components.Signature()
             }
             // Clears the floating mini player + tab bar so Log out can scroll fully into view.
-            Spacer(Modifier.height(190.dp))
+            Spacer(Modifier.height(com.music.aalap.ui.components.BottomClearance))
         }
     }
 }
@@ -1026,6 +1080,12 @@ private fun ProfileHeader(navController: NavController) {
                 }
                 val email = com.music.aalap.data.preferences.getAalapEmail(context)
                 if (email.isNotBlank()) Text(email, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
+                // Skipped at first start: one quiet link to add it, which keeps the library safe on log out.
+                else Text(
+                    "Add your name and email",
+                    color = AppPalette, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable { navController.navigate(com.music.aalap.ui.navigation.Routes.Login.route) },
+                )
                 Text("Spotify + YouTube Music in one library", color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
             }
         }

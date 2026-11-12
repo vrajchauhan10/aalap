@@ -249,7 +249,7 @@ fun LocalFilesScreen(navController: NavController) {
                         }
                     }
                 }
-                item { Spacer(Modifier.height(100.dp)) }
+                item { Spacer(Modifier.height(com.music.aalap.ui.components.BottomClearance)) }
             }
         }
     }

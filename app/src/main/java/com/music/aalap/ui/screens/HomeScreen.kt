@@ -197,13 +197,18 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
     val today by homeViewModel.today.collectAsState()
 
     val gen by homeViewModel.refreshGen.collectAsState()
+    val homeContext = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(Unit) { com.music.aalap.data.preferences.HomeSections.load(homeContext) }
+    fun show(key: String) = com.music.aalap.data.preferences.HomeSections.shows(key)
+    var editHome by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (editHome) com.music.aalap.ui.components.HomeSectionsDialog { editHome = false }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     androidx.compose.runtime.LaunchedEffect(Unit) {
         com.music.aalap.ui.navigation.HomeTabEvents.refresh.collect { listState.animateScrollToItem(0) }
     }
     LazyColumn(
         state = listState,
-        contentPadding = PaddingValues(bottom = 190.dp),
+        contentPadding = PaddingValues(bottom = com.music.aalap.ui.components.BottomClearance),
         modifier = Modifier
             .fillMaxSize()
             .background(com.music.aalap.ui.theme.AppBackground)
@@ -213,22 +218,31 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
         item { com.music.aalap.ui.components.UpdateBanner() }
         item { ContinueCard() }
         item { LastWeekCard(navController) }
+        // Your recent songs first, so picking up where you left off is one tap.
+        if (recent.isNotEmpty() && show("recent")) item { BounceIn(1, gen) { SongTileRow("Recently played", recent) } }
         // Moods live in Aalap Radio below (and in Search), not as a second row of pills.
         // Aalap Radio replaces the feed's featured playlist (whose art carried another brand).
         // Order: today's poster (opens the 30), Quick picks to choose from, then moods.
         // After a refresh, every section drops in one after another, top to bottom.
-        item { BounceIn(1, gen) { com.music.aalap.ui.components.TodayPlaylistSection(today) { navController.navigate(com.music.aalap.ui.navigation.Routes.Today.route) } } }
-        item { BounceIn(2, gen) { QuickPicksSection(quick, quickStatus, navController = navController) { homeViewModel.retryQuickPicks() } } }
-        item { BounceIn(3, gen) { com.music.aalap.ui.components.AalapRadioSection() } }
-        item { BounceIn(4, gen) { ChartsRow(navController) } }
-        item { BounceIn(5, gen) { MadeForYouSection(mixes) } }
-        if (jump.isNotEmpty()) item { BounceIn(6, gen) { JumpBackInRow(navController, jump) } }
-        if (recent.isNotEmpty()) item { BounceIn(7, gen) { SongTileRow("Recently played", recent) } }
-        item { BounceIn(8, gen) { DailySongRows() } }
-        item { BounceIn(9, gen) { ArtistRadiosSection(stations) } }
-        item { BounceIn(10, gen) { NewReleasesSection(navController, releases) } }
-        items(carousels.size) { i ->
+        // Each section can be hidden from "Edit Home" (all show until you hide one).
+        if (show("today")) item { BounceIn(1, gen) { com.music.aalap.ui.components.TodayPlaylistSection(today) { navController.navigate(com.music.aalap.ui.navigation.Routes.Today.route) } } }
+        if (show("quick")) item { BounceIn(2, gen) { QuickPicksSection(quick, quickStatus, navController = navController) { homeViewModel.retryQuickPicks() } } }
+        if (show("radio")) item { BounceIn(3, gen) { com.music.aalap.ui.components.AalapRadioSection() } }
+        if (show("charts")) item { BounceIn(4, gen) { ChartsRow(navController) } }
+        if (show("mixes")) item { BounceIn(5, gen) { MadeForYouSection(mixes) } }
+        if (jump.isNotEmpty() && show("jump")) item { BounceIn(6, gen) { JumpBackInRow(navController, jump) } }
+        if (show("daily")) item { BounceIn(8, gen) { DailySongRows() } }
+        if (show("artistRadios")) item { BounceIn(9, gen) { ArtistRadiosSection(stations) } }
+        if (show("releases")) item { BounceIn(10, gen) { NewReleasesSection(navController, releases) } }
+        if (show("more")) items(carousels.size) { i ->
             BounceIn(11 + i, gen) { HomeFeedSection(navController, carousels[i]) }
+        }
+        item {
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(top = 24.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.TextButton(onClick = { editHome = true }) {
+                    Text("Edit Home", color = com.music.aalap.ui.theme.TextMuted, fontSize = 13.sp)
+                }
+            }
         }
         // The maker's mark, at the end of Home.
         item {
@@ -1153,7 +1167,7 @@ private fun OfflineHome(navController: NavController) {
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(bottom = 190.dp),
+        contentPadding = PaddingValues(bottom = com.music.aalap.ui.components.BottomClearance),
         modifier = Modifier.fillMaxSize().background(com.music.aalap.ui.theme.AppBackground),
     ) {
         item {

@@ -5,6 +5,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -108,38 +109,69 @@ fun QuickPicksSection(
     }
     val context = LocalContext.current
     val player: PlayerViewModel = hiltViewModel()
-    HomeHeader("Quick picks")
+    // Picks you said "less like this" to leave the list at once (the engine remembers it too).
+    var gone by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(setOf<Int>()) }
+    val shown = picks.filter { it.song.id !in gone }
+    var showAll by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f)) { HomeHeader("Quick picks") }
+        // Every pick at once, as a plain list, instead of swiping page by page.
+        if (shown.size > 4) androidx.compose.material3.TextButton(
+            onClick = { showAll = !showAll },
+            modifier = Modifier.padding(end = 8.dp, top = 12.dp),
+        ) { Text(if (showAll) "Show less" else "See all ${shown.size}", color = com.music.aalap.ui.theme.Saffron, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+    }
     // The ⋮ on a pick opens the same menu as everywhere else: play next, add to queue, playlists…
     var menuFor by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.music.aalap.data.entity.SongsModel?>(null) }
     menuFor?.let { song ->
         if (navController != null) com.music.aalap.ui.components.SongOptionsSheet(song, navController, context) { menuFor = null }
     }
-    val pages = picks.chunked(4)
+    // A long press asks why the song is here.
+    var whyFor by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<HomeMixes.TodaySong?>(null) }
+    whyFor?.let { t ->
+        com.music.aalap.ui.components.WhyThisSongDialog(
+            pick = t,
+            onLess = {
+                gone = gone + t.song.id
+                player.feedback(t.song, com.music.aalap.data.recommendation.engine.Feedback.Kind.LESS, context)
+            },
+            onDismiss = { whyFor = null },
+        )
+    }
+    val row: @Composable (HomeMixes.TodaySong) -> Unit = { t ->
+        val s = t.song
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().pressSquish().clip(RoundedCornerShape(12.dp))
+                .combinedClickable(onClick = { player.playWithRadio(s, context) }, onLongClick = { whyFor = t }),
+        ) {
+            GlideImage(
+                model = s.coverUri, contentDescription = s.title, contentScale = ContentScale.Crop,
+                loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+                modifier = Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)),
+            )
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(s.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // Why it's here, as coloured words under the title: Trending, Top hit, Your taste.
+                com.music.aalap.ui.components.ReasonLine(t)
+            }
+            com.music.aalap.ui.components.LikedHeartIfLiked(s.id)
+            if (navController != null) androidx.compose.material3.IconButton(onClick = { menuFor = s }, modifier = Modifier.size(36.dp)) {
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.MoreVert, contentDescription = "More options", tint = TextMuted)
+            }
+        }
+    }
+    if (showAll) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(horizontal = 20.dp)) {
+            shown.forEach { t -> androidx.compose.runtime.key(t.song.id) { row(t) } }
+        }
+        return
+    }
+    val pages = shown.chunked(4)
     val pager = rememberPagerState { pages.size }
     HorizontalPager(state = pager, contentPadding = PaddingValues(start = 20.dp, end = 48.dp), pageSpacing = 12.dp) { p ->
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            pages[p].forEach { t ->
-                val s = t.song
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().pressSquish().clip(RoundedCornerShape(12.dp)).clickable { player.playWithRadio(s, context) },
-                ) {
-                    GlideImage(
-                        model = s.coverUri, contentDescription = s.title, contentScale = ContentScale.Crop,
-                        loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
-                        modifier = Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)),
-                    )
-                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                        Text(s.title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        // Why it's here, as coloured words under the title: Trending, Top hit, Your taste.
-                        com.music.aalap.ui.components.ReasonLine(t)
-                    }
-                    com.music.aalap.ui.components.LikedHeartIfLiked(s.id)
-                    if (navController != null) androidx.compose.material3.IconButton(onClick = { menuFor = s }, modifier = Modifier.size(36.dp)) {
-                        androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.MoreVert, contentDescription = "More options", tint = TextMuted)
-                    }
-                }
-            }
+            pages.getOrNull(p)?.forEach { t -> row(t) }
         }
     }
 }

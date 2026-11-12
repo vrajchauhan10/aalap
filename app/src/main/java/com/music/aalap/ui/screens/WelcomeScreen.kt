@@ -73,6 +73,8 @@ import com.music.aalap.ui.theme.TextPrimary
 @Composable
 fun WelcomeScreen(navController: NavController) {
     val context = LocalContext.current
+    // Opened from Profile by someone who skipped this at first start.
+    val addingLater = remember { com.music.aalap.data.preferences.isAalapOnboarded(context) }
     var name by remember { mutableStateOf(com.music.aalap.data.preferences.getAalapName(context)) }
     var email by remember { mutableStateOf(com.music.aalap.data.preferences.getAalapEmail(context)) }
     var error by remember { mutableStateOf("") }
@@ -83,7 +85,9 @@ fun WelcomeScreen(navController: NavController) {
             !android.util.Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches() -> error = "Enter a valid email"
             else -> {
                 setAalapAccount(context, name, email)
-                navController.navigate(Routes.MusicSource.route) { popUpTo(Routes.Login.route) { inclusive = true } }
+                // Added later from Profile: back to Profile. First start: on to connecting music.
+                if (addingLater) navController.popBackStack()
+                else navController.navigate(Routes.MusicSource.route) { popUpTo(Routes.Login.route) { inclusive = true } }
             }
         }
     }

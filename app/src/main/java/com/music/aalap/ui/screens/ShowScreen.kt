@@ -75,7 +75,7 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
     }
 
     LazyColumn(
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 130.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = com.music.aalap.ui.components.BottomClearance),
         modifier = Modifier
             .fillMaxSize()
             .background(Color(AppBackground.toArgb()))
@@ -164,6 +164,6 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
                 }
             }
         }
-        item { Spacer(Modifier.height(130.dp)) }
+        item { Spacer(Modifier.height(com.music.aalap.ui.components.BottomClearance)) }
     }
 }

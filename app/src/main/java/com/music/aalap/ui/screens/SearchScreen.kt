@@ -167,7 +167,7 @@ fun SumUpSearchScreen(
     // Pulling down only stretches and springs back: this page never refreshes on a pull.
     com.music.aalap.ui.components.AalapBounce(Modifier.fillMaxSize()) {
         LazyColumn(
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 130.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = com.music.aalap.ui.components.BottomClearance),
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(AppBackground.toArgb()))

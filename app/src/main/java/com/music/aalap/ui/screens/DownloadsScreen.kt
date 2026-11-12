@@ -307,7 +307,7 @@ fun DownloadsScreen(navController: NavController) {
                     }
                 }
 
-                Spacer(modifier = Modifier.padding(80.dp))
+                Spacer(modifier = Modifier.height(com.music.aalap.ui.components.BottomClearance))
             }
         }
     }

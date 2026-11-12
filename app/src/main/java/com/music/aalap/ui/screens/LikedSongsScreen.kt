@@ -362,7 +362,7 @@ fun LikedSongsScreen(navController: NavController) {
                     }
 
                     item { androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(top = 20.dp, end = 24.dp), contentAlignment = Alignment.CenterEnd) { com.music.aalap.ui.components.Signature() } }
-                    item { Spacer(modifier = Modifier.padding(80.dp)) }
+                    item { Spacer(modifier = Modifier.height(com.music.aalap.ui.components.BottomClearance)) }
                 }
             }
         }

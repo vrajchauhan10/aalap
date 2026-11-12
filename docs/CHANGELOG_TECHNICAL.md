@@ -4,6 +4,30 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-12 — 8.9.0 (97) UI ease-of-use pass
+- Profile split: `SettingsScreen` (route `settings`) keeps header, tiles, update, connected
+  services, taste, battery tip, plus a "Settings" row; every setting moved unchanged to new
+  `AppSettingsScreen` (route `appsettings`). No preference keys changed.
+- `components/BottomClearance` (200 dp) used by every scrolling page that had 100–190 dp, so
+  the last row clears the mini player + tab bar.
+- Home: "Recently played" moved under Continue/Last week; each section can be hidden
+  (`data/preferences/HomeSections`, file `home_sections`, all visible by default; "Edit Home"
+  at the bottom of Home and a "Home" group in Settings).
+- Quick picks: "See all N" expands to a plain list; long-press opens `WhyThisSongDialog`
+  (reasons in plain words + "Less like this" = `Feedback.Kind.LESS`, the existing song-menu path).
+- Player: `PlayerQuickActions` row (Add to playlist → `SavedInSheet`, Artist → `goToArtist`,
+  Download → `Downloads.downloadSong`); removing a download stays in the ⋮ menu.
+- Welcome: name + email stay required (Blend and the per-user library need an identity; a
+  "Skip for now" was tried and dropped). Profile shows "Add your name and email" only for
+  older installs with no email, reopening Welcome and returning to Profile.
+- Library: "Recently played" (6, `HomeMixes.recentlyPlayed`) on All when fewer than 4
+  playlists/albums; cover placeholders; "Nothing here yet" no longer shown on All.
+- Player quick-action labels shortened (Playlist / Artist / Download → Saved).
+- Tests: app/innertube/spotify unit tests pass. Checked on the S24 with the debug copy
+  (Home order, See all, Why this song + Less, player buttons, Profile/Settings,
+  Library); "Edit Home" not tried on the phone.
+- Performance: no background or per-song work added; Home reads one small prefs file once.
+
 ## 2026-11-11 (5) — 8.8.2 (96) automatic language: queue stays in the seed's language
 - Found on the S24 (history): after "Daayre" (Hindi) the queue played 8 Telugu/Tamil songs
   (several sung by Arijit Singh / Armaan Malik / Javed Ali). Cause (older than 8.6.0): with no

@@ -489,6 +489,12 @@ private fun LibraryContent(
     }
     // Trending playlists aren't yours: nothing to remove on a long press.
     val trendingIds = remember(trending) { trending.mapTo(HashSet()) { it.spotifyId } }
+    val libraryContext = androidx.compose.ui.platform.LocalContext.current
+    val libraryPlayer: com.music.aalap.ui.viewmodel.PlayerViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    // Read once per visit (a small prefs read), only when the section can show.
+    val libraryRecent = remember(showTiles, entries.size) {
+        if (showTiles && entries.size < 4) com.music.aalap.data.recommendation.HomeMixes.recentlyPlayed(libraryContext, 6) else emptyList()
+    }
     val press: (LibraryEntry) -> Modifier = { entry ->
         Modifier.combinedClickable(
             onClick = { openLibraryEntry(entry, navController) },
@@ -497,7 +503,7 @@ private fun LibraryContent(
     }
     LazyVerticalGrid(
         columns = GridCells.Fixed(if (grid) 3 else 1),
-        contentPadding = PaddingValues(bottom = 200.dp),
+        contentPadding = PaddingValues(bottom = com.music.aalap.ui.components.BottomClearance),
         modifier = Modifier.fillMaxSize().background(com.music.aalap.ui.theme.AppBackground),
     ) {
         val full: (androidx.compose.foundation.lazy.grid.LazyGridItemSpanScope.() -> GridItemSpan) = { GridItemSpan(maxLineSpan) }
@@ -535,7 +541,7 @@ private fun LibraryContent(
         // Your playlists and albums, then (on Playlists) what's trending now.
         for ((title, list) in listOf("Playlists and albums" to entries, "Trending playlists" to trending)) {
             if (list.isEmpty()) continue
-            if (list === trending && entries.isEmpty()) item(span = full) {
+            if (list === trending && entries.isEmpty() && !showTiles) item(span = full) {
                 Text(emptyText, color = com.music.aalap.ui.theme.TextMuted, fontSize = 14.sp, modifier = Modifier.padding(20.dp, 16.dp))
             }
             item(span = full) { LibrarySectionTitle(title) }
@@ -551,6 +557,7 @@ private fun LibraryContent(
                         GlideImage(
                             modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(16.dp)),
                             model = entry.coverUri, contentScale = ContentScale.Crop, contentDescription = "",
+                            loading = com.bumptech.glide.integration.compose.placeholder(com.music.aalap.R.drawable.placeholder), failure = com.bumptech.glide.integration.compose.placeholder(com.music.aalap.R.drawable.placeholder),
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(entry.name, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -567,6 +574,7 @@ private fun LibraryContent(
                         GlideImage(
                             modifier = Modifier.size(58.dp).clip(RoundedCornerShape(14.dp)),
                             model = entry.coverUri, contentScale = ContentScale.Crop, contentDescription = "",
+                            loading = com.bumptech.glide.integration.compose.placeholder(com.music.aalap.R.drawable.placeholder), failure = com.bumptech.glide.integration.compose.placeholder(com.music.aalap.R.drawable.placeholder),
                         )
                         Column(Modifier.weight(1f).padding(start = 14.dp)) {
                             Text(entry.name, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -616,6 +624,34 @@ private fun LibraryContent(
                 // List view: compact rows, not full-width circles.
                 item(span = full) { AddArtistsRow(navController) }
                 items(artists.size, span = { full() }) { i -> ArtistRow(artists[i], navController) }
+            }
+        }
+
+        // A small library left most of the page empty: your recent songs fill it, one tap to play.
+        if (showTiles && entries.size < 4) {
+            val recent = libraryRecent
+            if (recent.isNotEmpty()) {
+                item(span = full) { LibrarySectionTitle("Recently played") }
+                items(recent.size, span = { full() }) { i ->
+                    val song = recent[i]
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { libraryPlayer.playFromList(song, recent, "Recently played", libraryContext) }
+                            .padding(horizontal = 20.dp, vertical = 6.dp),
+                    ) {
+                        GlideImage(
+                            modifier = Modifier.size(50.dp).clip(RoundedCornerShape(12.dp)),
+                            model = song.coverUri, contentScale = ContentScale.Crop, contentDescription = "",
+                            loading = com.bumptech.glide.integration.compose.placeholder(com.music.aalap.R.drawable.placeholder), failure = com.bumptech.glide.integration.compose.placeholder(com.music.aalap.R.drawable.placeholder),
+                        )
+                        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                            Text(song.title, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(song.singer, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
             }
         }
 

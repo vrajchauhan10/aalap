@@ -454,6 +454,15 @@ fun PlayerScreen(navController: NavController) {
                 PlayerFull(songPlayingState, playerViewModel, context, isLiked, shuffle, repeat, queueSongs)
             }
 
+            // The three things people open the ⋮ menu for most, one tap away.
+            PlayerQuickActions(
+                song = queueSongs.firstOrNull { it.id == songId },
+                singer = songSinger,
+                navController = navController,
+                playerViewModel = playerViewModel,
+                context = context,
+                isLiked = isLiked,
+            )
             // Spotify-style bottom row: current audio device (Connect) on the left,
             // share + queue on the right.
             PlayerConnectRow(
@@ -1706,4 +1715,66 @@ private fun OutputPicker(
             }) { Text("More devices", color = com.music.aalap.ui.theme.TextMuted) }
         },
     )
+}
+
+
+/**
+ * Add to playlist, the artist and download, as buttons on the player instead of only inside
+ * the ⋮ menu. They do exactly what the menu rows do. Removing a download stays in the menu,
+ * so a stray tap here never deletes anything.
+ */
+@Composable
+private fun PlayerQuickActions(
+    song: com.music.aalap.data.entity.SongsModel?,
+    singer: String,
+    navController: NavController,
+    playerViewModel: PlayerViewModel,
+    context: Context,
+    isLiked: MutableState<Boolean>,
+) {
+    val id = song?.id ?: return
+    var savedIn by remember { mutableStateOf(false) }
+    var downloaded by remember(id) { mutableStateOf(com.music.aalap.data.preferences.isDownloaded(context, id.toString())) }
+    var downloading by remember(id) { mutableStateOf(com.music.aalap.di.Downloads.isDownloading(song.url)) }
+    if (savedIn) com.music.aalap.ui.components.SavedInSheet(
+        song = song,
+        context = context,
+        onDismiss = { savedIn = false },
+        onLikedChanged = { isLiked.value = it },
+    )
+    @Composable
+    fun Pill(label: String, icon: androidx.compose.ui.graphics.painter.Painter, tint: Color, modifier: Modifier, onClick: () -> Unit) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White.copy(alpha = 0.08f))
+                .clickable(onClick = onClick)
+                .padding(vertical = 9.dp, horizontal = 8.dp),
+        ) {
+            Icon(painter = icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(label, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+    }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
+    ) {
+        Pill("Playlist", androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Add), Color.White, Modifier.weight(1f)) { savedIn = true }
+        Pill("Artist", androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Person), Color.White, Modifier.weight(1f)) {
+            playerViewModel.goToArtist(song.spotifyTrackId, singer) { route -> navController.navigate(route) }
+        }
+        Pill(
+            when { downloaded -> "Saved"; downloading -> "Saving…"; else -> "Download" },
+            if (downloaded) androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.CheckCircle) else painterResource(R.drawable.ic_download),
+            if (downloaded) Color(AppPalette.toArgb()) else Color.White,
+            Modifier.weight(1f),
+        ) {
+            if (downloaded || downloading) return@Pill
+            downloading = true
+            com.music.aalap.di.Downloads.downloadSong(song, context) { ok -> downloading = false; downloaded = ok }
+        }
+    }
 }

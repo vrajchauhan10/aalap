@@ -4,6 +4,19 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.9.0 — 12 Nov 2026 (build 97)
+- **Settings have their own page.** Profile is now about you (your taste, Blend, Replay); every
+  setting is one tap away under **Settings**. All your choices are kept as they were.
+- **Nothing hides behind the mini player.** Every list scrolls far enough that its last song
+  sits above the mini player and tabs.
+- **Home:** Recently played sits near the top. Hide any section you don't use with
+  **Edit Home** at the bottom of Home (or in Settings → Home).
+- **Quick picks:** **See all** shows every pick in one list. Long-press a pick to see
+  **why it's there**, and tap **Less like this** if it's not for you.
+- **Player:** Playlist, Artist and Download buttons right under the controls.
+- **Library:** a small library shows your recently played songs instead of empty space;
+  playlists without a cover show a placeholder instead of a gap.
+
 ## 8.8.2 — 11 Nov 2026 (build 96)
 - **Your queue stays in your song's language.** With the language mix on Automatic, what plays
   next stays in the language of the song you chose, with a similar mood and pace. A Hindi song

@@ -203,7 +203,7 @@ private fun ArtistOverviewContent(
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(bottom = 130.dp),
+        contentPadding = PaddingValues(bottom = com.music.aalap.ui.components.BottomClearance),
         modifier = Modifier
             .fillMaxSize()
             .background(Color(AppBackground.toArgb()))
@@ -770,7 +770,7 @@ fun ArtistReleasesScreen(navController: NavController, artistName: String) {
         }
 
         LazyColumn(
-            contentPadding = PaddingValues(bottom = 130.dp),
+            contentPadding = PaddingValues(bottom = com.music.aalap.ui.components.BottomClearance),
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(AppBackground.toArgb()))
