@@ -118,6 +118,7 @@ fun MainBottomNavigation(navController: NavHostController, bottomBarState: Mutab
                                 item = item,
                                 selected = currentRoute == item.route,
                                 onClick = {
+                                    PlayerReturn.cancel()
                                     if (item == Routes.Home && currentRoute == Routes.Home.route) {
                                         val now = System.currentTimeMillis()
                                         if (now - HomeTabEvents.lastHomeTap < 450) {

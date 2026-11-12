@@ -83,7 +83,8 @@ fun SheetLayer(onClosed: () -> Unit, content: @Composable () -> Unit) {
     }
     val height = with(LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
     // 0 = fully open, 1 = down in the mini player.
-    val down = remember { Animatable(1f) }
+    // Coming back from a page opened in the player: it's simply there again, not sliding up.
+    val down = remember { Animatable(if (PlayerReturn.takeInstant()) 0f else 1f) }
     val scope = rememberCoroutineScope()
     val closing = remember { booleanArrayOf(false) }
     // Counted once while this sheet is fully open; uncounted when it starts closing or goes away.

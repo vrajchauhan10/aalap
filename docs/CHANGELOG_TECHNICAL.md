@@ -4,6 +4,18 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-12 (2) — 8.10.0 (98) player spacing, back returns to the player
+- PlayerScreen: the info/progress/controls block lost its fixed `height(300.dp)` +
+  50 dp bottom padding (now wraps, `spacedBy(4.dp)`); slider top padding 20 → 8 dp, PlayerInfo
+  vertical 10 → 2 dp, PlayerFull vertical 20 → 8 dp, cover inset 20 → 16/8 dp. The weighted
+  cover takes the freed height (S24: ~210 dp → ~318 dp wide).
+- `ui/navigation/PlayerReturn`: pages opened from the player (artist ×3 paths, album, Sound)
+  go through `PlayerReturn.open`; when that entry is destroyed (back / pull-down) the player
+  is reopened in place (`PlayerReturn.takeInstant()` starts `SheetLayer` open, no slide-up).
+  Skipped on activity finish/rotation; a bottom-tab tap cancels it.
+- Checked on the S24 (debug copy): cover size and gaps; back from artist and from album both
+  land on the player. Unit tests pass.
+
 ## 2026-11-12 — 8.9.0 (97) UI ease-of-use pass
 - Profile split: `SettingsScreen` (route `settings`) keeps header, tiles, update, connected
   services, taste, battery tip, plus a "Settings" row; every setting moved unchanged to new

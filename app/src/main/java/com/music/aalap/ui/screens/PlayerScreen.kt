@@ -416,7 +416,7 @@ fun PlayerScreen(navController: NavController) {
                         GlideImage(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(20.dp)
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .alpha(if (canvasUrl != null) 0f else 1f),
                             model = com.music.aalap.data.api.Covers.hd(queueSongs.getOrNull(page)?.coverUri ?: songCoverUri),
@@ -428,11 +428,11 @@ fun PlayerScreen(navController: NavController) {
             }
             //Spacer(modifier = Modifier.padding(30.dp))
 
+            // Only as tall as title, bar and buttons need: the fixed 300 dp block left empty
+            // space above the buttons and took it from the cover.
             Column(
-                verticalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier
-                    .height(300.dp)
-                    .padding(0.dp, 0.dp, 0.dp, 50.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(bottom = 0.dp)
             ){
                 // Source and quality are Compose state in SongPlayer: shown as they change.
                 PlayerInfo(
@@ -442,15 +442,13 @@ fun PlayerScreen(navController: NavController) {
                     onArtistClick = {
                         val track = queueSongs.firstOrNull { it.id == songId }
                         playerViewModel.goToArtist(track?.spotifyTrackId.orEmpty(), songSinger) { route ->
-                            navController.navigate(route)
+                            com.music.aalap.ui.navigation.PlayerReturn.open(navController, route)
                         }
                     },
                     spotifyTrackId = queueSongs.firstOrNull { it.id == songId }?.spotifyTrackId.orEmpty(),
                 )
 
                 ProgressBar(progressState, songPlayingState, playerViewModel)
-
-                Spacer(modifier = Modifier.padding(5.dp))
                 PlayerFull(songPlayingState, playerViewModel, context, isLiked, shuffle, repeat, queueSongs)
             }
 
@@ -592,7 +590,7 @@ fun PlayerInfo(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(25.dp, 10.dp)
+            .padding(horizontal = 25.dp, vertical = 2.dp)
     ) {
         Row(
             horizontalArrangement = Arrangement.Start,
@@ -732,7 +730,7 @@ private fun ProgressBar(
         steps = 0,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp, 20.dp, 16.dp, 0.dp),
+            .padding(16.dp, 8.dp, 16.dp, 0.dp),
         colors = SliderDefaults.colors(
             thumbColor = com.music.aalap.ui.theme.SaffronGold,
             activeTrackColor = com.music.aalap.ui.theme.SaffronGold,
@@ -777,7 +775,9 @@ fun CustomSlider(
     steps: Int = 0,
     colors: SliderColors = SliderDefaults.colors(),
 ) {
-    Box(modifier = modifier.height(10.dp)) {
+    // Centred: the slider's touch area is taller than this box, and lined up at the top it
+    // hung the bar about 20 dp lower than its space, leaving a gap under the song name.
+    Box(modifier = modifier.height(10.dp), contentAlignment = Alignment.CenterStart) {
         Slider(
             value = value,
             onValueChange = onValueChange,
@@ -837,7 +837,7 @@ fun PlayerFull(
         horizontalArrangement = Arrangement.SpaceBetween,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(20.dp)
+            .padding(horizontal = 20.dp, vertical = 8.dp)
     ) {
         Icon(
             modifier = Modifier
@@ -1143,7 +1143,7 @@ fun PlayerConnectRow(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                    ) { navController.navigate(Routes.Sound.route) },
+                    ) { com.music.aalap.ui.navigation.PlayerReturn.open(navController, Routes.Sound.route) },
                 contentDescription = "Sound and equalizer",
             )
             Spacer(modifier = Modifier.width(20.dp))
@@ -1406,7 +1406,7 @@ fun PlayerOptionsSheet(
                     enabled = realAlbum.isNotBlank()
                 ) {
                     onDismiss()
-                    navController.navigate(albumRoute(realAlbum, singer))
+                    com.music.aalap.ui.navigation.PlayerReturn.open(navController, albumRoute(realAlbum, singer))
                 }
                 PlayerMenuRow(
                     icon = Icons.Default.Person,
@@ -1415,7 +1415,7 @@ fun PlayerOptionsSheet(
                 ) {
                     onDismiss()
                     playerViewModel.goToArtist(currentSong?.spotifyTrackId.orEmpty(), singer) { route ->
-                        navController.navigate(route)
+                        com.music.aalap.ui.navigation.PlayerReturn.open(navController, route)
                     }
                 }
                 PlayerMenuRow(
@@ -1764,7 +1764,7 @@ private fun PlayerQuickActions(
     ) {
         Pill("Playlist", androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Add), Color.White, Modifier.weight(1f)) { savedIn = true }
         Pill("Artist", androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Person), Color.White, Modifier.weight(1f)) {
-            playerViewModel.goToArtist(song.spotifyTrackId, singer) { route -> navController.navigate(route) }
+            playerViewModel.goToArtist(song.spotifyTrackId, singer) { route -> com.music.aalap.ui.navigation.PlayerReturn.open(navController, route) }
         }
         Pill(
             when { downloaded -> "Saved"; downloading -> "Saving…"; else -> "Download" },

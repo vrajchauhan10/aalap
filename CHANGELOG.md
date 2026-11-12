@@ -4,6 +4,12 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.10.0 — 12 Nov 2026 (build 98)
+- **Bigger cover on the player.** The cover is back to its full size, and the empty space
+  above the play buttons and under the song name is gone.
+- **Back takes you to the player.** Open the artist, the album or sound settings from the
+  player, then go back (or pull down) and the player is right there again, not Home.
+
 ## 8.9.0 — 12 Nov 2026 (build 97)
 - **Settings have their own page.** Profile is now about you (your taste, Blend, Replay); every
   setting is one tap away under **Settings**. All your choices are kept as they were.
