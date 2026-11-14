@@ -4,6 +4,45 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-14 — 8.12.0 (100) downloads try every source, three rounds; quality chooser
+- `Downloads.downloadToFile`: lossless FLAC (always, when a Spotify id exists) → JioSaavn
+  (25 s) → YouTube with video uploads allowed (`resolveYtPlayback(allowVideos = true)`, new
+  default-false param) → Gaana (new: HLS joined into .ts / .mp4 with init piece; encrypted
+  skipped) → JioSaavn `relaxed` → Soulseek (only if enabled). Source toggles no longer gate
+  downloads. Files under 200 KB are rejected.
+- `downloadSong`: up to 3 rounds (pauses 8 s, 30 s) before failing; YouTube lookups one at a
+  time (`youTubeSlot`), 3 songs at once overall as before. No per-attempt toast; a single
+  song shows one message after the last round, a playlist one summary at the end (`quiet`).
+- Note: lossless first means FLAC (~25–40 MB per song) whenever a mirror has it, whatever the
+  download-quality setting (your choice, 14 Nov: best quality over file size).
+- Download chooser (`ui/components/DownloadChooser.kt`): before a song or list downloads, a
+  sheet with Best (FLAC) / High 320 / Normal 160 / Data saver 96, each with an estimated size
+  (avg kbps × length; 3½ min when unknown), a size bar, free space (`StatFs`) and a "not enough
+  space" state; "Only on Wi-Fi" and "Remember my choice" (prefs `downloads/ask_quality`,
+  undo in Settings → "Ask before downloading"). The pick is saved as the download quality and
+  passed through `downloadSong/downloadAll(quality)`. Replaces `ConfirmDownloadAllDialog`'s
+  body; also on the player menu, player Download button and song menu. Auto-download of liked
+  songs uses the saved quality without asking.
+- Chain per quality: lossless first only for Best; JioSaavn capped at the picked bitrate
+  (`JioSaavnSource.resolve(maxKbps)`); YouTube at the picked quality; if a smaller quality
+  finds nothing anywhere, lossless is tried last (a FLAC beats no song).
+- Checked on the S24 (debug copy): single song (JioSaavn 320, 11.8 MB) and the 12-song album
+  "Aashiqui 2" as Best: 12/12 saved in ~40 s, 9 JioSaavn 320 + 3 YouTube (JioSaavn had no
+  match), no messages. Lossless found no Tidal match for any of the 13 (mirrors to check).
+  A song from Quick picks had no length, so its estimate used the 3½-minute default.
+- Lossless: `pickTidalHit` now compares titles without "(From …)", "- From …", "(feat. …)"
+  (`baseTitle`), keeps the version guard (`SongVersion.same`), accepts an artist name that
+  contains the other; one retry after 2.5 s on "Too many requests"; search failures are logged.
+  Test `filmSongTitlesWithFromMatch`. On the S24 (14 Nov) every lossless search still failed on
+  the servers' side: tidal.anandserver.cfd HTTP 500 "Too many requests" (also from the Mac),
+  tidal.kanjijewels.com HTTP 401 for the shared key. Only the SpotiFLAC verified backend is
+  left untested.
+- SpotiFLAC check: `verify.spotbye.qzz.io/bootstrap` now 301-redirects to the owner's Patreon
+  page (14 Nov), so the free check is gone; a "Get lossless" card was tried and removed. The
+  check screen's status text now sits on a dark card (it was invisible on the white page), the
+  page loads only once its web view exists, and page loads/errors are logged.
+- Unit tests pass.
+
 ## 2026-11-12 (3) — 8.11.0 (99) pages opened from the player stack over it
 - 8.10.0 popped the player dialog when a composable page opened and re-opened it when that page
   was destroyed, so back showed Home + mini player for the length of the pop transition.

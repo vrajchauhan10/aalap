@@ -365,9 +365,9 @@ fun SumUpAlbumScreen(
                             )
                             if (askDownloadAll) {
                                 com.music.aalap.ui.components.ConfirmDownloadAllDialog(
-                                    albumSongs.size, onDismiss = { askDownloadAll = false },
-                                ) {
-                                    if (com.music.aalap.di.Downloads.downloadAll(albumSongs, context, albumName)) {
+                                    albumSongs, onDismiss = { askDownloadAll = false },
+                                ) { q ->
+                                    if (com.music.aalap.di.Downloads.downloadAll(albumSongs, context, albumName, q)) {
                                         snackbarMessage = "Downloading ${albumSongs.size} tracks…"
                                         snackbarVisible = true
                                     }

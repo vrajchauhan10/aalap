@@ -4,6 +4,17 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.12.0 — 14 Nov 2026 (build 100)
+- **Choose your download quality.** Before a song, album or playlist downloads, pick Best,
+  High (320 kbps), Normal (160 kbps) or Data saver (96 kbps), with the size each will take and
+  how much space your phone has. Tick "Remember my choice" to skip it next time (turn it back
+  on in Settings → Audio quality → "Ask before downloading").
+- **Downloads almost never fail.** Each song tries every source in turn (lossless, JioSaavn,
+  YouTube, Gaana and more) and tries again a little later if all are busy. No error pops up
+  while it's still trying; a playlist shows one summary at the end.
+- Lossless copies of film songs ("Song (From "Film")") are now recognised. Lossless downloads
+  happen whenever the free lossless servers are available again; until then Best saves 320 kbps.
+
 ## 8.11.0 — 12 Nov 2026 (build 99)
 - **Pages stack on top of the player.** The artist, album or sound page you open from the player
   now slides in over it, and going back slides it away to show the player still there, with

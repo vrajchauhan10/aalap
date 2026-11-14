@@ -123,6 +123,10 @@ fun SpotiflacVerifyScreen(navController: NavController, next: String = "") {
             return@LaunchedEffect
         }
         message = ""
+        // The page's web view is made in the same first frame; asking it to load before it
+        // existed did nothing, and the check stayed a blank white page.
+        while (webView == null) delay(50)
+        android.util.Log.d("SpotiflacVerify", "loading check page on ${android.net.Uri.parse(challenge).host}")
         webView?.loadUrl("$challenge&cb=" + URLEncoder.encode("$CALLBACK?state=$state", "UTF-8"))
         // Never leave the user on a page that silently stalled.
         delay(180_000)
@@ -145,6 +149,15 @@ fun SpotiflacVerifyScreen(navController: NavController, next: String = "") {
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView, url: String) {
+                            android.util.Log.d("SpotiflacVerify", "page finished: ${android.net.Uri.parse(url).host}${android.net.Uri.parse(url).path}")
+                        }
+                        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
+                            if (request.isForMainFrame) android.util.Log.w("SpotiflacVerify", "page error ${error.errorCode}: ${error.description}")
+                        }
+                        override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, r: android.webkit.WebResourceResponse) {
+                            if (request.isForMainFrame) android.util.Log.w("SpotiflacVerify", "page HTTP ${r.statusCode}")
+                        }
                         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                             val uri = request.url
                             if (!uri.toString().startsWith(CALLBACK)) return false
@@ -166,7 +179,10 @@ fun SpotiflacVerifyScreen(navController: NavController, next: String = "") {
                 message,
                 color = com.music.aalap.ui.theme.TextPrimary,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                // On its own dark card: over the white check page light text was invisible.
+                modifier = Modifier.align(Alignment.Center).padding(24.dp)
+                    .background(com.music.aalap.ui.theme.Surface, androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                    .padding(20.dp),
             )
         }
 

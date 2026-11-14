@@ -287,6 +287,12 @@ fun AppSettingsScreen(navController: NavController) {
                 subtitle = "Saves your mobile data; downloads wait until you're on Wi-Fi",
                 checked = wifiOnly,
             ) { wifiOnly = it; com.music.aalap.di.Downloads.setWifiOnly(context, it) }
+            var askQuality by remember { mutableStateOf(com.music.aalap.ui.components.shouldAskDownloadQuality(context)) }
+            SettingsSwitchRow(
+                title = "Ask before downloading",
+                subtitle = "Choose the quality and see the size each time",
+                checked = askQuality,
+            ) { askQuality = it; com.music.aalap.ui.components.setAskDownloadQuality(context, it) }
 
             // Lossless FLAC comes from the Tidal community backend (no login). Falls back
             // to best-quality YouTube on a miss.

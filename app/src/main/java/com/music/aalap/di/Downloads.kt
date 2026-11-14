@@ -156,14 +156,26 @@ object Downloads {
 
     /** Download every track in a list (album/playlist), shown as one bar named [name]. */
     /** False when nothing started (Wi-Fi only on mobile data, or all already saved). */
-    fun downloadAll(songs: List<com.music.aalap.data.entity.SongsModel>, context: Context, name: String = ""): Boolean {
+    fun downloadAll(
+        songs: List<com.music.aalap.data.entity.SongsModel>,
+        context: Context,
+        name: String = "",
+        quality: com.music.aalap.data.preferences.StreamQuality? = null,
+    ): Boolean {
         if (!allowedNow(context)) return false
         val todo = songs.filter { !com.music.aalap.data.preferences.isDownloaded(context.applicationContext, it.id.toString()) }
         if (todo.isEmpty()) return false
         batch.value = Batch(name, todo.size, 0)
+        val app = context.applicationContext
         todo.forEach { song ->
-            downloadSong(song, context) { ok ->
-                batch.value = batch.value?.takeIf { it.name == name }?.let { if (ok) it.copy(done = it.done + 1) else it.copy(failed = it.failed + 1) }
+            downloadSong(song, context, quiet = true, quality = quality) { ok ->
+                val b = batch.value?.takeIf { it.name == name }?.let { if (ok) it.copy(done = it.done + 1) else it.copy(failed = it.failed + 1) }
+                batch.value = b
+                // One message for the whole list, only if some songs couldn't be saved anywhere.
+                if (b != null && b.finished && b.failed > 0) android.widget.Toast.makeText(
+                    app, "${b.done} of ${b.total} saved. ${b.failed} weren't available anywhere right now; download again later to retry them.",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
             }
         }
         return true
@@ -214,10 +226,17 @@ object Downloads {
      * Resolve the track's stream and save the audio to local storage for offline
      * playback. Runs on the IO scope; invokes [onComplete] (main thread) with whether
      * it succeeded. No-op if it's already downloaded or downloading.
+     *
+     * A song gets three full rounds through every source (best quality first), with a pause
+     * between rounds, before Aalap gives up on it: a busy source or a passing network drop
+     * no longer fails the song, and nothing is shown while it's still trying.
      */
     fun downloadSong(
         song: com.music.aalap.data.entity.SongsModel,
         context: Context,
+        quiet: Boolean = false,
+        // The quality picked in the download chooser; null = the saved download quality.
+        quality: com.music.aalap.data.preferences.StreamQuality? = null,
         onComplete: (Boolean) -> Unit = {},
     ) {
         val appContext = context.applicationContext
@@ -230,106 +249,180 @@ object Downloads {
         downloadingSongs[query] = song
         downloadProgress[query] = 0
         onDownloadsChanged?.invoke()
-        lastDownloadError = null
         jobs[query] = scope.launch {
-            val ok = runCatching { downloadSlots.withPermit { downloadToFile(song, appContext) } }
-                .onFailure { if (it !is kotlinx.coroutines.CancellationException) lastDownloadError = it.message ?: "Unexpected error" }
-                .getOrDefault(false)
+            var ok = false
+            for (round in 0 until ROUND_PAUSES_MS.size + 1) {
+                if (round > 0) kotlinx.coroutines.delay(ROUND_PAUSES_MS[round - 1])
+                ok = runCatching { downloadSlots.withPermit { downloadToFile(song, appContext, quality ?: com.music.aalap.data.preferences.getDownloadQuality(appContext)) } }
+                    .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; Log.w(TAG, "round $round: ${it.message}") }
+                    .getOrDefault(false)
+                if (ok) break
+                Log.w(TAG, "round $round found no source for ${song.title}; trying again")
+            }
             jobs.remove(query)
             downloading.remove(query)
             downloadProgress.remove(query)
             downloadingSongs.remove(query)
             withContext(Dispatchers.Main) {
                 if (ok) addUnseen(appContext)
-                if (!ok) {
-                    android.widget.Toast.makeText(
-                        appContext,
-                        "Download failed: ${lastDownloadError ?: "unknown reason"}",
-                        android.widget.Toast.LENGTH_LONG,
-                    ).show()
-                }
+                // Only once every source failed three times, and only for a single song: a
+                // playlist reports its count on its own bar instead of one message per song.
+                if (!ok && !quiet) android.widget.Toast.makeText(
+                    appContext,
+                    "Couldn't save \"${song.title}\" right now. Tap download again later.",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
                 onDownloadsChanged?.invoke()
                 onComplete(ok)
             }
         }
     }
 
+    /** Pauses before the second and third rounds: long enough for a refusing source to recover. */
+    private val ROUND_PAUSES_MS = longArrayOf(8_000L, 30_000L)
+
+    // YouTube decodes each stream in a hidden web page; one song at a time there keeps a
+    // playlist from flooding it (and from YouTube refusing a burst of requests).
+    private val youTubeSlot = Semaphore(1)
+
+    private fun dir(c: Context) = java.io.File(c.filesDir, "downloads").apply { mkdirs() }
+
+    /** Save [url] as the song's file with [ext]; true when the whole file is there. */
+    private fun saveDirect(c: Context, song: com.music.aalap.data.entity.SongsModel, url: String, ext: String, from: String): Boolean {
+        val outFile = java.io.File(dir(c), "${song.id}.$ext")
+        val tmpFile = java.io.File(dir(c), "${song.id}.$ext.part")
+        if (httpDownloadRanged(url, tmpFile, song.url) && tmpFile.length() > MIN_AUDIO_BYTES && tmpFile.renameTo(outFile)) {
+            com.music.aalap.data.preferences.addDownload(c, song, outFile.absolutePath)
+            Log.d(TAG, "downloaded from $from: ${song.title}")
+            return true
+        }
+        runCatching { tmpFile.delete() }
+        return false
+    }
+
+    // Anything smaller is an error page or a preview clip, not a song.
+    private const val MIN_AUDIO_BYTES = 200_000L
+
+    /**
+     * Every source in order of quality; the first that delivers the whole file wins. The
+     * source switches in Settings decide what *plays*; a download tries them all, so the
+     * best copy available anywhere is saved. Soulseek stays off unless you turned it on
+     * (it shows your address to other people).
+     */
     private suspend fun downloadToFile(
         song: com.music.aalap.data.entity.SongsModel,
         appContext: Context,
+        q: com.music.aalap.data.preferences.StreamQuality,
     ): Boolean {
-        val dlQuality = com.music.aalap.data.preferences.getDownloadQuality(appContext)
-        // Lossless FLAC: SpotiFLAC gated (if verified) + Tidal/community. Saves .flac.
-        if (SongPlayer.losslessStreaming && song.spotifyTrackId.isNotBlank()) {
-            val r = kotlinx.coroutines.withTimeoutOrNull(45_000) {
-                com.music.aalap.lossless.LosslessSource.resolve(
-                    appContext, song.spotifyTrackId,
-                    com.music.aalap.lossless.LosslessSource.TrackInfo(
-                        song.title, song.singer.substringBefore(",").trim(), song.durationMs / 1000,
-                    ),
-                    preferHiRes = SongPlayer.losslessHiRes,
-                )
-            }
-            if (r is com.music.aalap.lossless.LosslessSource.Result.Success) {
-                val dir = java.io.File(appContext.filesDir, "downloads").apply { mkdirs() }
-                val outFile = java.io.File(dir, "${song.id}.flac")
-                val tmpFile = java.io.File(dir, "${song.id}.flacpart")
-                if (httpDownloadRanged(r.track.url, tmpFile, song.url) && tmpFile.renameTo(outFile)) {
-                    com.music.aalap.data.preferences.addDownload(appContext, song, outFile.absolutePath)
-                    Log.d(TAG, "lossless downloaded (${r.track.provider} ${r.track.quality}-bit): ${song.title}")
+        val sec = song.durationMs / 1000
+        val search = "${song.title} ${song.singer}"
+        val saavnKbps = when (q) {
+            com.music.aalap.data.preferences.StreamQuality.LOW -> 96
+            com.music.aalap.data.preferences.StreamQuality.NORMAL -> 160
+            else -> 320
+        }
+        suspend fun lossless(): Boolean {
+            if (song.spotifyTrackId.isBlank()) return false
+            val r = runCatching {
+                kotlinx.coroutines.withTimeoutOrNull(45_000) {
+                    com.music.aalap.lossless.LosslessSource.resolve(
+                        appContext, song.spotifyTrackId,
+                        com.music.aalap.lossless.LosslessSource.TrackInfo(song.title, song.singer.substringBefore(",").trim(), sec),
+                        preferHiRes = SongPlayer.losslessHiRes,
+                    )
+                }
+            }.getOrNull()
+            return r is com.music.aalap.lossless.LosslessSource.Result.Success &&
+                saveDirect(appContext, song, r.track.url, "flac", "lossless ${r.track.provider}")
+        }
+
+        // 1) Lossless FLAC first, when "Best" was picked.
+        if (q.lossless && lossless()) return true
+
+        // 2) JioSaavn AAC, at most the picked bitrate.
+        runCatching {
+            kotlinx.coroutines.withTimeoutOrNull(25_000) { com.music.aalap.saavn.JioSaavnSource.resolve(song.title, song.singer, sec, search, maxKbps = saavnKbps) }
+        }.getOrNull()?.let { m -> if (saveDirect(appContext, song, m.url, "m4a", "JioSaavn ${m.kbps} kbps")) return true }
+
+        // 3) YouTube in the picked quality (song uploads, then other uploads such as lyric videos).
+        val yt = youTubeSlot.withPermit {
+            runCatching { SongPlayer.resolveYtPlayback(song.url, q.audioQuality, appContext, allowVideos = true) }.getOrNull()
+        }
+        if (yt != null && saveDirect(appContext, song, yt.streamUrl, "m4a", "YouTube")) return true
+
+        // 4) Gaana (HLS: its pieces are joined into one file).
+        runCatching {
+            kotlinx.coroutines.withTimeoutOrNull(25_000) { com.music.aalap.gaana.GaanaSource.resolve(song.title, song.singer, sec, "", search) }
+        }.getOrNull()?.let { m -> if (saveHls(appContext, song, m.url)) return true }
+
+        // 5) JioSaavn with a looser match (same song, title written differently).
+        runCatching {
+            kotlinx.coroutines.withTimeoutOrNull(25_000) { com.music.aalap.saavn.JioSaavnSource.resolve(song.title, song.singer, sec, search, relaxed = true, maxKbps = saavnKbps) }
+        }.getOrNull()?.let { m -> if (saveDirect(appContext, song, m.url, "m4a", "JioSaavn (loose)")) return true }
+
+        // A smaller quality was picked but nothing else had the song: a lossless copy beats none.
+        if (!q.lossless && lossless()) return true
+
+        // 6) Soulseek FLAC, only when you turned it on.
+        if (com.music.aalap.data.preferences.isSoulseekEnabled(appContext)) {
+            val f = runCatching {
+                kotlinx.coroutines.withTimeoutOrNull(90_000) {
+                    com.music.aalap.soulseek.SoulseekSource.flac(appContext, "dl_${song.id}", song.title, song.singer, sec)
+                }
+            }.getOrNull()
+            if (f != null && f.length() > MIN_AUDIO_BYTES) {
+                val out = java.io.File(dir(appContext), "${song.id}.flac")
+                if (runCatching { f.copyTo(out, overwrite = true) }.isSuccess) {
+                    com.music.aalap.data.preferences.addDownload(appContext, song, out.absolutePath)
                     return true
                 }
-                runCatching { tmpFile.delete() }
             }
         }
-        // JioSaavn 320 kbps AAC when it has the exact song (independent of YouTube).
-        if (com.music.aalap.data.preferences.isJioSaavnEnabled(appContext)) {
-            val m = kotlinx.coroutines.withTimeoutOrNull(15_000) {
-                com.music.aalap.saavn.JioSaavnSource.resolve(
-                    song.title, song.singer, song.durationMs / 1000, "${song.title} ${song.singer}",
-                )
+        return false
+    }
+
+    /**
+     * Saves an HLS stream (Gaana) as one file: the best variant's pieces in order, joined.
+     * MPEG-TS pieces are saved as .ts, fMP4 pieces (with their header piece) as .mp4; the
+     * player reads both. Encrypted streams are skipped.
+     */
+    private fun saveHls(c: Context, song: com.music.aalap.data.entity.SongsModel, url: String): Boolean {
+        fun get(u: String) = openDownloadConn(u).run { try { if (responseCode in 200..299) inputStream.use { it.readBytes() } else null } finally { disconnect() } }
+        fun abs(base: String, ref: String) = java.net.URL(java.net.URL(base), ref).toString()
+        return runCatching {
+            var listUrl = url
+            var text = get(listUrl)?.toString(Charsets.UTF_8) ?: return false
+            if ("#EXT-X-STREAM-INF" in text) {
+                val lines = text.lines()
+                val best = lines.indices.filter { lines[it].startsWith("#EXT-X-STREAM-INF") }
+                    .maxByOrNull { Regex("BANDWIDTH=(\\d+)").find(lines[it])?.groupValues?.get(1)?.toLongOrNull() ?: 0 }
+                    ?: return false
+                listUrl = abs(listUrl, lines.drop(best + 1).first { it.isNotBlank() && !it.startsWith("#") }.trim())
+                text = get(listUrl)?.toString(Charsets.UTF_8) ?: return false
             }
-            if (m != null) {
-                val dir = java.io.File(appContext.filesDir, "downloads").apply { mkdirs() }
-                val outFile = java.io.File(dir, "${song.id}.m4a")
-                val tmpFile = java.io.File(dir, "${song.id}.part")
-                if (httpDownloadRanged(m.url, tmpFile, song.url) && tmpFile.renameTo(outFile)) {
-                    com.music.aalap.data.preferences.addDownload(appContext, song, outFile.absolutePath)
-                    Log.d(TAG, "JioSaavn downloaded (${m.kbps} kbps): ${song.title}")
-                    return true
+            if (Regex("#EXT-X-KEY:.*METHOD=(?!NONE)").containsMatchIn(text)) return false
+            val init = Regex("#EXT-X-MAP:.*URI=\"([^\"]+)\"").find(text)?.groupValues?.get(1)
+            val parts = text.lines().map { it.trim() }.filter { it.isNotBlank() && !it.startsWith("#") }
+            if (parts.isEmpty()) return false
+            val ext = if (init != null) "mp4" else "ts"
+            val outFile = java.io.File(dir(c), "${song.id}.$ext")
+            val tmpFile = java.io.File(dir(c), "${song.id}.$ext.part")
+            java.io.BufferedOutputStream(tmpFile.outputStream()).use { out ->
+                if (init != null) out.write(get(abs(listUrl, init)) ?: return false)
+                parts.forEachIndexed { i, part ->
+                    var bytes: ByteArray? = null
+                    for (attempt in 1..3) { bytes = runCatching { get(abs(listUrl, part)) }.getOrNull(); if (bytes != null) break }
+                    out.write(bytes ?: return false)
+                    downloadProgress[song.url] = ((i + 1) * 100 / parts.size)
+                    onDownloadsChanged?.invoke()
                 }
-                runCatching { tmpFile.delete() }
             }
-        }
-
-        if (!SongPlayer.youtubeEnabled) {
-            lastDownloadError = "Track not available for download"
-            return false
-        }
-
-        val query = song.url
-        // Resolve a fresh network stream URL (bypass any local-file short-circuit),
-        // walking the ranked video candidates like playback does.
-        val playback = SongPlayer.resolveYtPlayback(query, dlQuality.audioQuality, appContext) ?: run {
-            lastDownloadError = "Couldn't resolve a stream"
-            return false
-        }
-
-        val dir = java.io.File(appContext.filesDir, "downloads").apply { mkdirs() }
-        val outFile = java.io.File(dir, "${song.id}.m4a")
-        val tmpFile = java.io.File(dir, "${song.id}.part")
-
-        if (!httpDownloadRanged(playback.streamUrl, tmpFile, song.url)) {
-            runCatching { tmpFile.delete() }
-            return false
-        }
-        if (!tmpFile.renameTo(outFile)) {
-            lastDownloadError = "Couldn't save file"
-            runCatching { tmpFile.delete() }
-            return false
-        }
-        com.music.aalap.data.preferences.addDownload(appContext, song, outFile.absolutePath)
-        return true
+            if (tmpFile.length() > MIN_AUDIO_BYTES && tmpFile.renameTo(outFile)) {
+                com.music.aalap.data.preferences.addDownload(c, song, outFile.absolutePath)
+                Log.d(TAG, "downloaded from Gaana: ${song.title}")
+                true
+            } else { tmpFile.delete(); false }
+        }.getOrDefault(false)
     }
 
 }

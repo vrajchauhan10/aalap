@@ -77,6 +77,8 @@ object JioSaavnSource {
         durationSec: Int,
         fallbackQuery: String,
         relaxed: Boolean = false,
+        // Downloads in a smaller quality ask for at most this bitrate.
+        maxKbps: Int = 320,
     ): Match? = withContext(Dispatchers.IO) {
         val query = if (title.isNotBlank()) "${norm(title)} ${artist.substringBefore(",").trim()}".trim() else fallbackQuery
         val results = runCatching { search(query) }.onFailure { Log.w(TAG, "search failed: $it") }.getOrNull()
@@ -116,7 +118,7 @@ object JioSaavnSource {
         val (dur, enc) = durEnc
         val has320 = best.first.optJSONObject("more_info")?.optString("320kbps") == "true"
         val base = runCatching { decrypt(enc) }.getOrNull() ?: return@withContext null
-        val candidates = (if (has320) listOf(320, 160, 96) else listOf(160, 96))
+        val candidates = (if (has320) listOf(320, 160, 96) else listOf(160, 96)).filter { it <= maxKbps }.ifEmpty { listOf(96) }
         for (kbps in candidates) {
             val url = base.replace(Regex("""_(96|160|320)\.mp4"""), "_$kbps.mp4")
             if (reachable(url)) {

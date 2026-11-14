@@ -36,4 +36,16 @@ class TidalMatchTest {
         assertEquals(213, LosslessSource.flacDurationSec(head))
         assertNull(LosslessSource.flacDurationSec(hex("000000186674797069736f6d")))
     }
+
+    @Test
+    fun filmSongTitlesWithFromMatch() {
+        val hit = TidalHit("1", "Tum Hi Ho (From \"Aashiqui 2\")", "Arijit Singh", 262, "")
+        assertEquals("1", LosslessSource.pickTidalHit(listOf(hit), "", "Tum Hi Ho", "Arijit Singh", 261)?.id)
+        val dash = TidalHit("2", "Kesariya - From \"Brahmastra\"", "Pritam", 268, "")
+        assertEquals("2", LosslessSource.pickTidalHit(listOf(dash), "", "Kesariya", "Pritam", 268)?.id)
+        // The remix is still a different song.
+        val remix = TidalHit("3", "Tum Hi Ho (Remix) (From \"Aashiqui 2\")", "Arijit Singh", 262, "")
+        assertNull(LosslessSource.pickTidalHit(listOf(remix), "", "Tum Hi Ho", "Arijit Singh", 262))
+        assertEquals("Tum Hi Ho", LosslessSource.baseTitle("Tum Hi Ho (feat. Someone)"))
+    }
 }

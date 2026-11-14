@@ -1561,11 +1561,12 @@ object SongPlayer {
         query: String,
         audioQuality: com.metrolist.music.constants.AudioQuality,
         appContext: Context,
+        allowVideos: Boolean = false,
     ): YTPlayerUtils.PlaybackData? =
         // The PoToken/solver WebViews wait on JS callbacks with no deadline; a hung
         // WebView left playback at 0:00 forever (#95, #79) instead of failing over.
         kotlinx.coroutines.withTimeoutOrNull(45_000L) {
-            resolveYtPlaybackUnbounded(query, audioQuality, appContext)
+            resolveYtPlaybackUnbounded(query, audioQuality, appContext, allowVideos)
         } ?: null.also { Log.w(TAG, "YouTube resolve failed or timed out for: ${searchTextForPlayback(query)}") }
 
     /** The YouTube video each play query was matched to (feeds "Up next" recommendations). */
@@ -1588,6 +1589,8 @@ object SongPlayer {
         query: String,
         audioQuality: com.metrolist.music.constants.AudioQuality,
         appContext: Context,
+        // Downloads also try other uploads (lyric videos…) whatever the playback setting says.
+        allowVideos: Boolean = false,
     ): YTPlayerUtils.PlaybackData? {
         val connectivityManager =
             appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -1611,7 +1614,7 @@ object SongPlayer {
         }
         matchedVideoIds[query]?.let { known -> tryIds(listOf(known))?.let { return it } }
         tryIds(resolveVideoCandidates(query).take(3))?.let { return it }
-        if (!com.music.aalap.data.preferences.isVideoFallbackEnabled(appContext)) {
+        if (!allowVideos && !com.music.aalap.data.preferences.isVideoFallbackEnabled(appContext)) {
             Log.w(TAG, "song candidates exhausted and video fallback disabled for: ${searchTextForPlayback(query)}")
             return null
         }

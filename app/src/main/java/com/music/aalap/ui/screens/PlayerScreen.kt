@@ -1203,6 +1203,7 @@ fun PlayerOptionsSheet(
     val currentSong = playerViewModel.queue.value.firstOrNull { it.id == songId }
     var downloaded by remember(songId) { mutableStateOf(com.music.aalap.data.preferences.isDownloaded(context, songId.toString())) }
     var downloadingNow by remember(songId) { mutableStateOf(currentSong != null && com.music.aalap.di.Downloads.isDownloading(currentSong.url)) }
+    var askQuality by remember { mutableStateOf(false) }
     val alternativeKey = currentSong?.let { alternativeStreamKey(it) }.orEmpty()
     var currentAlternative by remember(songId, alternativeKey) {
         mutableStateOf(alternativeKey.takeIf { it.isNotBlank() }?.let { getAlternativeStream(context, it) })
@@ -1348,14 +1349,17 @@ fun PlayerOptionsSheet(
                         com.music.aalap.data.preferences.removeDownload(context, song.id.toString())
                         downloaded = false
                     } else {
-                        downloadingNow = true
-                        com.music.aalap.di.Downloads.downloadSong(song, context) { ok ->
-                            downloadingNow = false
-                            downloaded = ok
-                        }
+                        askQuality = true
                     }
                 }
                 if (downloadingNow) com.music.aalap.ui.components.DownloadBar(downloadPct)
+                if (askQuality && currentSong != null) com.music.aalap.ui.components.DownloadAsk(listOf(currentSong), onDone = { askQuality = false }) { q ->
+                    downloadingNow = true
+                    com.music.aalap.di.Downloads.downloadSong(currentSong, context, quality = q) { ok ->
+                        downloadingNow = false
+                        downloaded = ok
+                    }
+                }
                 PlayerMenuRow(
                     icon = Icons.Default.PlayArrow,
                     iconTint = if (currentAlternative != null) Color(AppPalette.toArgb()) else com.music.aalap.ui.theme.TextPrimary,
@@ -1742,6 +1746,11 @@ private fun PlayerQuickActions(
         onDismiss = { savedIn = false },
         onLikedChanged = { isLiked.value = it },
     )
+    var askQuality by remember { mutableStateOf(false) }
+    if (askQuality) com.music.aalap.ui.components.DownloadAsk(listOf(song), onDone = { askQuality = false }) { q ->
+        downloading = true
+        com.music.aalap.di.Downloads.downloadSong(song, context, quality = q) { ok -> downloading = false; downloaded = ok }
+    }
     @Composable
     fun Pill(label: String, icon: androidx.compose.ui.graphics.painter.Painter, tint: Color, modifier: Modifier, onClick: () -> Unit) {
         Row(
@@ -1773,8 +1782,7 @@ private fun PlayerQuickActions(
             Modifier.weight(1f),
         ) {
             if (downloaded || downloading) return@Pill
-            downloading = true
-            com.music.aalap.di.Downloads.downloadSong(song, context) { ok -> downloading = false; downloaded = ok }
+            askQuality = true
         }
     }
 }

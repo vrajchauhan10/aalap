@@ -142,8 +142,14 @@ object LosslessSource {
         }
         val q = URLEncoder.encode("${info.title} ${info.artist}", "UTF-8")
         for (endpoint in LosslessRegistry.tidalEndpoints()) {
+            // "Too many requests" from a busy server passes in a moment: one more try after a pause.
+            fun search(): String = runCatching { get("$endpoint/search/?s=$q", keyHeader()) }.getOrElse { e ->
+                if (e.message?.contains("Too many", true) == true || e.message?.contains("HTTP 429") == true) {
+                    Thread.sleep(2_500); get("$endpoint/search/?s=$q", keyHeader())
+                } else throw e
+            }
             val hits = runCatching {
-                val items = JSONObject(get("$endpoint/search/?s=$q", keyHeader()))
+                val items = JSONObject(search())
                     .optJSONObject("data")?.optJSONArray("items") ?: return@runCatching emptyList()
                 (0 until items.length()).mapNotNull { i ->
                     val o = items.optJSONObject(i) ?: return@mapNotNull null
@@ -153,7 +159,8 @@ object LosslessSource {
                         durationSec = o.optInt("duration"), isrc = o.optString("isrc"),
                     )
                 }
-            }.getOrDefault(emptyList())
+            }.onFailure { Log.d(TAG, "Tidal search on $endpoint failed: ${it.message?.take(120)}") }.getOrDefault(emptyList())
+            if (hits.isNotEmpty()) Log.d(TAG, "Tidal search on $endpoint: ${hits.size} results, first '${hits.first().title}' by ${hits.first().artist}")
             pickTidalHit(hits, info.isrc, info.title, info.artist, info.durationSec)?.let { return it }
         }
         return null
@@ -166,11 +173,27 @@ object LosslessSource {
     internal fun pickTidalHit(hits: List<TidalHit>, isrc: String, title: String, artist: String, durationSec: Int): TidalHit? {
         fun key(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
         hits.firstOrNull { isrc.isNotBlank() && it.isrc.equals(isrc, ignoreCase = true) && it.id.isNotBlank() }?.let { return it }
+        val want = key(baseTitle(title))
+        val wantArtist = key(artist)
         return hits.firstOrNull {
-            it.id.isNotBlank() && key(it.title) == key(title) && key(it.artist) == key(artist) &&
+            it.id.isNotBlank() &&
+                key(baseTitle(it.title)) == want &&
+                // A live take, remix or unplugged is never the studio song.
+                com.music.aalap.data.recommendation.engine.SongVersion.same(title, it.title) &&
+                key(it.artist).let { a -> a == wantArtist || (a.length >= 4 && wantArtist.length >= 4 && (a in wantArtist || wantArtist in a)) } &&
                 (durationSec <= 0 || kotlin.math.abs(it.durationSec - durationSec) <= 3)
         }
     }
+
+    /**
+     * The song's own name, without what stores add around it: "Tum Hi Ho (From "Aashiqui 2")",
+     * "Kesariya - From "Brahmastra"", "(feat. …)". Film songs on Tidal are nearly all written
+     * this way, so the exact-title rule matched almost none of them.
+     */
+    internal fun baseTitle(t: String): String =
+        t.replace(Regex("""\s*[(\[]\s*(from|feat\.?|ft\.?|featuring|with)\b[^)\]]*[)\]]""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\s+-\s+(from|feat\.?|ft\.?)\b.*$""", RegexOption.IGNORE_CASE), "")
+            .trim()
 
     /**
      * The backends sometimes hand out a 30 s preview instead of the song; played as

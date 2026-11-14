@@ -128,6 +128,7 @@ private fun exportFile(context: Context, song: SongsModel, path: String): Boolea
         "flac" -> "audio/flac"
         "m4a", "mp4" -> "audio/mp4"
         "mp3" -> "audio/mpeg"
+        "ts" -> "audio/mp2t"
         else -> "audio/*"
     }
     val displayName = "${sanitizeFileName("${song.singer} - ${song.title}")}.$ext"

@@ -323,9 +323,9 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                                     )
                                     if (askDownloadAll) {
                                         com.music.aalap.ui.components.ConfirmDownloadAllDialog(
-                                            songs.size, onDismiss = { askDownloadAll = false },
-                                        ) {
-                                            if (com.music.aalap.di.Downloads.downloadAll(songs, context, playlistId)) android.widget.Toast.makeText(
+                                            songs, onDismiss = { askDownloadAll = false },
+                                        ) { q ->
+                                            if (com.music.aalap.di.Downloads.downloadAll(songs, context, playlistId, q)) android.widget.Toast.makeText(
                                                 context, "Downloading ${songs.size} tracks…", android.widget.Toast.LENGTH_SHORT,
                                             ).show()
                                         }

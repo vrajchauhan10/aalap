@@ -477,35 +477,13 @@ fun BatchDownloadBar(name: String) {
  * Asks before downloading a whole list: the download-all icon is small and shows
  * up only once the list has loaded, so a stray tap used to start dozens of downloads.
  */
+/** "Download all": the quality chooser with sizes (or straight on, if you said to remember). */
 @Composable
-fun ConfirmDownloadAllDialog(count: Int, onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { androidx.compose.material3.Text("Download $count tracks?") },
-        text = {
-            val ctx = LocalContext.current
-            var wifi by remember { mutableStateOf(com.music.aalap.di.Downloads.wifiOnly(ctx)) }
-            androidx.compose.foundation.layout.Column {
-                androidx.compose.material3.Text("They are saved for offline playback. You can cancel from Downloads.")
-                androidx.compose.foundation.layout.Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 10.dp).clickable { wifi = !wifi; com.music.aalap.di.Downloads.setWifiOnly(ctx, wifi) },
-                ) {
-                    androidx.compose.material3.Checkbox(checked = wifi, onCheckedChange = { wifi = it; com.music.aalap.di.Downloads.setWifiOnly(ctx, it) })
-                    androidx.compose.material3.Text("Only download on Wi-Fi")
-                }
-            }
-        },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = { onDismiss(); onConfirm() }) {
-                androidx.compose.material3.Text("Download")
-            }
-        },
-        dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) { androidx.compose.material3.Text("Cancel") }
-        },
-    )
-}
+fun ConfirmDownloadAllDialog(
+    songs: List<com.music.aalap.data.entity.SongsModel>,
+    onDismiss: () -> Unit,
+    onConfirm: (com.music.aalap.data.preferences.StreamQuality) -> Unit,
+) = DownloadAsk(songs, onDone = onDismiss, start = onConfirm)
 
 
 /**

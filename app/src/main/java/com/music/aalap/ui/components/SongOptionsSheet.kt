@@ -85,6 +85,7 @@ fun SongOptionsSheet(
     var liked by remember { mutableStateOf(isSongLiked(context, song.id.toString())) }
     var downloaded by remember { mutableStateOf(com.music.aalap.data.preferences.isDownloaded(context, song.id.toString())) }
     var downloadingNow by remember { mutableStateOf(com.music.aalap.di.Downloads.isDownloading(song.url)) }
+    var askQuality by remember { mutableStateOf(false) }
     var downloadPct by remember { mutableStateOf(com.music.aalap.di.Downloads.downloadProgress(song.url)) }
     // Poll progress while a download is active so the menu row shows live "Downloading… NN%".
     androidx.compose.runtime.LaunchedEffect(downloadingNow) {
@@ -173,14 +174,17 @@ fun SongOptionsSheet(
                     com.music.aalap.data.preferences.removeDownload(context, song.id.toString())
                     downloaded = false
                 } else {
-                    downloadingNow = true
-                    com.music.aalap.di.Downloads.downloadSong(song, context) { ok ->
-                        downloadingNow = false
-                        downloaded = ok
-                    }
+                    askQuality = true
                 }
             }
             if (downloadingNow) DownloadBar(downloadPct)
+            if (askQuality) DownloadAsk(listOf(song), onDone = { askQuality = false }) { q ->
+                downloadingNow = true
+                com.music.aalap.di.Downloads.downloadSong(song, context, quality = q) { ok ->
+                    downloadingNow = false
+                    downloaded = ok
+                }
+            }
             if (downloaded) {
                 SongMenuRow(
                     icon = ImageVector.vectorResource(R.drawable.ic_download),

@@ -259,9 +259,9 @@ fun LikedSongsScreen(navController: NavController) {
                                     )
                                     if (askDownloadAll) {
                                         com.music.aalap.ui.components.ConfirmDownloadAllDialog(
-                                            songs.size, onDismiss = { askDownloadAll = false },
-                                        ) {
-                                            com.music.aalap.di.Downloads.downloadAll(songs, context)
+                                            songs, onDismiss = { askDownloadAll = false },
+                                        ) { q ->
+                                            com.music.aalap.di.Downloads.downloadAll(songs, context, quality = q)
                                             android.widget.Toast.makeText(
                                                 context, "Downloading ${songs.size} tracks…", android.widget.Toast.LENGTH_SHORT,
                                             ).show()
