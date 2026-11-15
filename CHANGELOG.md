@@ -4,6 +4,14 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.13.0 — 15 Nov 2026 (build 101)
+- **No more hiccups.** Music no longer pauses for a moment when you turn the screen off or on,
+  open Aalap from the notification, or leave the app.
+- **Skipping quickly** always lands on one cover; it no longer gets stuck halfway between two songs.
+- **Search as you type.** Results show while you're typing, without pressing search.
+- **Search in Settings.** A search bar at the top of Settings finds any setting ("dark",
+  "crossfade", "download quality") and jumps straight to it.
+
 ## 8.12.0 — 14 Nov 2026 (build 100)
 - **Choose your download quality.** Before a song, album or playlist downloads, pick Best,
   High (320 kbps), Normal (160 kbps) or Data saver (96 kbps), with the size each will take and

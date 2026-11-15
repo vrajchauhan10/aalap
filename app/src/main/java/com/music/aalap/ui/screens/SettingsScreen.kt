@@ -1,5 +1,9 @@
 package com.music.aalap.ui.screens
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onGloballyPositioned
 import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -183,12 +187,28 @@ fun AppSettingsScreen(navController: NavController) {
             )
         }
     ) { padding ->
+        val settingsScroll = rememberScrollState()
+        var settingsQuery by remember { mutableStateOf("") }
+        var jumpTo by remember { mutableStateOf<SettingEntry?>(null) }
+        val anchors = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
+        // Jump to the picked setting's section once the full page is back on screen.
+        androidx.compose.runtime.LaunchedEffect(jumpTo) {
+            val e = jumpTo ?: return@LaunchedEffect
+            if (e.section == "Advanced") SettingsAdvanced.open.value = true
+            kotlinx.coroutines.delay(120)
+            anchors[e.section]?.let { settingsScroll.animateScrollTo((it - 24).coerceAtLeast(0)) }
+            jumpTo = null
+        }
+        Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
+        SettingsSearchField(settingsQuery) { settingsQuery = it }
+        if (settingsQuery.isNotBlank()) {
+            SettingsSearchResults(settingsQuery) { e -> settingsQuery = ""; jumpTo = e }
+        } else
+        androidx.compose.runtime.CompositionLocalProvider(LocalSettingAnchors provides anchors) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .consumeWindowInsets(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(settingsScroll)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             SectionTitle("Playback")
@@ -420,13 +440,14 @@ fun AppSettingsScreen(navController: NavController) {
 
             Spacer(Modifier.height(12.dp))
             // Power-user options, folded away so the page stays about everyday choices.
-            var showAdvanced by remember { mutableStateOf(false) }
+            var showAdvanced by SettingsAdvanced.open
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .clickable { showAdvanced = !showAdvanced }
+                    .then(LocalSettingAnchors.current?.let { a -> Modifier.onGloballyPositioned { a["Advanced"] = it.positionInParent().y.toInt() } } ?: Modifier)
                     .padding(top = 16.dp, bottom = 4.dp),
             ) {
                 Text("Advanced", color = AppPalette, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
@@ -492,6 +513,8 @@ fun AppSettingsScreen(navController: NavController) {
             }
             // Clears the floating mini player + tab bar so Log out can scroll fully into view.
             Spacer(Modifier.height(com.music.aalap.ui.components.BottomClearance))
+        }
+        }
         }
     }
 }
@@ -850,13 +873,133 @@ fun ShareAalapRow() {
 
 @Composable
 private fun SectionTitle(text: String) {
+    val anchors = LocalSettingAnchors.current
     Text(
         text = text,
         color = AppPalette,
         fontSize = 13.sp,
         fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+        modifier = Modifier
+            .padding(top = 16.dp, bottom = 4.dp)
+            .then(if (anchors != null) Modifier.onGloballyPositioned { anchors[text] = it.positionInParent().y.toInt() } else Modifier)
     )
+}
+
+/** Where each section title sits on the Settings page, for jumping there from search. */
+private val LocalSettingAnchors = androidx.compose.runtime.compositionLocalOf<MutableMap<String, Int>?> { null }
+
+/** The Advanced fold, open or shut (search opens it for the settings inside). */
+private object SettingsAdvanced { val open = mutableStateOf(false) }
+
+/** One searchable setting: what it's called, the section it lives in, and other words for it. */
+private data class SettingEntry(val title: String, val section: String, val words: String = "")
+
+private val SETTINGS_INDEX = listOf(
+    SettingEntry("Fast loading", "Playback", "speed start quick preload data skip"),
+    SettingEntry("Keep music playing in the background", "Playback", "battery stop pause background unrestricted"),
+    SettingEntry("Song videos", "Playback", "video canvas album art wifi"),
+    SettingEntry("Hey Aalap", "Voice", "voice wake word assistant listen"),
+    SettingEntry("Ask with a button", "Voice", "volume key accessibility button voice"),
+    SettingEntry("Ask Aalap icon", "Voice", "icon shortcut side key voice"),
+    SettingEntry("Follow my pace", "Recommendations", "tempo energy pace radio queue"),
+    SettingEntry("Language mix", "Recommendations", "hindi punjabi tamil telugu english language queue"),
+    SettingEntry("Discovery", "Recommendations", "new songs familiar explore"),
+    SettingEntry("Your feedback", "Recommendations", "more like this less like this never play blocked"),
+    SettingEntry("Sections on Home", "Home", "home hide show quick picks charts recently played edit"),
+    SettingEntry("Sound and equalizer", "Sound and your music", "eq bass boost normalize volume playback speed presets"),
+    SettingEntry("Your artists", "Sound and your music", "follow artists"),
+    SettingEntry("Backup and restore", "Backup", "backup restore export import save"),
+    SettingEntry("Like and shuffle in notification", "Notifications", "notification buttons lock screen"),
+    SettingEntry("Notification settings", "Notifications", "notifications allow lock screen"),
+    SettingEntry("Offline mode", "Offline", "offline downloads no data"),
+    SettingEntry("Auto-download Liked Songs", "Offline", "download liked wifi automatic"),
+    SettingEntry("Go offline automatically", "Offline", "no internet offline"),
+    SettingEntry("Storage used", "Offline", "storage space downloads size delete"),
+    SettingEntry("Streaming over Wi-Fi", "Audio quality", "quality wifi stream lossless high"),
+    SettingEntry("Streaming over cellular", "Audio quality", "quality mobile data cellular"),
+    SettingEntry("Download quality", "Audio quality", "download quality flac lossless 320"),
+    SettingEntry("Download on Wi-Fi only", "Audio quality", "download wifi mobile data"),
+    SettingEntry("Ask before downloading", "Audio quality", "download quality size ask chooser"),
+    SettingEntry("Translate lyrics", "Lyrics", "lyrics translation language"),
+    SettingEntry("Crossfade", "Crossfade", "fade blend songs gap transition"),
+    SettingEntry("Theme", "Appearance", "dark light mode theme colours appearance"),
+    SettingEntry("Allow video fallback", "Advanced", "youtube video matching fallback"),
+    SettingEntry("Soulseek lossless fallback", "Advanced", "soulseek flac peer lossless"),
+    SettingEntry("Log out", "Advanced", "sign out logout account"),
+)
+
+/** Settings whose name, section or other words contain every word typed. */
+private fun searchSettings(q: String): List<SettingEntry> {
+    val words = q.lowercase().split(Regex("\\s+")).filter { it.isNotBlank() }
+    return SETTINGS_INDEX.filter { e ->
+        val hay = "${e.title} ${e.section} ${e.words}".lowercase()
+        words.all { it in hay }
+    }.sortedByDescending { it.title.lowercase().startsWith(words.firstOrNull().orEmpty()) }
+}
+
+@Composable
+private fun SettingsSearchField(query: String, onChange: (String) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(26.dp))
+            .background(com.music.aalap.ui.theme.Surface)
+            .border(1.dp, com.music.aalap.ui.theme.Hairline, RoundedCornerShape(26.dp))
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        Icon(Icons.Default.Search, contentDescription = null, tint = com.music.aalap.ui.theme.TextMuted, modifier = Modifier.size(20.dp))
+        androidx.compose.foundation.text.BasicTextField(
+            value = query,
+            onValueChange = onChange,
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(AppPalette),
+            modifier = Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 12.dp),
+            decorationBox = { inner ->
+                if (query.isEmpty()) Text("Search settings", color = com.music.aalap.ui.theme.TextMuted, fontSize = 15.sp)
+                inner()
+            },
+        )
+        if (query.isNotEmpty()) Text(
+            "✕", color = com.music.aalap.ui.theme.TextMuted, fontSize = 15.sp,
+            modifier = Modifier.clip(CircleShape).clickable { onChange("") }.padding(6.dp),
+        )
+    }
+}
+
+@Composable
+private fun SettingsSearchResults(query: String, onPick: (SettingEntry) -> Unit) {
+    val found = remember(query) { searchSettings(query) }
+    // Picking a result closes the keyboard, so the setting it jumps to is fully in view.
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)) {
+        if (found.isEmpty()) Text(
+            "No setting matches \"$query\"", color = com.music.aalap.ui.theme.TextMuted, fontSize = 14.sp,
+            modifier = Modifier.padding(top = 24.dp).fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        found.forEach { e ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(com.music.aalap.ui.theme.Surface)
+                    .clickable { keyboard?.hide(); focus.clearFocus(); onPick(e) }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(e.title, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text(e.section, color = AppPalette, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                }
+                Text("›", color = com.music.aalap.ui.theme.TextMuted, fontSize = 22.sp)
+            }
+        }
+        Spacer(Modifier.height(com.music.aalap.ui.components.BottomClearance))
+    }
 }
 
 @Composable

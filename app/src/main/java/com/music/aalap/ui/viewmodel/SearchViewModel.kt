@@ -100,6 +100,9 @@ class SearchViewModel @Inject constructor(private val repository: AppRepository,
         searchJob = viewModelScope.launch(Dispatchers.IO) {
             delay(150) // short debounce for snappy real-time results
             repository.searchEverything(query).collect { result ->
+                // While you type, the last results stay up until the new ones arrive (a loading
+                // state on every letter left the page blank until you stopped typing).
+                if (result is Response.Loading && _results.value is Response.Success && query.isNotBlank()) return@collect
                 _results.value = result
                 if (result is Response.Success) loadArtistTop(query, result.data)
                 // Keep the legacy songs flow in sync for any remaining consumers.

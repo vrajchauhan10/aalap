@@ -440,12 +440,20 @@ object SongPlayer {
     }
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-    private fun applyOffload() {
+    private fun applyOffload(force: Boolean = false) {
         val p = player ?: return
         val ctx = appCtx ?: return
         // In the background a cool phone comes first: songs change with a clean gapless cut
         // instead of the crossfade (two songs decoding at once), which returns in Aalap.
         val ok = inBackground && com.music.aalap.data.preferences.getPlaybackSpeed(ctx) == 1f
+        if (!force && appliedOffload == ok && appliedTo === p) return
+        // Switching it rebuilds the audio output, a short drop-out. Mid-song (screen off or on,
+        // opening from the notification, leaving Aalap) that was heard as a hiccup every time,
+        // so while a song plays the switch waits for the next song, a pause or a seek.
+        if (!force && p.isPlaying && appliedTo === p) { offloadPending = true; return }
+        offloadPending = false
+        appliedOffload = ok
+        appliedTo = p
         offloading = ok
         val prefs = androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.Builder()
             .setAudioOffloadMode(
@@ -460,6 +468,12 @@ object SongPlayer {
         }.onFailure { Log.w(TAG, "offload: $it") }
         Log.d(TAG, "audio offload ${if (ok) "on (in the background)" else "off"} (background=$inBackground crossfade=${com.music.aalap.data.preferences.getCrossfadeMs(ctx)} speed=${com.music.aalap.data.preferences.getPlaybackSpeed(ctx)})")
     }
+
+    private var appliedOffload: Boolean? = null
+    private var appliedTo: Any? = null
+    private var offloadPending = false
+    /** A song boundary or a pause: the moment a waiting offload switch can't be heard. */
+    private fun applyPendingOffload() { if (offloadPending) applyOffload() }
 
     /** The song being looked for right now (null once it starts or is given up). */
     @Volatile private var finding: String? = null
@@ -1819,6 +1833,7 @@ object SongPlayer {
             retriedRequest = null
             val p = player ?: return
             if (p.currentMediaItemIndex > 0) p.removeMediaItems(0, p.currentMediaItemIndex)
+            if (offloadPending) { offloadPending = false; appliedOffload = null; applyOffload(force = true) }
             appCtx?.let { ctx ->
                 scope.launch { resolveStreamUrl(query, ctx, forPlayback = true) } // badge
                 soulseekLookahead(ctx)
@@ -1836,6 +1851,7 @@ object SongPlayer {
             audible.value = isPlaying || (isCrossfading && secondaryPlayer?.isPlaying == true)
             playerPlaying.value = isPlaying
             com.music.aalap.data.preferences.ListenClock.playingChanged(isPlaying)
+            if (!isPlaying) applyPendingOffload()
             // Music is playing: Media3's own notification keeps the foreground from here.
             if (isPlaying) appCtx?.let { com.music.aalap.ui.notification.StartupService.stop(it) }
         }

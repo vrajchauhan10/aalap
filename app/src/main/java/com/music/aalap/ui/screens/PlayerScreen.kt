@@ -224,12 +224,16 @@ fun PlayerScreen(navController: NavController) {
     // External track changes (auto-advance, prev/next buttons, queue edits) → snap the
     // pager to the new track. Guard on settled state so we don't fight an in-progress swipe.
     LaunchedEffect(currentIndex, queueSongs.size) {
-        if (currentIndex in 0 until queueSongs.size &&
-            artworkPagerState.currentPage != currentIndex &&
-            !artworkPagerState.isScrollInProgress
-        ) {
+        if (currentIndex !in 0 until queueSongs.size) return@LaunchedEffect
+        // Your finger is on the artwork: leave it to the swipe.
+        if (swipedByUser.value && artworkPagerState.isScrollInProgress) return@LaunchedEffect
+        // Skipping quickly cut the slide short and left the artwork halfway between two songs
+        // (two covers side by side): it counts as "not there" until it sits exactly on the song.
+        val off = artworkPagerState.currentPage != currentIndex || artworkPagerState.currentPageOffsetFraction != 0f
+        if (!off) return@LaunchedEffect
+        try {
             // Neighbouring track: slide the artwork across. Far jumps (queue taps) snap.
-            if (kotlin.math.abs(artworkPagerState.currentPage - currentIndex) == 1) {
+            if (kotlin.math.abs(artworkPagerState.currentPage - currentIndex) <= 1) {
                 artworkPagerState.animateScrollToPage(
                     currentIndex,
                     animationSpec = androidx.compose.animation.core.tween(380, easing = androidx.compose.animation.core.FastOutSlowInEasing),
@@ -237,6 +241,10 @@ fun PlayerScreen(navController: NavController) {
             } else {
                 artworkPagerState.scrollToPage(currentIndex)
             }
+        } finally {
+            // Cut short by the next skip: that run slides on from here. Otherwise land exactly.
+            if (artworkPagerState.currentPageOffsetFraction != 0f && artworkPagerState.currentPage == currentIndex)
+                runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { artworkPagerState.scrollToPage(currentIndex) } }
         }
     }
     // User settled the pager on a different page → play that track. Compare against the

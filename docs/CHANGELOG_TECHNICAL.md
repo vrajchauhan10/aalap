@@ -4,6 +4,27 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-15 — 8.13.0 (101) smooth playback on app/screen changes, artwork snap, live search, settings search
+- `SongPlayer.applyOffload`: switching audio offload rebuilds the audio sink (a short drop-out).
+  It ran on every foreground/background change (screen on/off, notification, leaving Aalap),
+  mid-song. Now it's skipped when unchanged and, while a song plays, deferred
+  (`offloadPending`) to the next gapless transition, a pause/stop (`onIsPlayingChanged(false)`)
+  or a new player. Offload still reaches background playback from the next song.
+- PlayerScreen artwork pager: fast skips cancelled the slide and left it between two pages
+  (two covers). The sync now also treats a non-zero `currentPageOffsetFraction` as "off",
+  slides for jumps of ≤1, and snaps exactly in `finally` when a slide is cut short.
+- Search: `Api.searchEverything` emits songs/albums/artists first, podcasts after (they used
+  to hold everything back); `SearchViewModel` keeps the last results instead of a Loading
+  state on every letter.
+- Settings: search field pinned at the top (`SETTINGS_INDEX`, every word must match title,
+  section or keywords); a result jumps to its section (`LocalSettingAnchors`), opening
+  Advanced when needed.
+- Checked on the S24 (debug copy): home/back, screen off/on while playing → no offload switch
+  and no audio restart logged; the deferred switch applied on the next song. 5 and 8 rapid
+  Next taps → one cover, settled. Search "tumsehi" letter by letter → results with the
+  keyboard open, no search key. Settings search "dark" → Theme → jumps to Appearance
+  (keyboard now closes on pick).
+
 ## 2026-11-14 — 8.12.0 (100) downloads try every source, three rounds; quality chooser
 - `Downloads.downloadToFile`: lossless FLAC (always, when a Spotify id exists) → JioSaavn
   (25 s) → YouTube with video uploads allowed (`resolveYtPlayback(allowVideos = true)`, new

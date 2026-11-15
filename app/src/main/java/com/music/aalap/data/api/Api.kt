@@ -357,24 +357,26 @@ class Api @Inject constructor(
         }
         Spotify.search(query, types = listOf("track", "album", "artist"), limit = 20).fold(
             onSuccess = { res ->
-                // Podcasts come from the REST catalog search (best-effort — a failure
-                // there must not blank out the music results).
-                val podcasts = Spotify.searchPodcasts(query, limit = 12)
-                    .onFailure { Log.e("Api", "searchPodcasts FAILED: ${it.message}", it) }
-                    .getOrNull()
-                Log.d("Api", "podcasts: shows=${podcasts?.shows?.items?.size ?: -1} episodes=${podcasts?.episodes?.items?.size ?: -1}")
                 // Spotify lists one song several times (single, album, "From …" release) with
                 // different ids; show each song, album and artist once. Remixes and other
                 // versions keep their own row ("Kalyani - Remix" ≠ "Kalyani").
                 fun same(t: String) = t.lowercase().replace(Regex("""\(.*?\)|\[.*?\]"""), " ").replace(Regex("""\s+"""), " ").trim()
                 fun firstArtist(a: String) = com.music.aalap.data.recommendation.engine.SongMatcher.artistKeys(a).firstOrNull().orEmpty()
-                emit(Response.Success(SearchResults(
-                    // Spotify can return entries with no name; they can't be shown or opened.
+                // Spotify can return entries with no name; they can't be shown or opened.
+                val music = SearchResults(
                     songs = SearchRank.rank(query, res.tracks?.items.orEmpty().map { it.toSongModel() }.filter { it.title.isNotBlank() }.distinctBy { "${same(it.title)}|${firstArtist(it.singer)}" }),
                     albums = res.albums?.items.orEmpty().map { it.toAlbumModel() }.filter { it.name.isNotBlank() }.distinctBy { "${same(it.name)}|${firstArtist(it.artists)}" },
                     artists = res.artists?.items.orEmpty().map { it.toArtistModel() }.filter { it.name.isNotBlank() }.distinctBy { it.name.lowercase().trim() },
-                    shows = podcasts?.shows?.items.orEmpty().map { it.toPodcastModel() },
-                    episodes = podcasts?.episodes?.items.orEmpty().map { it.toEpisodeSongModel(null) },
+                )
+                // Songs, albums and artists show at once, while you type; podcasts (a second,
+                // slower search) are added when they arrive instead of holding everything back.
+                emit(Response.Success(music))
+                val podcasts = Spotify.searchPodcasts(query, limit = 12)
+                    .onFailure { Log.e("Api", "searchPodcasts FAILED: ${it.message}", it) }
+                    .getOrNull()
+                if (podcasts != null && (!podcasts.shows?.items.isNullOrEmpty() || !podcasts.episodes?.items.isNullOrEmpty())) emit(Response.Success(music.copy(
+                    shows = podcasts.shows?.items.orEmpty().map { it.toPodcastModel() },
+                    episodes = podcasts.episodes?.items.orEmpty().map { it.toEpisodeSongModel(null) },
                 )))
             },
             onFailure = {
