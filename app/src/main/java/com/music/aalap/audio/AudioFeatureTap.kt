@@ -33,7 +33,7 @@ class AudioFeatureTap : BaseAudioProcessor() {
     override fun queueInput(inputBuffer: ByteBuffer) {
         val remaining = inputBuffer.remaining()
         if (remaining == 0) return
-        if (AudioAnalysis.enabled && sampleRate > 0 && channels > 0) listen(inputBuffer.duplicate().order(ByteOrder.LITTLE_ENDIAN))
+        if (AudioAnalysis.enabled && AudioAnalysis.wanted() && sampleRate > 0 && channels > 0) listen(inputBuffer.duplicate().order(ByteOrder.LITTLE_ENDIAN))
         val out = replaceOutputBuffer(remaining)
         out.put(inputBuffer)
         out.flip()
@@ -84,10 +84,21 @@ object AudioAnalysis {
     /** Where results go (set by the engine): song, result. */
     @Volatile var onMeasured: ((com.music.aalap.data.entity.SongsModel, AudioFeatures.Result) -> Unit)? = null
 
+    /** Songs already measured are not listened to again (set from the IO thread). */
+    @Volatile private var alreadyMeasured = -1
+    fun wanted(): Boolean = alreadyMeasured != generation
+
+    /** Whether a song has been measured before (set by the engine; IO thread). */
+    @Volatile var isMeasured: ((com.music.aalap.data.entity.SongsModel) -> Boolean)? = null
+    private val checker = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "audio-measured").apply { isDaemon = true } }
+
     fun newSong(s: com.music.aalap.data.entity.SongsModel) {
         if (song?.id == s.id) return
         song = s
-        generation++
+        val gen = ++generation
+        // Each song is measured once: its tempo is kept, so the next plays skip the work
+        // (that's what lets measuring run in the background too, for new songs only).
+        isMeasured?.let { check -> checker.execute { if (runCatching { check(s) }.getOrDefault(false) && generation == gen) alreadyMeasured = gen } }
     }
 
     fun measured(gen: Int, r: AudioFeatures.Result) {

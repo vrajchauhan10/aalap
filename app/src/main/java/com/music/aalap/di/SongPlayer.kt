@@ -433,9 +433,9 @@ object SongPlayer {
     fun onAppVisible(visible: Boolean) {
         Log.d(TAG, "app ${if (visible) "visible" else "in the background"}")
         inBackground = !visible
-        // Measuring each song's tempo (for recommendations) only while Aalap is open: in the
-        // background every sample would be read again on the audio thread, song after song.
-        com.music.aalap.audio.AudioAnalysis.enabled = visible
+        // Tempo is measured in the background too, but only for songs never measured before
+        // (AudioAnalysis.wanted): songs heard with the screen off had no tempo, so the queue
+        // couldn't keep the pace after them. Offloaded audio (other phones) skips it anyway.
         android.os.Handler(android.os.Looper.getMainLooper()).post { applyOffload() }
     }
 
@@ -1795,6 +1795,21 @@ object SongPlayer {
         replaceSource(song, source)
     }
 
+    /**
+     * A fresh stream of [song] from [source] only (the others are skipped for this one lookup),
+     * so a broken link is replaced by the same recording. Null when that source can't.
+     */
+    private suspend fun resolveFromSource(song: String, ctx: Context, source: String): String? {
+        if (source !in STREAM_SOURCES) return null
+        val before = wrongSource[song]
+        wrongSource[song] = listOfNotNull(before, *(STREAM_SOURCES - source).toTypedArray()).joinToString(",")
+        return try {
+            resolveStreamUrl(song, ctx, forPlayback = true, allowLossless = false)?.takeIf { sourceCache[song] == source }
+        } finally {
+            if (before == null) wrongSource.remove(song) else wrongSource[song] = before
+        }
+    }
+
     /** Drops [source] for [song] and plays the same song from the next source that has it. */
     private fun replaceSource(song: String, source: String, resumeAtMs: Long = -1L) {
         wrongSource[song] = listOfNotNull(wrongSource[song], source).joinToString(",")
@@ -1809,8 +1824,11 @@ object SongPlayer {
                 versionCheckedFor = null
                 player?.setMediaItem(buildMediaItem(fresh, streamMimeType(fresh)))
                 player?.prepare()
-                // Early in the song, start over; later, carry on near the same spot.
-                if (pos > 30_000L) player?.seekTo(pos)
+                // A broken stream carries on where it stopped, wherever that was (it restarted from
+                // 0:00 when it broke in the first 30 s: the opening played twice). A wrong version
+                // found in the first seconds starts over, near 0:00 anyway.
+                if (resumeAtMs >= 0) { if (pos > 2_000L) player?.seekTo(pos) }
+                else if (pos > 30_000L) player?.seekTo(pos)
                 player?.play()
             }
         }
@@ -1905,11 +1923,15 @@ object SongPlayer {
             retriedAtMs = pos
             scope.launch {
                 if (isIoError) {
-                    // Brief wait so a transient network blip has time to recover.
-                    delay(3_000L)
+                    // A short wait for a network blip (it was 3 s of silence before anything was tried).
+                    delay(600L)
                     // User may have manually skipped while we were waiting — bail if so.
                     if (currentRequest != song) return@launch
-                    val fresh = resolveStreamUrl(song, ctx, forPlayback = true)
+                    // A fresh link from the SAME source first: the same recording, so it carries on
+                    // at exactly the same word. Another source's copy can start a second or two
+                    // earlier or later, which repeated or skipped a line.
+                    val fresh = sourceBefore?.let { resolveFromSource(song, ctx, it) }
+                        ?: resolveStreamUrl(song, ctx, forPlayback = true)
                     if (fresh != null && currentRequest == song) {
                         val savedPos = withContext(Dispatchers.Main) { player?.currentPosition ?: 0L }
                         withContext(Dispatchers.Main) {

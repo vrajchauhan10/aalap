@@ -4,6 +4,16 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.14.0 — 19 Nov 2026 (build 102)
+- **Mood stations in your languages.** Each station now plays in the languages you chose in
+  Settings (or the ones you listen to most), not just Hindi.
+- **Stations don't start over.** A station remembers what it played you and starts with
+  songs you haven't heard from it lately.
+- **Steady pace.** What plays next keeps the tempo and energy of what you're listening to:
+  a calm song is no longer followed by a very energetic one.
+- **Smoother playback.** If a song's stream breaks, it picks up again in under a second at
+  the same spot, without repeating a line.
+
 ## 8.13.0 — 15 Nov 2026 (build 101)
 - **No more hiccups.** Music no longer pauses for a moment when you turn the screen off or on,
   open Aalap from the notification, or leave the app.

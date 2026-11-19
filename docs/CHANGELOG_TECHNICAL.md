@@ -4,6 +4,33 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-19 — 8.14.0 (102) radio in your languages, pace rule, mid-song recovery
+- Mood stations: `Discover.moodMix` searches the mood's playlists per language
+  (`radioLanguages`: the Settings language mix, else the languages you finish, up to 3,
+  shares ≥ 12%; Focus has none; `queryFor` swaps "hindi/bollywood/indian" or prefixes the
+  language), then drops songs known to be in another language (kept if < 12 remain). Cache key
+  includes the languages. `AalapRadio.freshFirst`: songs the station served (first 10 per
+  start, 7 days, ≤ 300) or that you played in 3 days go last; used by Home, voice and MoodScreen.
+- Pace: `QueuePicker.flowOk` is a gate, not a nudge: energy within 0.22 of the song before
+  and 0.30 of the session, tempo within 12% (half/double time allowed); loosens to
+  0.32/0.40/20%, then off, when fewer than 6 candidates pass (liked songs over their 35%
+  share don't count towards that). Tempo-jump penalty ×0.85 → ×0.6. Tests `FlowRuleTest`;
+  scenario report: big energy jumps 4% → 0%, average change 0.11 → 0.08, all scenarios pass.
+- Tempo measuring: no longer switched off in the background; each song is measured once
+  (`AudioAnalysis.isMeasured` → `wanted()`), so replays cost nothing. When audio is offloaded
+  the tap doesn't run at all.
+- Mid-song recovery: a broken stream (IO error) waits 0.6 s (was 3 s) and gets a fresh link
+  from the same source first (`resolveFromSource`, same recording → same position), then any
+  source. A stream that broke within its first 30 s restarted at 0:00 (opening heard twice);
+  it now resumes where it stopped.
+- CPU (S24, debug copy, screen off): 9.3% of a core on a new song with offload on (release
+  baseline before: 6.9%); the first minute after a fresh install (mood stations, Home) 45%.
+- App switching (S24, debug copy, song playing): 12 switches to Chrome, Instagram, WhatsApp,
+  Camera, recent apps and the notification shade. AudioFlinger track counters stayed at 0
+  underruns and 0 flushes; no app took audio focus (only abandons); no offload switch mid-song.
+  The earlier drop-outs match the mid-song offload switch (fixed in 8.13.0) and stream recovery
+  (fixed here).
+
 ## 2026-11-15 — 8.13.0 (101) smooth playback on app/screen changes, artwork snap, live search, settings search
 - `SongPlayer.applyOffload`: switching audio offload rebuilds the audio sink (a short drop-out).
   It ran on every foreground/background change (screen on/off, notification, leaving Aalap),

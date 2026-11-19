@@ -237,7 +237,7 @@ object QueuePicker {
                 // Half or double time flows fine (a 70 bpm song after a 140 bpm one).
                 val r = maxOf(a, b) / minOf(a, b)
                 val off = minOf(r, kotlin.math.abs(r - 2.0) + 1.0)
-                if (off > 1.2) { s *= 0.85; tags += "tempo-jump" } else if (off < 1.06) { s += 0.03; tags += "tempo-match" }
+                if (off > 1.2) { s *= 0.6; tags += "tempo-jump" } else if (off < 1.06) { s += 0.03; tags += "tempo-match" }
             }
         }
 
@@ -288,6 +288,30 @@ object QueuePicker {
      * the top [TOP_N] sampled by score² (strong songs are much likelier, but the queue
      * isn't the same every time).
      */
+    private const val MIN_FLOW = TOP_N
+    private const val LIKED_CAP = 0.35
+
+    /**
+     * Whether [next] can follow [prev] without a jump: energy within 0.22 of the song before
+     * and 0.30 of the session (0.32 / 0.40 when [strict] is off), tempo within 12% (20%),
+     * half or double time counting as the same pulse. Whatever isn't known can't fail.
+     */
+    fun flowOk(prev: Vibe, next: Vibe, session: Vibe, strict: Boolean): Boolean {
+        val stepMax = if (strict) 0.22 else 0.32
+        val sessionMax = if (strict) 0.30 else 0.40
+        if (next.energyKnown) {
+            if (prev.energyKnown && kotlin.math.abs(prev.energy - next.energy) > stepMax) return false
+            if (session.energyKnown && kotlin.math.abs(session.energy - next.energy) > sessionMax) return false
+        }
+        val a = prev.bpm; val b = next.bpm
+        if (a != null && b != null && a > 0 && b > 0) {
+            val r = maxOf(a, b) / minOf(a, b)
+            val off = minOf(r, kotlin.math.abs(r - 2.0) + 1.0)
+            if (off > (if (strict) 1.12 else 1.20)) return false
+        }
+        return true
+    }
+
     fun pick(
         candidates: List<Features>,
         session: Session,
@@ -305,7 +329,25 @@ object QueuePicker {
             .toList()
         if (scored.isEmpty()) return null
         val fresh = scored.filter { previousArtists.isBlank() || !SongMatcher.artistsOverlap(it.song.artists, previousArtists) }
-        val pool = fresh.ifEmpty { scored }.sortedByDescending { it.final }.take(TOP_N)
+            .ifEmpty { scored }
+        // Smooth flow is a rule, not a nudge: a mid-slow song was followed by a very energetic
+        // one because "what the world plays next" outweighed a 15% tempo penalty. Only songs
+        // close in energy and tempo to the one before (and to the session) can be picked; the
+        // rule loosens one step, then lets go, only when too few songs pass.
+        val byId = candidates.associateBy { it.song.id }
+        val prev = state.lastVibe
+        fun passes(sc: Scored, strict: Boolean): Boolean {
+            val v = byId[sc.song.id]?.vibe ?: return true
+            return prev == null || flowOk(prev, v, session.vibe, strict)
+        }
+        // Your liked songs often share the pace exactly; once they're over their share, a pace
+        // step counts only if enough other songs pass it too, so likes don't fill the queue.
+        val likedShare = if (state.picks == 0) 0.0 else state.liked.toDouble() / state.picks
+        fun enough(l: List<Scored>) = l.count { likedShare < LIKED_CAP || byId[it.song.id]?.liked != true } >= MIN_FLOW
+        val paced = fresh.filter { passes(it, strict = true) }.takeIf(::enough)
+            ?: fresh.filter { passes(it, strict = false) }.takeIf(::enough)
+            ?: fresh
+        val pool = paced.sortedByDescending { it.final }.take(TOP_N)
         return Diversifier.sampleWeighted(pool, rnd) { it.final * it.final }
     }
 }

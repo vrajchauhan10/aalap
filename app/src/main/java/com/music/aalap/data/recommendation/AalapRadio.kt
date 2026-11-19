@@ -103,7 +103,41 @@ object AalapRadio {
         // Keep the taste order roughly (top songs early) but shuffle within windows of 6.
         val rnd = Random(salt)
         val ordered = forMood(context, mood, mix)
-        return com.music.aalap.data.recommendation.engine.MixClean.songs(ordered.take(50)).chunked(6).flatMap { it.shuffled(rnd) }.let { list -> Diversifier.spreadArtists(list) { it.singer } }
+        val list = com.music.aalap.data.recommendation.engine.MixClean.songs(ordered.take(60)).chunked(6).flatMap { it.shuffled(rnd) }
+            .let { l -> Diversifier.spreadArtists(l) { it.singer } }
+        return freshFirst(context, mood, list)
+    }
+
+    /**
+     * The station picks up where it left off: songs it hasn't played you lately come first,
+     * the ones it did (or that you played anywhere in the last 3 days) go to the end. Every
+     * open used to start with the same top songs.
+     */
+    fun freshFirst(context: Context, mood: Mood, songs: List<SongsModel>): List<SongsModel> {
+        if (songs.isEmpty()) return songs
+        val p = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val dayMs = 24 * 60 * 60 * 1000L
+        fun key(s: SongsModel) = s.spotifyTrackId.ifBlank { (s.title + "|" + s.singer).lowercase() }
+        // What this station served before (key → when), kept for a week, at most 300.
+        val served = runCatching { org.json.JSONObject(p.getString("served_${mood.name}", "{}") ?: "{}") }.getOrDefault(org.json.JSONObject())
+        val recent = HashSet<String>()
+        served.keys().forEach { k -> if (now - served.optLong(k) < 7 * dayMs) recent += k }
+        runCatching {
+            com.music.aalap.data.preferences.getListeningHistory(context).filter { now - it.ts < 3 * dayMs }
+                .forEach { h -> recent += h.spotifyTrackId.ifBlank { (h.title + "|" + h.singer).lowercase() } }
+        }
+        val (heard, fresh) = songs.partition { key(it) in recent }
+        val out = fresh + heard
+        // The first ten are what you'll hear this time: next time they move to the back.
+        val keep = org.json.JSONObject()
+        served.keys().forEach { k -> if (now - served.optLong(k) < 7 * dayMs) keep.put(k, served.optLong(k)) }
+        out.take(10).forEach { keep.put(key(it), now) }
+        val trimmed = if (keep.length() > 300) org.json.JSONObject().also { o ->
+            keep.keys().asSequence().map { it to keep.optLong(it) }.sortedByDescending { it.second }.take(300).forEach { (k, v) -> o.put(k, v) }
+        } else keep
+        p.edit().putString("served_${mood.name}", trimmed.toString()).apply()
+        return out
     }
 
     /** A mood's songs in the order its station plays them (the same on Home, Search and voice). */

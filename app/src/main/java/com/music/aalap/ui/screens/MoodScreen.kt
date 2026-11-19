@@ -61,7 +61,9 @@ fun MoodScreen(navController: NavController, moodName: String) {
     val playerViewModel: PlayerViewModel = hiltViewModel()
     val songs by produceState<List<SongsModel>?>(initialValue = null, mood) {
         value = withContext(Dispatchers.IO) {
-            com.music.aalap.data.recommendation.AalapRadio.forMood(context, mood, Discover.moodMix(context, mood))
+            // The same fresh-first order as the station on Home: not the same first song every time.
+            com.music.aalap.data.recommendation.AalapRadio.freshFirst(context, mood,
+                com.music.aalap.data.recommendation.AalapRadio.forMood(context, mood, Discover.moodMix(context, mood)))
         }
     }
     val yourArtists = remember { Discover.topArtists(context).map { it.lowercase() }.toSet() }

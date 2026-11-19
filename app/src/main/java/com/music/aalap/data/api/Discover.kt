@@ -102,31 +102,81 @@ object Discover {
      * your most-played artists first, the rest in a different order each day.
      */
     suspend fun moodMix(context: Context, mood: Mood): List<SongsModel> {
-        val key = "${prefix(context)}:mood:${mood.name}"
+        val langs = radioLanguages(context, mood)
+        val key = "${prefix(context)}:mood:${mood.name}:${langs.joinToString(",") { it.first }}"
         read(context, key)?.let { return it }
         val api = Api(context)
-        val playlists = runCatching {
-            api.getCategoryPlaylists(mood.query).toList()
-                .filterIsInstance<Response.Success<List<com.music.aalap.data.entity.LibraryEntry>>>()
-                .lastOrNull()?.data
-        }.getOrNull().orEmpty().take(6)
-            // Rotate which three of the mood's top playlists feed the mix each window/refresh.
-            .shuffled(java.util.Random(salt(context, mood.ordinal))).take(3)
-        val tracks = playlists.flatMap { pl ->
-            runCatching {
-                api.getPlaylistSongs(pl.spotifyId).toList()
-                    .filterIsInstance<Response.Success<List<SongsModel>>>()
-                    .firstOrNull()?.data
-            }.getOrNull().orEmpty().take(40)
+        // Each of your languages gets its own playlists, in proportion to its share: the
+        // stations used to search Hindi playlists only and ignored the language mix.
+        val tracks = langs.flatMap { (lang, share) ->
+            val want = kotlin.math.max(1, kotlin.math.round(3 * share).toInt())
+            val playlists = runCatching {
+                api.getCategoryPlaylists(queryFor(mood, lang)).toList()
+                    .filterIsInstance<Response.Success<List<com.music.aalap.data.entity.LibraryEntry>>>()
+                    .lastOrNull()?.data
+            }.getOrNull().orEmpty().take(6)
+                // Rotate which of the mood's top playlists feed the mix each window/refresh.
+                .shuffled(java.util.Random(salt(context, mood.ordinal + lang.hashCode()))).take(want)
+            playlists.flatMap { pl ->
+                runCatching {
+                    api.getPlaylistSongs(pl.spotifyId).toList()
+                        .filterIsInstance<Response.Success<List<SongsModel>>>()
+                        .firstOrNull()?.data
+                }.getOrNull().orEmpty().take(40)
+            }
         }.distinctBy { it.spotifyTrackId.ifBlank { it.title + it.singer } }
+            .let { keepLanguages(context, it, langs.map { l -> l.first }, mood) }
         // The station's songs teach the engine what this mood sounds like.
         com.music.aalap.data.recommendation.engine.VibeStore.tagMood(context, tracks, mood.name)
         // Same engine as everywhere else: a fresh order each window, then ranked for your taste.
         val shuffled = tracks.shuffled(java.util.Random(salt(context, 100 + mood.ordinal)))
-        val result = com.music.aalap.data.recommendation.Recommender.rerank(context, shuffled, familiar = 0.3f).take(60)
-        Log.d(TAG, "mood ${mood.name}: ${playlists.size} playlists, ${tracks.size} tracks")
+        val result = com.music.aalap.data.recommendation.Recommender.rerank(context, shuffled, familiar = 0.3f).take(80)
+        Log.d(TAG, "mood ${mood.name} in ${langs.joinToString { "${it.first} ${"%.0f".format(it.second * 100)}%" }}: ${tracks.size} tracks")
         if (result.isNotEmpty()) write(context, key, result)
         return result
+    }
+
+    /**
+     * The languages a station plays, with their shares: your language mix from Settings when
+     * you chose one, otherwise the languages you actually finish songs in (up to three).
+     * Instrumental moods have no language.
+     */
+    fun radioLanguages(context: Context, mood: Mood): List<Pair<String, Double>> {
+        if (mood == Mood.FOCUS) return listOf("" to 1.0)
+        val mix = com.music.aalap.data.preferences.RecoPrefs.languageMix(context).filter { it.value > 0 }
+        if (mix.isNotEmpty()) return mix.entries.sortedByDescending { it.value }.map { it.key.lowercase() to it.value }
+        val taste = runCatching { com.music.aalap.data.recommendation.engine.Personalizer.profile(context).language }.getOrDefault(emptyMap())
+            .filterKeys { it.isNotBlank() }.mapKeys { if (it.key.lowercase() == "urdu") "hindi" else it.key.lowercase() }
+        val total = taste.values.filter { it > 0 }.sum()
+        if (total <= 0) return listOf("hindi" to 1.0)
+        val top = taste.filter { it.value > 0 }.mapValues { it.value / total }.filter { it.value >= 0.12 }
+            .entries.sortedByDescending { it.value }.take(3)
+        if (top.isEmpty()) return listOf("hindi" to 1.0)
+        val sum = top.sumOf { it.value }
+        return top.map { it.key to it.value / sum }
+    }
+
+    /** The mood's search in a language: "romantic hindi songs" → "romantic punjabi songs". */
+    internal fun queryFor(mood: Mood, lang: String): String {
+        if (lang.isBlank() || lang == "hindi") return mood.query
+        val swapped = mood.query.replace(Regex("\\b(hindi|bollywood|indian)\\b"), lang)
+        return if (swapped != mood.query) swapped else "$lang ${mood.query}"
+    }
+
+    /** Drops songs known to be in a language you didn't choose (unknown ones stay). */
+    private fun keepLanguages(context: Context, songs: List<SongsModel>, langs: List<String>, mood: Mood): List<SongsModel> {
+        if (langs.any { it.isBlank() } || songs.isEmpty()) return songs
+        return runCatching {
+            val db = com.music.aalap.data.recommendation.engine.RecoDb.get(context)
+            val canon = db.resolveAll(songs.map(com.music.aalap.data.recommendation.engine.SongBridge::toCandidate))
+            val kept = songs.zip(canon).filter { (_, c) ->
+                val l = com.music.aalap.data.recommendation.engine.VibeStore.language(context, c)
+                l.isBlank() || langs.any { want -> com.music.aalap.data.recommendation.engine.LanguageGuess.same(l, want) }
+            }.map { it.first }
+            Log.d(TAG, "mood ${mood.name}: kept ${kept.size} of ${songs.size} in ${langs.joinToString()}")
+            // Too few left (a rare language for this mood): keep what there is rather than nothing.
+            if (kept.size >= 12) kept else songs
+        }.getOrDefault(songs)
     }
 
     /** New-to-you songs mixed from several favourites' radios; changes every window and refresh. */
