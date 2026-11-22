@@ -858,6 +858,40 @@ object SongPlayer {
             .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
     }
 
+    /** The stream already found for [song] (no lookup), or null. */
+    internal fun knownStreamUrl(song: String): String? = streamCache[song]
+
+    /**
+     * The saved start of [url] (the first [PRELOAD_BYTES], what [cacheIntro] keeps) as a
+     * source a decoder can read: read from the media cache, fetched only if not saved yet.
+     */
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+    internal fun introSource(context: Context, url: String): android.media.MediaDataSource {
+        val factory = cacheDataSourceFactory(context.applicationContext)
+        val uri = android.net.Uri.parse(url)
+        val limit = PRELOAD_BYTES
+        return object : android.media.MediaDataSource() {
+            private var ds: androidx.media3.datasource.DataSource? = null
+            private var at = -1L
+            override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
+                if (position >= limit) return -1
+                if (ds == null || at != position) {
+                    runCatching { ds?.close() }
+                    ds = factory.createDataSource().also {
+                        it.open(androidx.media3.datasource.DataSpec.Builder().setUri(uri).setPosition(position).setLength(limit - position).build())
+                    }
+                    at = position
+                }
+                val n = ds!!.read(buffer, offset, minOf(size.toLong(), limit - position).toInt())
+                if (n == androidx.media3.common.C.RESULT_END_OF_INPUT) return -1
+                at += n
+                return n
+            }
+            override fun getSize(): Long = -1
+            override fun close() { runCatching { ds?.close() }; ds = null }
+        }
+    }
+
     /** Pre-cache the first [PRELOAD_BYTES] of [url] into the media cache (http(s) only). */
     private fun cacheIntro(url: String, appContext: Context) {
         if (!url.startsWith("http")) return

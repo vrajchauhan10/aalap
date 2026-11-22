@@ -117,6 +117,38 @@ fun AalapRadioSection() {
                 ) { MoodArt(mood) }
             }
         }
+
+        // Stations for you: your favourite artists' radios, new songs and the 90s in your languages.
+        val stations by produceState(emptyList<AalapRadio.Station>()) { value = withContext(Dispatchers.IO) { AalapRadio.stationsForYou(context) } }
+        if (stations.isNotEmpty()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 12.dp),
+            ) {
+                Box(Modifier.size(width = 4.dp, height = 20.dp).clip(RoundedCornerShape(2.dp)).background(Saffron))
+                Spacer(Modifier.width(10.dp))
+                Text("Stations for you", color = TextPrimary, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+            }
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp),
+            ) {
+                items(stations.size) { i ->
+                    val st = stations[i]
+                    Station(
+                        title = st.title,
+                        subtitle = st.subtitle,
+                        loading = loading == st.id,
+                        onClick = {
+                            val seed = st.seed
+                            // An artist's station grows from your favourite song of theirs, with the engine.
+                            if (seed != null) player.playWithRadio(seed, context)
+                            else start(st.id) { AalapRadio.stationSongs(context, st) }
+                        },
+                    ) { StationArt(st, i) }
+                }
+            }
+        }
     }
 }
 
@@ -191,6 +223,33 @@ private fun MoodArt(mood: Mood) {
         Column(Modifier.padding(14.dp)) {
             Text(mood.label, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             Text("${craft.label.uppercase()} · RADIO", color = craftInk(Color(mood.colors.first)), fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp, maxLines = 1)
+        }
+    }
+}
+
+
+/** A station's card: the artist's cover with their name, or a coloured card with NEW / 90s. */
+@OptIn(com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi::class)
+@Composable
+private fun StationArt(st: AalapRadio.Station, index: Int) {
+    val palettes = listOf(0xFFFF8A3D to 0xFFB8235A, 0xFF6E8BFF to 0xFF2A3A8C, 0xFF2FBF9B to 0xFF15606B, 0xFFFFC56B to 0xFFE08A00)
+    val (a, b) = palettes[index % palettes.size]
+    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(a), Color(b))))) {
+        val cover = st.seed?.coverUri
+        if (!cover.isNullOrBlank()) {
+            com.bumptech.glide.integration.compose.GlideImage(
+                model = cover, contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+            )
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)))))
+            Text(
+                st.title.substringBefore(" & "), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 2,
+                modifier = Modifier.align(Alignment.BottomStart).padding(12.dp),
+            )
+        } else {
+            Text(st.badge, color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.align(Alignment.Center))
+            Text(st.lang.replaceFirstChar { it.uppercase() }, color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.BottomStart).padding(12.dp))
         }
     }
 }

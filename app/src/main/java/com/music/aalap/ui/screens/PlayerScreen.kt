@@ -1,5 +1,6 @@
 package com.music.aalap.ui.screens
 
+import androidx.compose.foundation.border
 import androidx.compose.ui.draw.rotate
 import com.music.aalap.ui.components.pressSquish
 import androidx.compose.animation.togetherWith
@@ -460,6 +461,8 @@ fun PlayerScreen(navController: NavController) {
                 PlayerFull(songPlayingState, playerViewModel, context, isLiked, shuffle, repeat, queueSongs)
             }
 
+            // Steer what plays next: calmer, more energy, same vibe, something new.
+            SteerRow(playerViewModel, context)
             // The three things people open the ⋮ menu for most, one tap away.
             PlayerQuickActions(
                 song = queueSongs.firstOrNull { it.id == songId },
@@ -1791,6 +1794,48 @@ private fun PlayerQuickActions(
         ) {
             if (downloaded || downloading) return@Pill
             askQuality = true
+        }
+    }
+}
+
+
+/**
+ * Steer what plays next, in one tap: the engine's queued picks after this song are picked
+ * again in that direction (an hour, until you choose another song, or tap it again to stop).
+ */
+@Composable
+private fun SteerRow(playerViewModel: PlayerViewModel, context: Context) {
+    val current by com.music.aalap.data.recommendation.PlayContext.steerState
+    val options = listOf(
+        com.music.aalap.data.recommendation.engine.Steer.CALMER to "Calmer",
+        com.music.aalap.data.recommendation.engine.Steer.ENERGY to "More energy",
+        com.music.aalap.data.recommendation.engine.Steer.SAME to "Same vibe",
+        com.music.aalap.data.recommendation.engine.Steer.NEW to "Something new",
+    )
+    androidx.compose.foundation.lazy.LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 24.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 2.dp),
+    ) {
+        items(options.size) { i ->
+            val (kind, label) = options[i]
+            val on = current == kind
+            Text(
+                label,
+                color = if (on) com.music.aalap.ui.theme.OnSaffron else Color.White,
+                fontSize = 12.sp,
+                fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (on) com.music.aalap.ui.theme.Saffron else Color.White.copy(alpha = 0.08f))
+                    .border(1.dp, if (on) com.music.aalap.ui.theme.Saffron else Color.White.copy(alpha = 0.16f), RoundedCornerShape(16.dp))
+                    .clickable {
+                        val to = if (on) null else kind
+                        playerViewModel.steer(to, context)
+                        android.widget.Toast.makeText(context, if (to == null) "Back to the usual mix" else "Next songs: ${label.lowercase()}", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+            )
         }
     }
 }

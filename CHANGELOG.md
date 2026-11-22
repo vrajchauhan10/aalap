@@ -4,6 +4,19 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.15.0 — 22 Nov 2026 (build 103)
+- **Steer what plays next.** Buttons on the player: Calmer, More energy, Same vibe,
+  Something new. One tap re-plans the songs Aalap queued after this one (for an hour, or
+  until you pick another song; tap again to turn it off).
+- **Tempo checked before a song plays.** Aalap measures the next song's tempo while the
+  current one plays, and picks again if it would jump in pace.
+- **Stations for you.** New on Home: a radio for each of your favourite artists, plus new
+  songs and 90s hits in your languages.
+- **How well Aalap knows you.** A Profile card showing how many of Aalap's picks you
+  finished, skipped early or liked this week, next to last week.
+- **Better offline.** With no internet, what plays next is picked from your downloads at
+  once, keeping the same mood, pace and language.
+
 ## 8.14.0 — 19 Nov 2026 (build 102)
 - **Mood stations in your languages.** Each station now plays in the languages you chose in
   Settings (or the ones you listen to most), not just Hindi.

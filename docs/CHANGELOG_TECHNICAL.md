@@ -4,6 +4,40 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-22 — 8.15.0 (103) steer buttons, tempo ahead, pick score, stations for you, offline picks
+- Steer: `engine/Steer` (CALMER, ENERGY, SAME, NEW) in `PlayContext.steerState` (1 h, cleared
+  by `chose`); `QueuePicker.pick(steer)` narrows to `steerFits` (energy ±0.05 or tempo ±3% in
+  that direction; same feel ≥ 0.7 + strict pace; never finished and not liked) when ≥ 2 fit;
+  Calmer/Energy anchor the pace gate on the song before instead of the session.
+  `SmartPlay.steer/repickAhead` drop the engine's queued picks and refill. Player: `SteerRow`.
+- Tempo ahead: `di/TempoAhead` — 20 s into a song, the song queued after it, if never measured,
+  is decoded from its saved start (`SongPlayer.introSource`: first 1 MB via the media cache;
+  MediaExtractor + MediaCodec, 4–29 s) and measured with `AudioFeatures`; if it fails the
+  looser pace step after the current song and is an engine pick, `repickAhead`. HLS skipped.
+- Pick score: `PickScore` (per day, 28 days) records each engine pick's outcome when the next
+  song starts (`QueueEngine.onPlay`: finished / skipped in 30 s / liked); Profile shows this
+  week vs last (`PickScoreSection`, from 5 picks).
+- Stations for you (Home, under Mood stations): your two favourite artists ("X & friends" =
+  `playWithRadio` from your most-played song of theirs), "New <lang>" and "90s <lang>" for your
+  top two languages (`Discover.stationMix`: playlist search, language filter, rerank, daily
+  cache; `AalapRadio.freshFirst` by station id).
+- Offline: `QueueEngine.chain` skips online sources (no waits) and picks only from downloads,
+  with session/pace/taste scoring (the "nobody suggested it" filter is off offline; the
+  language rule is off when there are under 30 downloads).
+- Tests: `FlowRuleTest` (steer), all app/innertube/spotify tests pass.
+- S24 (debug copy, screen off): tempo ahead measured the next song (140 bpm) in 3.8 s wall time;
+  steady playback 4.4% of a core (release 8.12 baseline 6.9%); a minute with a song change
+  and a tempo check 16.4%.
+- Steer: `steerLeans` added as a middle step (when < 2 songs clearly go that way, drop the ones
+  whose best-guess energy goes the other way). On the S24 "Calmer" re-planned 6 picks; two of
+  them ("Cheques", "Amplifier") were guessed low-energy from weak tags: steering is only as good
+  as the energy data, which tempo-ahead measuring improves song by song.
+- S24: Stations for you showed "<artist> & friends" ×2, "New <lang>", "90s <lang>"; "New Tamil"
+  played (87 of 90 kept in Tamil). Download chooser "Data saver" → 12/12 at JioSaavn 96 kbps
+  (3 YouTube). Offline mode on → `/queue` gave 6 downloaded Hindi songs in 0.9 s, energies
+  0.20–0.52 after "Tum Hi Ho". Settings search "offline mode" jumped to Offline, keyboard closed.
+  The score card wasn't seen (needs 5 engine picks).
+
 ## 2026-11-19 — 8.14.0 (102) radio in your languages, pace rule, mid-song recovery
 - Mood stations: `Discover.moodMix` searches the mood's playlists per language
   (`radioLanguages`: the Settings language mix, else the languages you finish, up to 3,

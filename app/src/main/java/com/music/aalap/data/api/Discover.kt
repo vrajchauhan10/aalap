@@ -125,13 +125,42 @@ object Discover {
                 }.getOrNull().orEmpty().take(40)
             }
         }.distinctBy { it.spotifyTrackId.ifBlank { it.title + it.singer } }
-            .let { keepLanguages(context, it, langs.map { l -> l.first }, mood) }
+            .let { keepLanguages(context, it, langs.map { l -> l.first }, mood.name) }
         // The station's songs teach the engine what this mood sounds like.
         com.music.aalap.data.recommendation.engine.VibeStore.tagMood(context, tracks, mood.name)
         // Same engine as everywhere else: a fresh order each window, then ranked for your taste.
         val shuffled = tracks.shuffled(java.util.Random(salt(context, 100 + mood.ordinal)))
         val result = com.music.aalap.data.recommendation.Recommender.rerank(context, shuffled, familiar = 0.3f).take(80)
         Log.d(TAG, "mood ${mood.name} in ${langs.joinToString { "${it.first} ${"%.0f".format(it.second * 100)}%" }}: ${tracks.size} tracks")
+        if (result.isNotEmpty()) write(context, key, result)
+        return result
+    }
+
+    /**
+     * A station from a search ("new punjabi songs", "90s bollywood hits"): its top playlists,
+     * songs in [lang] only, ranked for your taste, saved for the day like the mood stations.
+     */
+    suspend fun stationMix(context: Context, id: String, query: String, lang: String): List<SongsModel> {
+        val key = "${prefix(context)}:st:$id"
+        read(context, key)?.let { return it }
+        val api = Api(context)
+        val playlists = runCatching {
+            api.getCategoryPlaylists(query).toList()
+                .filterIsInstance<Response.Success<List<com.music.aalap.data.entity.LibraryEntry>>>()
+                .lastOrNull()?.data
+        }.getOrNull().orEmpty().take(6).shuffled(java.util.Random(salt(context, id.hashCode()))).take(3)
+        val tracks = playlists.flatMap { pl ->
+            runCatching {
+                api.getPlaylistSongs(pl.spotifyId).toList()
+                    .filterIsInstance<Response.Success<List<SongsModel>>>()
+                    .firstOrNull()?.data
+            }.getOrNull().orEmpty().take(40)
+        }.distinctBy { it.spotifyTrackId.ifBlank { it.title + it.singer } }
+            .let { keepLanguages(context, it, listOf(lang), id) }
+        val result = com.music.aalap.data.recommendation.Recommender.rerank(
+            context, tracks.shuffled(java.util.Random(salt(context, 200 + id.hashCode()))), familiar = 0.25f,
+        ).take(80)
+        Log.d(TAG, "station $id ('$query'): ${tracks.size} tracks")
         if (result.isNotEmpty()) write(context, key, result)
         return result
     }
@@ -164,7 +193,7 @@ object Discover {
     }
 
     /** Drops songs known to be in a language you didn't choose (unknown ones stay). */
-    private fun keepLanguages(context: Context, songs: List<SongsModel>, langs: List<String>, mood: Mood): List<SongsModel> {
+    private fun keepLanguages(context: Context, songs: List<SongsModel>, langs: List<String>, label: String): List<SongsModel> {
         if (langs.any { it.isBlank() } || songs.isEmpty()) return songs
         return runCatching {
             val db = com.music.aalap.data.recommendation.engine.RecoDb.get(context)
@@ -173,7 +202,7 @@ object Discover {
                 val l = com.music.aalap.data.recommendation.engine.VibeStore.language(context, c)
                 l.isBlank() || langs.any { want -> com.music.aalap.data.recommendation.engine.LanguageGuess.same(l, want) }
             }.map { it.first }
-            Log.d(TAG, "mood ${mood.name}: kept ${kept.size} of ${songs.size} in ${langs.joinToString()}")
+            Log.d(TAG, "$label: kept ${kept.size} of ${songs.size} in ${langs.joinToString()}")
             // Too few left (a rare language for this mood): keep what there is rather than nothing.
             if (kept.size >= 12) kept else songs
         }.getOrDefault(songs)

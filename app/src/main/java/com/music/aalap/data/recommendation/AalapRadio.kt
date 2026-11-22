@@ -113,14 +113,72 @@ object AalapRadio {
      * the ones it did (or that you played anywhere in the last 3 days) go to the end. Every
      * open used to start with the same top songs.
      */
-    fun freshFirst(context: Context, mood: Mood, songs: List<SongsModel>): List<SongsModel> {
+    fun freshFirst(context: Context, mood: Mood, songs: List<SongsModel>): List<SongsModel> = freshFirst(context, mood.name, songs)
+
+    /** A station on Home beyond the moods: new songs or a decade in your language, or an artist's radio. */
+    data class Station(
+        val id: String,
+        val title: String,
+        val subtitle: String,
+        val badge: String,
+        val query: String = "",
+        val lang: String = "",
+        /** For an artist's station: your favourite song of theirs, which the radio grows from. */
+        val seed: SongsModel? = null,
+    )
+
+    /**
+     * Stations made for you: new releases and the 90s in each of your top two languages, and
+     * a radio for each of your two favourite artists (that artist, then songs like theirs).
+     */
+    fun stationsForYou(context: Context): List<Station> = runCatching {
+        val langs = Discover.radioLanguages(context, Mood.HAPPY).map { it.first }.filter { it.isNotBlank() }.take(2)
+        fun name(l: String) = l.replaceFirstChar { it.uppercase() }
+        val out = ArrayList<Station>()
+        langs.forEach { l ->
+            out += Station("new_$l", "New ${name(l)}", "Fresh releases, picked for you", "NEW",
+                query = if (l == "hindi") "new hindi songs" else "new $l songs", lang = l)
+        }
+        langs.forEach { l ->
+            out += Station("90s_$l", "90s ${name(l)}", "The decade's best-loved songs", "90s",
+                query = if (l == "hindi") "90s bollywood hits" else "90s $l songs", lang = l)
+        }
+        // Your two favourite artists: the song of theirs you play most starts the radio.
+        val profile = Personalizer.profile(context)
+        val db = RecoDb.get(context)
+        val songs = db.songs(profile.songAffinity.entries.sortedByDescending { it.value }.take(150).map { it.key })
+        val byArtist = LinkedHashMap<String, com.music.aalap.data.recommendation.engine.Song>()
+        profile.songAffinity.entries.sortedByDescending { it.value }.forEach { (id, _) ->
+            val s = songs[id] ?: return@forEach
+            val a = s.artists.split(",").first().trim()
+            if (a.isNotBlank() && a.lowercase() !in byArtist.keys.map { it.lowercase() }) byArtist[a] = s
+        }
+        byArtist.entries.take(2).forEach { (artist, song) ->
+            out += Station("artist_${artist.lowercase()}", "$artist & friends", "$artist, then songs like theirs", "",
+                seed = SongBridge.toSongsModel(song))
+        }
+        // Artists first (they're yours), then new, then the 90s.
+        out.sortedBy { if (it.seed != null) 0 else if (it.id.startsWith("new_")) 1 else 2 }
+    }.getOrDefault(emptyList())
+
+    /** A search station's songs, fresh-first like the moods. */
+    suspend fun stationSongs(context: Context, st: Station, salt: Long = System.currentTimeMillis()): List<SongsModel> {
+        val mix = Discover.stationMix(context, st.id, st.query, st.lang)
+        val rnd = Random(salt)
+        val list = com.music.aalap.data.recommendation.engine.MixClean.songs(mix.take(60)).chunked(6).flatMap { it.shuffled(rnd) }
+            .let { l -> Diversifier.spreadArtists(l) { it.singer } }
+        return freshFirst(context, st.id, list)
+    }
+
+    fun freshFirst(context: Context, key: String, songs: List<SongsModel>): List<SongsModel> {
+        val mood = key
         if (songs.isEmpty()) return songs
         val p = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
         val dayMs = 24 * 60 * 60 * 1000L
         fun key(s: SongsModel) = s.spotifyTrackId.ifBlank { (s.title + "|" + s.singer).lowercase() }
         // What this station served before (key → when), kept for a week, at most 300.
-        val served = runCatching { org.json.JSONObject(p.getString("served_${mood.name}", "{}") ?: "{}") }.getOrDefault(org.json.JSONObject())
+        val served = runCatching { org.json.JSONObject(p.getString("served_$mood", "{}") ?: "{}") }.getOrDefault(org.json.JSONObject())
         val recent = HashSet<String>()
         served.keys().forEach { k -> if (now - served.optLong(k) < 7 * dayMs) recent += k }
         runCatching {
@@ -136,7 +194,7 @@ object AalapRadio {
         val trimmed = if (keep.length() > 300) org.json.JSONObject().also { o ->
             keep.keys().asSequence().map { it to keep.optLong(it) }.sortedByDescending { it.second }.take(300).forEach { (k, v) -> o.put(k, v) }
         } else keep
-        p.edit().putString("served_${mood.name}", trimmed.toString()).apply()
+        p.edit().putString("served_$mood", trimmed.toString()).apply()
         return out
     }
 

@@ -122,6 +122,26 @@ object SmartPlay {
         }
     }
 
+    /**
+     * A steer button: the engine's queued picks after the current song are dropped and picked
+     * again in that direction (songs you queued yourself stay).
+     */
+    fun steer(context: Context, state: CurrentSongState, to: com.music.aalap.data.recommendation.engine.Steer?) {
+        val app = context.applicationContext
+        PlayContext.steerTo(to)
+        repickAhead(app, state)
+    }
+
+    /** Drops the engine's picks after the current song and picks again from it. */
+    fun repickAhead(app: Context, state: CurrentSongState) {
+        val q = state.queue.value
+        val cur = q.indexOfFirst { it.id == state.songId.value }
+        val playing = q.getOrNull(cur) ?: return
+        val kept = q.filterIndexed { i, s -> i <= cur || !PlayContext.isAuto(s.id) }
+        if (kept.size != q.size) state.updateQueue(kept)
+        refill(app, state, playing)
+    }
+
     /** Adds fresh recommendations after [seed] (the engine sees the feedback). */
     private fun refill(app: Context, state: CurrentSongState, seed: SongsModel) {
         job?.cancel()

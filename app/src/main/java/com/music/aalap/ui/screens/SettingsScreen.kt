@@ -130,6 +130,7 @@ fun SettingsScreen(navController: NavController) {
             AppUpdateRow()
             ConnectedServicesSection(navController)
             YourTasteSection()
+            PickScoreSection()
 
             BatteryTip()
             Spacer(Modifier.height(8.dp))

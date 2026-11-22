@@ -178,6 +178,9 @@ data class Weights(val global: Double, val session: Double, val fit: Double, val
  * just the last song; is it trending; and does the queue keep a good mix of known and
  * new songs without being taken over by likes or one artist.
  */
+/** Where you asked the queue to go (the player's steer buttons). */
+enum class Steer { CALMER, ENERGY, SAME, NEW }
+
 object QueuePicker {
     const val TOP_N = 6
 
@@ -312,6 +315,35 @@ object QueuePicker {
         return true
     }
 
+    /**
+     * Whether a candidate goes where you steered: calmer (lower energy or slower than the song
+     * before), more energy (higher or faster), same vibe (close feel and pace), something new
+     * (a song you've never finished, not a like). Unknown pace counts as "not calmer/livelier".
+     */
+    fun steerFits(steer: Steer, prev: Vibe?, f: Features): Boolean {
+        val v = f.vibe
+        fun slower() = prev?.bpm != null && v.bpm != null && v.bpm < prev.bpm * 0.97 && v.bpm * 2 > prev.bpm * 1.1
+        fun faster() = prev?.bpm != null && v.bpm != null && v.bpm > prev.bpm * 1.03
+        return when (steer) {
+            Steer.CALMER -> v.energyKnown && (if (prev?.energyKnown == true) v.energy <= prev.energy - 0.05 || slower() else v.energy <= 0.5)
+            Steer.ENERGY -> v.energyKnown && (if (prev?.energyKnown == true) v.energy >= prev.energy + 0.05 || faster() else v.energy >= 0.6)
+            Steer.SAME -> prev == null || (v.similarity(prev) >= 0.7 && flowOk(prev, v, prev, strict = true))
+            Steer.NEW -> !f.familiar && !f.liked
+        }
+    }
+
+    /** Softer than [steerFits]: not going the other way, judged on the best guess of energy. */
+    fun steerLeans(steer: Steer, prev: Vibe?, f: Features): Boolean {
+        val e = f.vibe.energy
+        val p = prev?.energy ?: 0.55
+        return when (steer) {
+            Steer.CALMER -> e < p
+            Steer.ENERGY -> e > p
+            Steer.SAME -> prev == null || kotlin.math.abs(e - p) <= 0.15
+            Steer.NEW -> !f.familiar
+        }
+    }
+
     fun pick(
         candidates: List<Features>,
         session: Session,
@@ -321,6 +353,7 @@ object QueuePicker {
         previousArtists: String,
         exclude: Set<String>,
         rnd: Random,
+        steer: Steer? = null,
     ): Scored? {
         val scored = candidates.asSequence()
             .filter { it.song.id !in exclude }
@@ -336,17 +369,28 @@ object QueuePicker {
         // rule loosens one step, then lets go, only when too few songs pass.
         val byId = candidates.associateBy { it.song.id }
         val prev = state.lastVibe
+        // Calmer / more energy move the pace on purpose: each step is still gentle (to the
+        // song before), but the session's own pace no longer holds it back.
+        val anchorVibe = if ((steer == Steer.CALMER || steer == Steer.ENERGY) && prev != null) prev else session.vibe
         fun passes(sc: Scored, strict: Boolean): Boolean {
             val v = byId[sc.song.id]?.vibe ?: return true
-            return prev == null || flowOk(prev, v, session.vibe, strict)
+            return prev == null || flowOk(prev, v, anchorVibe, strict)
         }
         // Your liked songs often share the pace exactly; once they're over their share, a pace
         // step counts only if enough other songs pass it too, so likes don't fill the queue.
         val likedShare = if (state.picks == 0) 0.0 else state.liked.toDouble() / state.picks
+        // A steer narrows the choice first (two songs that go that way are enough).
+        // When few songs clearly go that way (their pace isn't known yet), at least none that
+        // look like the opposite: calmer never picks a song that seems livelier, and back.
+        val steered = if (steer == null) fresh else fresh.filter { sc ->
+            byId[sc.song.id]?.let { steerFits(steer, prev, it) } ?: false
+        }.takeIf { it.size >= 2 } ?: fresh.filter { sc ->
+            byId[sc.song.id]?.let { steerLeans(steer, prev, it) } ?: false
+        }.takeIf { it.size >= 2 } ?: fresh
         fun enough(l: List<Scored>) = l.count { likedShare < LIKED_CAP || byId[it.song.id]?.liked != true } >= MIN_FLOW
-        val paced = fresh.filter { passes(it, strict = true) }.takeIf(::enough)
-            ?: fresh.filter { passes(it, strict = false) }.takeIf(::enough)
-            ?: fresh
+        val paced = steered.filter { passes(it, strict = true) }.takeIf(::enough)
+            ?: steered.filter { passes(it, strict = false) }.takeIf(::enough)
+            ?: steered
         val pool = paced.sortedByDescending { it.final }.take(TOP_N)
         return Diversifier.sampleWeighted(pool, rnd) { it.final * it.final }
     }

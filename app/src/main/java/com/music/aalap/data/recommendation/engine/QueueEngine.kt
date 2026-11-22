@@ -258,6 +258,15 @@ object QueueEngine {
         val poolSongs = if (pool.isEmpty()) emptyList() else db.resolveAll(pool.map(SongBridge::toCandidate))
         val poolIds = poolSongs.mapTo(HashSet()) { it.id }
 
+        // Offline: only your downloads can play, so they are the candidates, picked with the same
+        // session, pace, language and taste rules (it used to wait on sources that can't answer,
+        // then fall back to songs that weren't downloaded and got skipped).
+        val offline = com.music.aalap.data.preferences.OfflineState.isOffline
+        val offlineSongs = if (!offline) emptyList() else runCatching {
+            db.resolveAll(com.music.aalap.data.preferences.getDownloadedEntries(context).map { SongBridge.toCandidate(it.first) })
+        }.getOrDefault(emptyList())
+        val offlineIds = offlineSongs.mapTo(HashSet()) { it.id }
+
         val sessionSongs = buildSession(context, userId, seed, anchor)
         val trending = VibeStore.trendingIds(context)
         val favouriteIds = profile.songAffinity.entries.sortedByDescending { it.value }.take(40).map { it.key }
@@ -281,7 +290,7 @@ object QueueEngine {
         // the other languages you asked for come from a radio of each in this feel (fetched
         // alongside; joins from the pick it's ready for).
         val mix = targets.languageMix
-        val langRadio = if (mix.isEmpty()) null else scope.async { languageRadio(context, mix, state.lastVibe ?: Vibe.UNKNOWN) }
+        val langRadio = if (mix.isEmpty() || offline) null else scope.async { languageRadio(context, mix, state.lastVibe ?: Vibe.UNKNOWN) }
         // Automatic language (no mix chosen): the queue stays in the language of the song you
         // chose (else the session's, when it's clearly one). Other apps' "up next" drifts across
         // languages (a Hindi song led to Tamil hits), so a song known to be in another language
@@ -301,8 +310,8 @@ object QueueEngine {
         var cur = seed
         for (step in 0 until length) {
             RecoTrace.log("\n── Pick #${step + 1}: what comes after '${cur.title}'? ──")
-            var ranked = ranked(context, cur, if (step == 0) SOURCE_TIMEOUT_MS else BACKGROUND_TIMEOUT_MS)
-            if (ranked.isEmpty() && step == 0) ranked = ranked(context, cur, FIRST_PICK_GRACE_MS)
+            var ranked = if (offline) emptyMap() else ranked(context, cur, if (step == 0) SOURCE_TIMEOUT_MS else BACKGROUND_TIMEOUT_MS)
+            if (ranked.isEmpty() && step == 0 && !offline) ranked = ranked(context, cur, FIRST_PICK_GRACE_MS)
             val fused = Fusion.fuse(ranked).take(CANDIDATE_POOL)
             val top = fused.firstOrNull()?.score?.takeIf { it > 0 } ?: 1.0
             val habits = db.transitionsFrom(userId, cur.id).associateBy { it.toId }
@@ -327,21 +336,24 @@ object QueueEngine {
             val sessionIds = sessionRank.entries.sortedByDescending { it.value }.take(30).map { it.key }
             val songs = HashMap(db.songs(globalOf.keys + habits.keys + extraIds + sessionIds))
             extraPool.forEach { songs[it.id] = it }
+            offlineSongs.forEach { songs[it.id] = it }
             val vibes = VibeStore.vibes(context, songs.values)
             val session = Session(sessionSongs, profile.dayPartFeel)
             var otherLanguage = 0
             val features = songs.values.mapNotNull { s ->
                 if (s.id in excluded || SongBridge.appId(s) in excludeAppIds || feedback.blocked(s)) return@mapNotNull null
+                if (offline && s.id !in offlineIds) return@mapNotNull null
                 val v = vibes[s.id] ?: Vibe.UNKNOWN
                 val global = globalOf[s.id] ?: 0.0
                 val habit = habits[s.id]?.let { TasteProfile.habit(it.count, it.lastAt, now) } ?: 0.0
                 val fromList = s.id in poolIds
                 val lang = VibeStore.language(context, s)
                 // Songs nobody suggested after this one only join if they fit the session (feel and language).
-                if (global == 0.0 && habit == 0.0 && (sessionRank[s.id] ?: 0.0) < 0.3 &&
+                // (Offline every download is in the running: fit and pace still rank them.)
+                if (!offline && global == 0.0 && habit == 0.0 && (sessionRank[s.id] ?: 0.0) < 0.3 &&
                     (session.vibeScore(v) < (if (fromList) 0.5 else 0.62) || session.languageScore(lang) < 0.5)) return@mapNotNull null
                 // Automatic language: nothing in another language, whoever suggests it.
-                if (queueLang.isNotBlank() && lang.isNotBlank() && !LanguageGuess.same(lang, queueLang)) { otherLanguage++; return@mapNotNull null }
+                if (queueLang.isNotBlank() && lang.isNotBlank() && !LanguageGuess.same(lang, queueLang) && !(offline && offlineSongs.size < 30)) { otherLanguage++; return@mapNotNull null }
                 // A language you turned off in your mix doesn't play (unless it's all there is).
                 if (mix.isNotEmpty() && (mix[lang] ?: 0.0) <= 0.0 && lang.isNotBlank() && global < 0.5) return@mapNotNull null
                 Features(
@@ -356,7 +368,7 @@ object QueueEngine {
                     feedback = feedback.factor(s, v),
                 )
             }
-            if (queueLang.isNotBlank() && sameLangRadio == null &&
+            if (!offline && queueLang.isNotBlank() && sameLangRadio == null &&
                 features.count { it.language.isNotBlank() && LanguageGuess.same(it.language, queueLang) } < 8) {
                 sameLangRadio = scope.async { languageRadio(context, mapOf(queueLang to 1.0), state.lastVibe ?: Vibe.UNKNOWN) }
             }
@@ -370,7 +382,7 @@ object QueueEngine {
                         "  ${sc.vibe}  ${sc.tags.joinToString(" ")}")
                 }
             }
-            val picked = QueuePicker.pick(features, session, profile.isNew, state, targets, cur.artists, excluded, rnd)
+            val picked = QueuePicker.pick(features, session, profile.isNew, state, targets, cur.artists, excluded, rnd, com.music.aalap.data.recommendation.PlayContext.steer())
             val pick = picked?.let {
                 val f = features.first { f -> f.song.id == it.song.id }
                 state = state.after(f)
@@ -397,7 +409,7 @@ object QueueEngine {
             val pv = pick.scored.vibe.takeIf { it.known } ?: VibeStore.vibe(context, pick.scored.song)
             sessionSongs += SessionSong(pick.scored.song.id, pick.scored.song.artists, pv, VibeStore.language(context, pick.scored.song), 0.25)
             cur = pick.scored.song
-            prefetch(context, cur) // next seed's sources load while this song is queued
+            if (!offline) prefetch(context, cur) // next seed's sources load while this song is queued
         }
     }
 
@@ -476,6 +488,14 @@ object QueueEngine {
                 Personalizer.invalidate()
                 prefetch(context, s)
                 val prev = db.plays(userId, limit = 2).getOrNull(1)
+                // How the engine's last pick went (for "How well Aalap knows you").
+                if (prev != null) db.song(prev.songId)?.let { ps ->
+                    val appId = SongBridge.appId(ps)
+                    if (com.music.aalap.data.recommendation.PlayContext.isAuto(appId)) {
+                        val liked = com.music.aalap.data.preferences.isSongLiked(context, appId.toString())
+                        com.music.aalap.data.recommendation.PickScore.record(context, prev.skipped, prev.listenedMs, liked)
+                    }
+                }
                 if (prev != null && prev.skipped && onSkippedAuto != null) {
                     val skipped = db.song(prev.songId) ?: return@runCatching
                     if (!com.music.aalap.data.recommendation.PlayContext.isAuto(SongBridge.appId(skipped))) return@runCatching

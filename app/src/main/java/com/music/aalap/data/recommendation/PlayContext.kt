@@ -31,7 +31,18 @@ object PlayContext {
     /** You chose a single song; what follows is its radio. */
     fun chose(song: SongsModel) {
         current = Snapshot(song, System.currentTimeMillis())
+        steerTo(null)
     }
+
+    /**
+     * The player's steer buttons: where the next picks should go. It lasts an hour, or until
+     * you choose another song or steer again; tapping the same one turns it off.
+     */
+    val steerState = androidx.compose.runtime.mutableStateOf<com.music.aalap.data.recommendation.engine.Steer?>(null)
+    @Volatile private var steerAt = 0L
+    fun steerTo(s: com.music.aalap.data.recommendation.engine.Steer?) { steerState.value = s; steerAt = System.currentTimeMillis() }
+    fun steer(): com.music.aalap.data.recommendation.engine.Steer? =
+        steerState.value?.takeIf { System.currentTimeMillis() - steerAt < 3_600_000L }
 
     /** You tapped [song] in [list]; what follows blends recommendations with the list. */
     fun choseFromList(song: SongsModel, list: List<SongsModel>, name: String) {

@@ -339,6 +339,10 @@ class PlayerViewModel @Inject constructor(private val currentSongState: CurrentS
     fun feedback(song: SongsModel, kind: com.music.aalap.data.recommendation.engine.Feedback.Kind, context: Context) =
         com.music.aalap.di.SmartPlay.feedback(context, currentSongState, song, kind)
 
+    /** A steer button on the player: re-plans the engine's picks ahead (null turns it off). */
+    fun steer(to: com.music.aalap.data.recommendation.engine.Steer?, context: Context) =
+        com.music.aalap.di.SmartPlay.steer(context, currentSongState, to)
+
     val repeatMode = currentSongState.repeatMode
     fun updateRepeatMode(mode: com.music.aalap.di.RepeatMode) = currentSongState.updateRepeatMode(mode)
     fun updateLikeState(likeState : Boolean){

@@ -300,6 +300,57 @@ fun YourTasteSection() {
     }
 }
 
+/**
+ * Profile → How well Aalap knows you: what happened to the songs Aalap picked for you this
+ * week (finished, skipped in the first 30 s, liked), with last week beside it.
+ */
+@Composable
+fun PickScoreSection() {
+    val context = LocalContext.current
+    val weeks by produceState<Pair<com.music.aalap.data.recommendation.PickScore.Week, com.music.aalap.data.recommendation.PickScore.Week>?>(null) {
+        value = withContext(Dispatchers.IO) {
+            com.music.aalap.data.recommendation.PickScore.week(context, 0) to com.music.aalap.data.recommendation.PickScore.week(context, 1)
+        }
+    }
+    val (now, before) = weeks ?: return
+    if (now.picks + before.picks < 5) return
+    ProfileSectionTitle("How well Aalap knows you")
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(Surface)
+            .border(1.dp, Hairline, RoundedCornerShape(20.dp))
+            .padding(16.dp),
+    ) {
+        Text(
+            "The songs Aalap picked for you this week (last week in brackets).",
+            color = TextMuted, fontSize = 12.sp, lineHeight = 16.sp,
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            fun pct(x: Double) = "${(x * 100).toInt()}%"
+            ScoreTile("Finished", pct(now.finishRate), if (before.picks > 0) pct(before.finishRate) else "–", good = now.finishRate >= before.finishRate, Modifier.weight(1f))
+            ScoreTile("Skipped early", pct(now.earlyRate), if (before.picks > 0) pct(before.earlyRate) else "–", good = now.earlyRate <= before.earlyRate, Modifier.weight(1f))
+            ScoreTile("Liked", "${now.liked}", if (before.picks > 0) "${before.liked}" else "–", good = now.liked >= before.liked, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(10.dp))
+        Text("${com.music.aalap.ui.components.counted(now.picks, "pick")} this week", color = TextMuted, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun ScoreTile(label: String, value: String, before: String, good: Boolean, modifier: Modifier) {
+    Column(
+        modifier.clip(RoundedCornerShape(14.dp)).background(com.music.aalap.ui.theme.SurfaceHigh).padding(vertical = 12.dp, horizontal = 10.dp),
+        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+    ) {
+        Text(value, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = TextMuted, fontSize = 11.sp)
+        Text("($before)", color = if (good) com.music.aalap.ui.theme.Saffron else TextMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
 @Composable
 private fun Chip(text: String) {
     Text(
