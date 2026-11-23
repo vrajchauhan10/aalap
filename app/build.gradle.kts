@@ -24,8 +24,8 @@ android {
         targetSdk = 34
         // Must exceed every published build (1.6 shipped as versionCode 16).
         // 2.0.0 is the first Aalap release.
-        versionCode = 103
-        versionName = "8.15.0"
+        versionCode = 104
+        versionName = "8.16.0"
         // Optional Last.fm key for the similar-tracks source (empty = source off).
         // Blend sync (Firebase, free plan): read from app/google-services.json when it's there;
         // without it Blends still work, on each phone on its own.
@@ -124,8 +124,10 @@ dependencies {
     // Real org.json for unit tests (Android's is a stub off the device).
     testImplementation("org.json:json:20240303")
     testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    // Test-only (not in the app): Espresso 3.7+ is needed on Android 16, older ones fail to start there.
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.06.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")

@@ -4,6 +4,22 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 8.16.0 — 23 Nov 2026 (build 104)
+- **Is everything working?** A new check in Profile tests the internet, search, every music
+  source, storage and background playback, and tells you in plain words how to fix anything.
+- **Release Radar.** New songs from the artists you play, as one mix on Home. A fresh list
+  every Friday.
+- **Colours from the cover.** The player and mini player take on each song's cover colours
+  and fade smoothly from one song to the next.
+- **Taps you can feel.** Skip, like and the steer buttons give a little bounce and a short buzz.
+- **Better lyrics.** Scroll ahead or back freely ("Back to now" brings you to the current line),
+  and the screen stays on while you sing along.
+- **Steer follows your queue.** Calmer / More energy stays while the queue plays on, and resets
+  when you start something new yourself.
+- **Lossless hidden for now.** No free lossless server works at the moment, so the option is
+  hidden; your choice plays as High and comes back when lossless does.
+- **Lighter on memory** during long listening sessions.
+
 ## 8.15.0 — 22 Nov 2026 (build 103)
 - **Steer what plays next.** Buttons on the player: Calmer, More energy, Same vibe,
   Something new. One tap re-plans the songs Aalap queued after this one (for an hour, or

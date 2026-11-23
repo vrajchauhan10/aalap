@@ -138,6 +138,9 @@ fun SettingsScreen(navController: NavController) {
             NavRow("Settings", "Playback, downloads, recommendations, sound, voice, lyrics, appearance") {
                 navController.navigate(com.music.aalap.ui.navigation.Routes.AppSettings.route)
             }
+            NavRow("Is everything working?", "Check music sources, sign-in, storage and background playback") {
+                navController.navigate(com.music.aalap.ui.navigation.Routes.SelfCheck.route)
+            }
             Text(
                 "Aalap ${com.music.aalap.BuildConfig.VERSION_NAME}",
                 color = com.music.aalap.ui.theme.TextMuted,
@@ -317,7 +320,7 @@ fun AppSettingsScreen(navController: NavController) {
 
             // Lossless FLAC comes from the Tidal community backend (no login). Falls back
             // to best-quality YouTube on a miss.
-            Text(
+            if (com.music.aalap.data.preferences.LOSSLESS_OFFERED) Text(
                 "Lossless uses free community FLAC servers; if a song isn't there, Aalap plays High quality instead.",
                 color = com.music.aalap.ui.theme.TextMuted,
                 fontSize = 12.sp,
@@ -1047,7 +1050,7 @@ private fun QualityPicker(
         Spacer(Modifier.height(8.dp))
         // One compact row of choices instead of a four-item list per setting.
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StreamQuality.entries.forEach { q ->
+            com.music.aalap.data.preferences.offeredQualities.forEach { q ->
                 val isSel = q == selected
                 Box(
                     contentAlignment = Alignment.Center,

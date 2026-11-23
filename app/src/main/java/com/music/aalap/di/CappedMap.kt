@@ -20,3 +20,7 @@ class CappedMap<K : Any, V : Any>(private val cap: Int = 2000) : java.util.concu
     override fun putIfAbsent(key: K, value: V): V? = super.putIfAbsent(key, value).also { if (it == null) added(key) }
     override fun putAll(from: Map<out K, V>) = from.forEach { (k, v) -> put(k, v) }
 }
+
+/** A set that forgets its oldest entries past [cap], for the same reason as [CappedMap]. */
+fun <K : Any> cappedSet(cap: Int = 2000): MutableSet<K> =
+    java.util.Collections.newSetFromMap(CappedMap<K, Boolean>(cap))

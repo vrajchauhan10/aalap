@@ -141,7 +141,7 @@ object SongPlayer {
     // GQL track objects do not consistently carry the explicit flag. Keep this
     // separate from explicitRegistry so the model's default `false` is not
     // mistaken for a confirmed clean track.
-    private val spotifyMetadataRepaired = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val spotifyMetadataRepaired = cappedSet<String>()
 
     /** Register query→Spotify metadata pairs for strict YouTube result scoring. */
     fun registerMetadata(pairs: List<Pair<String, TrackMatchMetadata>>) {
@@ -513,7 +513,7 @@ object SongPlayer {
     }.getOrDefault(true)
 
     /** Songs already retried after waiting for the connection (each gets one wait). */
-    private val waitedFor = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
+    private val waitedFor = cappedSet<String>(500)
 
     /**
      * YouTube refusing streams (403, "confirm you're not a bot"): for 10 minutes JioSaavn and
@@ -1394,7 +1394,7 @@ object SongPlayer {
     }
 
     /** What YouTube recording each query was matched to ("title — artists"), for checking. */
-    internal val chosenMatch = java.util.concurrent.ConcurrentHashMap<String, String>()
+    internal val chosenMatch = CappedMap<String, String>()
 
     /** Debug: the source [song] would play from, in the player's order ("none" = unavailable). */
     internal suspend fun whereFrom(song: com.music.aalap.data.entity.SongsModel, ctx: Context): String {
@@ -1618,7 +1618,7 @@ object SongPlayer {
         } ?: null.also { Log.w(TAG, "YouTube resolve failed or timed out for: ${searchTextForPlayback(query)}") }
 
     /** The YouTube video each play query was matched to (feeds "Up next" recommendations). */
-    private val matchedVideoIds = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val matchedVideoIds = CappedMap<String, String>()
 
     /**
      * YouTube video id for a song: the one playback used, else the best match from a

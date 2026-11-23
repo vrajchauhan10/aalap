@@ -79,6 +79,11 @@ class CurrentSongState @Inject constructor() {
         // Only songs that weren't in the queue last time: the queue grows one song at a time
         // as recommendations arrive, and re-registering all of it each time was O(n²).
         val fresh = songs.filter { it.id !in registeredIds }
+        // A queue that shares no song with the last one means you started something new yourself
+        // (search, an album, a mood…): the player's Calmer / More energy belongs to the old queue.
+        // Skips, recommendations and reorders keep songs, so they leave it on.
+        if (registeredIds.isNotEmpty() && fresh.size == songs.size && songs.isNotEmpty())
+            com.music.aalap.data.recommendation.PlayContext.steerTo(null)
         registeredIds = songs.mapTo(HashSet()) { it.id }
         SongPlayer.registerLossless(fresh.map { it.url to it.spotifyTrackId })
         SongPlayer.registerAlternativeKeys(fresh.map {

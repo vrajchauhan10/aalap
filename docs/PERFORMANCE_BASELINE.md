@@ -36,7 +36,9 @@ miss; no start-up YouTube warm-up; debug logs stripped in release; baseline prof
 - **Crossfade**: two decoders + filter processor during the fade (foreground only).
 
 ## Memory retention risks
-1. **Unbounded registries in `SongPlayer`**: `streamCache`, `sourceCache`,
+1. *(Nov 2026: all SongPlayer registries and sets, `recommendedIds`, `SongVideo`, `Palette`
+   and `VibeStore.artists` caches are now capped via `CappedMap` / `cappedSet`.)*
+   **Unbounded registries in `SongPlayer`**: `streamCache`, `sourceCache`,
    `qualityCache`, `trackIdRegistry`, `alternativeKeyRegistry`, `explicitRegistry`,
    `durationRegistry`, `metadataRegistry` (+ `LyricsApi.registerTracks`) grow for the
    process lifetime. `CurrentSongState.updateQueue` re-registers the *whole* queue on every
@@ -52,7 +54,7 @@ miss; no start-up YouTube warm-up; debug logs stripped in release; baseline prof
 - `PlayerScreen` progress loop: **300 ms** while on screen (mini player is 1 s). Each
   tick writes state → recomposition of the progress area. Candidate to 500–1000 ms or
   derive from a single ticker.
-- `LyricsScreen` 250 ms ticker (needed for line sync; could compute next-line delay).
+- `LyricsScreen` 250 ms ticker while playing (1 s while paused, since Nov 2026).
 - `DownloadsScreen` 400 ms poll of `Downloads.downloadingSnapshot()` while on screen;
   `Downloads.onDownloadsChanged` exists and could drive it instead.
 - `SyncedVideo` (PlayerScreen) 700 ms sync loop while a video shows.

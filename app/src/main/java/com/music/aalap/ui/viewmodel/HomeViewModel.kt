@@ -54,6 +54,7 @@ class HomeViewModel @Inject constructor(
     val stations = MutableStateFlow<List<ArtistsModel>>(emptyList())
     val newReleases = MutableStateFlow<List<com.music.aalap.data.entity.LibraryEntry>>(emptyList())
     val today = MutableStateFlow<List<com.music.aalap.data.recommendation.HomeMixes.TodaySong>>(emptyList())
+    val releaseRadar = MutableStateFlow<List<com.music.aalap.data.entity.SongsModel>>(emptyList())
 
     private fun loadUnified(force: Boolean = false, skipQuickPicks: Boolean = false) = viewModelScope.launch(Dispatchers.IO) {
         recentlyPlayed.value = M.recentlyPlayed(appContext)
@@ -62,7 +63,14 @@ class HomeViewModel @Inject constructor(
         if (!skipQuickPicks) launch { loadQuickPicks(force) }
         launch { runCatching { today.value = M.todayPlaylist(appContext) } }
         launch { runCatching { stations.value = M.artistStations(appContext) } }
-        launch { runCatching { newReleases.value = M.newReleases(appContext) } }
+        launch {
+            runCatching { newReleases.value = M.newReleases(appContext) }
+            // Built once a week from those releases; the other days it's read from the phone.
+            runCatching {
+                releaseRadar.value = com.music.aalap.data.recommendation.ReleaseRadar.forWeek(
+                    appContext, newReleases.value.map { it.spotifyId to it.name })
+            }
+        }
         launch { runCatching { dailyMixes.value = M.dailyMixes(appContext, force) } }
         launch { runCatching { com.music.aalap.data.api.SpotifyTaste.refreshIfDue(appContext) } }
         // Your Mix is rebuilt in the background every 3 hours, ready before you tap it.

@@ -63,16 +63,19 @@ private data class Mode(
     val tag: String? = null,
 )
 
-private val MODES = listOf(
+private val ALL_MODES = listOf(
     Mode(StreamQuality.LOSSLESS, "Best", "Lossless FLAC", "FLAC", "Studio-master sound, every detail just as it was recorded", 900,
         listOf(Color(0xFFFFB547), Color(0xFFE5397A)), tag = "Best sound"),
     Mode(StreamQuality.HIGH, "High", "AAC 320 kbps", "320", "Sounds great on headphones and speakers", 300,
-        listOf(Color(0xFFFF8A3D), Color(0xFFFFC94D))),
+        listOf(Color(0xFFFF8A3D), Color(0xFFFFC94D)), tag = if (com.music.aalap.data.preferences.LOSSLESS_OFFERED) null else "Best sound"),
     Mode(StreamQuality.NORMAL, "Normal", "AAC 160 kbps", "160", "Good for everyday listening", 160,
         listOf(Color(0xFF6E8BFF), Color(0xFF9B6CFF))),
     Mode(StreamQuality.LOW, "Data saver", "96 kbps", "96", "Smallest files, fits the most songs", 96,
         listOf(Color(0xFF2FBF9B), Color(0xFF6EDBC0)), tag = "Least space"),
 )
+
+// Lossless is left out while no FLAC server works (see LOSSLESS_OFFERED).
+private val MODES = ALL_MODES.filter { it.q in com.music.aalap.data.preferences.offeredQualities }
 
 /** Bytes a list takes in a mode; songs with no length count as 3½ minutes. */
 private fun estimate(songs: List<SongsModel>, kbps: Int): Long =

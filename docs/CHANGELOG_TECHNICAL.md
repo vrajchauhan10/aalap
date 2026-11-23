@@ -4,6 +4,38 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-23 — 8.16.0 (104) self-check, Release Radar, cover colours, haptics, lyrics, caches
+- Steer follows the queue: `PlayContext.choseFromList/playingList` also clear it, and
+  `CurrentSongState.updateQueue` clears it when the new queue shares no song with the last one
+  (any path that starts new music: search, album, mood, Home). Skips, engine appends,
+  `repickAhead` and reorders keep songs, so they keep the steer.
+- Lossless hidden: `SettingsPref.LOSSLESS_OFFERED = false`; `readQ` maps a saved LOSSLESS to
+  HIGH without rewriting the pref, `offeredQualities` drives Settings and the download chooser,
+  `Downloads.lossless()` returns at once. Flip the flag to bring it back untouched.
+- Caches: `cappedSet()`; `SongPlayer` waitedFor/chosenMatch/matchedVideoIds/
+  spotifyMetadataRepaired, `PlaybackService.recommendedIds`, `SongVideo.cache`, `Palette.cache`,
+  `VibeStore.artists` are now capped (all registries in SongPlayer already were).
+- Self-check: `ui/screens/SelfCheckScreen.kt` (`SelfCheck`, route `selfcheck`, Profile row):
+  internet, catalog search, JioSaavn, YouTube search (no WebView), Gaana, storage, background
+  restriction, notifications; runs only when opened / "Check again"; neutral source names.
+- Cover colours: `Palette.readableTint` (luminance ≤ 0.30, hue kept); swatch fallbacks so a
+  cover with no muted/dark-vibrant tone no longer keeps the last song's colour; player
+  background (3-stop) and mini player tint animate (700/600 ms).
+- Haptics: `ui/components/Tap.kt` `springyClick` (press scale spring + View haptic, follows the
+  system touch-vibration setting) on player prev/next, like (player + mini) and steer chips.
+- Lyrics: manual scroll pauses following, "Back to now" chip or 6 s idle resumes; screen kept
+  on while lyrics are open and playing; ticker 1 s while paused (was 250 ms always).
+- Release Radar: `data/recommendation/ReleaseRadar.kt` — weekly (Friday) from the "New from
+  your artists" releases (`Api.releaseWithSongs`), last 8 weeks (a year if under 8 songs),
+  singles ≤ 2 songs, albums their title song, ≤ 3 per artist, 30 max; cached in prefs
+  `release_radar`; card at the top of the "New from your artists" Home section.
+- Tests: `PolishLogicTest` (radar week/pick, tint, self-check summary, cappedSet); 198 unit
+  tests pass. New instrumented UI checks `androidTest/.../ui/ScreenChecksTest.kt` (download
+  chooser, springy click, Home sections dialog) — run with `:app:connectedDebugAndroidTest`;
+  4/4 pass on the S24 (Android 16 needs Espresso 3.7 / runner 1.7, test-only deps).
+- Performance: no new background work; Release Radar costs ≤ 16 album requests once a week,
+  self-check only when opened; lyrics paused ticker 4× lighter.
+
 ## 2026-11-22 — 8.15.0 (103) steer buttons, tempo ahead, pick score, stations for you, offline picks
 - Steer: `engine/Steer` (CALMER, ENERGY, SAME, NEW) in `PlayContext.steerState` (1 h, cleared
   by `chose`); `QueuePicker.pick(steer)` narrows to `steerFits` (energy ±0.05 or tempo ±3% in

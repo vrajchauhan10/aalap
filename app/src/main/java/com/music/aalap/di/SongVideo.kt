@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object SongVideo {
     private const val TAG = "SongVideo"
-    private val cache = ConcurrentHashMap<String, Found>()
+    private val cache = CappedMap<String, Found>(300)
 
     private class Found(val url: String?, val at: Long)
 

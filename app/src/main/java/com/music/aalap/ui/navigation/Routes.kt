@@ -25,6 +25,7 @@ sealed class Routes(
     object SpotifyConnect : Routes(0, "SpotifyConnect", "spotifyconnect")
     object Settings : Routes(0, "Settings", "settings")
     object AppSettings : Routes(0, "AppSettings", "appsettings")
+    object SelfCheck : Routes(0, "SelfCheck", "selfcheck")
     object History : Routes(0, "History", "history")
     object Sound : Routes(0, "Sound", "sound")
     object Wrapped : Routes(0, "Wrapped", "wrapped")

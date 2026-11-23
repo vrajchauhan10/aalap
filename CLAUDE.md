@@ -39,7 +39,8 @@ scripts/release.sh [--install]   # release: tests, signer/version/changelog chec
 ```
 Unit tests (JUnit4, `app/src/test`, ~85 + 6 + 2) cover the pure logic: recommendation
 picking/fusion/vibe, song version matching, voice parsing, audio features, Soulseek/Tidal
-matching. There are no meaningful instrumented/UI tests. Debug builds expose a
+matching. A few on-phone UI checks live in `app/src/androidTest` (`ScreenChecksTest`), run with
+`./gradlew :app:connectedDebugAndroidTest` (installs the debug copy; remove it afterwards). Debug builds expose a
 recommendation test endpoint on `127.0.0.1:8765` (`QueueEndpoint`).
 
 ## Architecture in one paragraph

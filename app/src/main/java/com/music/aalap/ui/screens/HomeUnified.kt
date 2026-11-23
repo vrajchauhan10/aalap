@@ -272,9 +272,10 @@ fun ArtistRadiosSection(artists: List<ArtistsModel>) {
 /** New releases from the artists you follow and play most. */
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
-fun NewReleasesSection(navController: NavController, releases: List<LibraryEntry>) {
-    if (releases.isEmpty()) return
+fun NewReleasesSection(navController: NavController, releases: List<LibraryEntry>, radar: List<SongsModel> = emptyList()) {
+    if (releases.isEmpty() && radar.isEmpty()) return
     HomeHeader("New from your artists")
+    if (radar.isNotEmpty()) ReleaseRadarCard(radar)
     LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(horizontal = 20.dp)) {
         items(releases.size) { i ->
             val e = releases[i]
@@ -288,6 +289,66 @@ fun NewReleasesSection(navController: NavController, releases: List<LibraryEntry
                 Text(e.name, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(e.subtitle, color = TextMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
+        }
+    }
+}
+
+/**
+ * Release Radar: this week's new songs from your artists as one mix. Tap plays it in order;
+ * a fresh list comes every Friday.
+ */
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+private fun ReleaseRadarCard(songs: List<SongsModel>) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val player: PlayerViewModel = hiltViewModel()
+    val artists = remember(songs) {
+        songs.map { it.singer.substringBefore(",").trim() }.filter { it.isNotBlank() }.distinct()
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 14.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFF3A1F5C), Color(0xFF7A2E4F))))
+            .clickable {
+                com.music.aalap.data.recommendation.PlayContext.playingList(songs, "Release Radar")
+                player.updateQueue(songs); player.playSongAt(songs, 0, context)
+            }
+            .padding(12.dp),
+    ) {
+        Box(Modifier.size(72.dp)) {
+            // Up to four covers in a grid, like a playlist cover.
+            val covers = songs.map { it.coverUri }.filter { it.isNotBlank() }.distinct().take(4)
+            if (covers.size >= 4) Column {
+                covers.chunked(2).forEach { row ->
+                    Row { row.forEach { u ->
+                        GlideImage(model = u, contentDescription = null, contentScale = ContentScale.Crop,
+                            loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+                            modifier = Modifier.size(36.dp))
+                    } }
+                }
+            } else GlideImage(model = covers.firstOrNull(), contentDescription = null, contentScale = ContentScale.Crop,
+                loading = placeholder(R.drawable.placeholder), failure = placeholder(R.drawable.placeholder),
+                modifier = Modifier.size(72.dp))
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text("Release Radar", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text("${songs.size} new songs · fresh every Friday", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+            Text(artists.take(3).joinToString(", ") + if (artists.size > 3) " and more" else "",
+                color = Color.White.copy(alpha = 0.65f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.White),
+        ) {
+            androidx.compose.material3.Icon(
+                painter = androidx.compose.ui.res.painterResource(R.drawable.play_svgrepo_com),
+                contentDescription = "Play Release Radar", tint = Color.Black, modifier = Modifier.size(18.dp),
+            )
         }
     }
 }

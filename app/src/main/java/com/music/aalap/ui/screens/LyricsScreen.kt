@@ -20,6 +20,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -107,7 +108,8 @@ private fun rememberLyricsPlayback(): State<LyricsPlayback> {
                 positionMs = SongPlayer.progress().positionMs,
                 isPlaying = SongPlayer.isPlaying(),
             )
-            delay(250L)
+            // Paused: nothing moves, so check once a second instead of four times.
+            delay(if (playback.value.isPlaying) 250L else 1_000L)
         }
     } }
     return playback
@@ -266,10 +268,24 @@ fun LyricsScreen(
                 LaunchedEffect(lyrics, targetLanguage) {
                     vm.prepareTranslation(targetLanguage)
                 }
-                LaunchedEffect(activeIndex, karaoke) {
-                    if (activeIndex >= 0) {
-                        listState.animateScrollToItem(activeIndex.coerceAtLeast(0), scrollOffset = if (karaoke) -520 else -260)
+                // Scrolling the lyrics yourself pauses following the song, so you can read ahead or
+                // back; "Back to now" (or 6 s without touching) picks it up again.
+                var following by remember { mutableStateOf(true) }
+                val dragging by listState.interactionSource.collectIsDraggedAsState()
+                LaunchedEffect(dragging) { if (dragging) following = false }
+                LaunchedEffect(following, dragging, listState.isScrollInProgress) {
+                    if (!following && !dragging && !listState.isScrollInProgress) { delay(6_000); following = true }
+                }
+                LaunchedEffect(activeIndex, karaoke, following) {
+                    if (activeIndex >= 0 && following) {
+                        runCatching { listState.animateScrollToItem(activeIndex.coerceAtLeast(0), scrollOffset = if (karaoke) -520 else -260) }
                     }
+                }
+                // Singing along: keep the screen awake while the lyrics are open and playing.
+                val view = androidx.compose.ui.platform.LocalView.current
+                androidx.compose.runtime.DisposableEffect(playback.isPlaying) {
+                    view.keepScreenOn = playback.isPlaying
+                    onDispose { view.keepScreenOn = false }
                 }
                 Box(
                     modifier = Modifier
@@ -315,6 +331,22 @@ fun LyricsScreen(
                                 onLongPress = { shareLine(line.text) },
                             )
                         }
+                    }
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = !following && lyrics.synced,
+                        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { it },
+                        exit = androidx.compose.animation.fadeOut(),
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+                    ) {
+                        Text(
+                            "Back to now",
+                            color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
+                                .background(Color.White)
+                                .clickable { following = true }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
                     }
                 }
                 val sameLanguage = s.sourceLanguage

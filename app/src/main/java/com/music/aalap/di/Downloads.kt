@@ -322,6 +322,8 @@ object Downloads {
             else -> 320
         }
         suspend fun lossless(): Boolean {
+            // No FLAC server works right now: don't spend 45 s per song asking.
+            if (!com.music.aalap.data.preferences.LOSSLESS_OFFERED) return false
             if (song.spotifyTrackId.isBlank()) return false
             val r = runCatching {
                 kotlinx.coroutines.withTimeoutOrNull(45_000) {

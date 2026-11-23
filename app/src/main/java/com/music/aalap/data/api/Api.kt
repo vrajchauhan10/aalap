@@ -202,6 +202,17 @@ class Api @Inject constructor(
             }
     }
 
+    /** A release's date ("2026-11-14", or just a year) and its songs, each with the release's cover. */
+    suspend fun releaseWithSongs(albumId: String): Pair<String, List<SongsModel>>? {
+        if (albumId.isBlank() || !SpotifyTokenProvider.ensureCatalogToken(context)) return null
+        val a = Spotify.album(albumId).getOrNull() ?: return null
+        val cover = Covers.hd(a.images.maxByOrNull { it.width ?: 0 }?.url ?: a.images.firstOrNull()?.url ?: "")
+        val songs = a.tracks?.items.orEmpty().map { t ->
+            t.toSongModel().let { m -> if (m.coverUri.isBlank()) m.copy(coverUri = cover, album = m.album.ifBlank { a.name }) else m }
+        }
+        return a.releaseDate.orEmpty() to songs
+    }
+
     /** Artists similar to [artistId] ("fans also like"). */
     suspend fun relatedArtists(artistId: String): List<ArtistsModel> {
         if (artistId.isBlank() || !SpotifyTokenProvider.ensureCatalogToken(context)) return emptyList()

@@ -36,7 +36,7 @@ object VibeStore {
     private val cache = LruCache<String, Vibe>(8000)
     private val languages = LruCache<String, String>(8000)
     private data class ArtistInfo(val feel: Map<Feel, Double>, val mass: Double, val language: String, val at: Long, val audioEnergy: Double? = null)
-    private val artists = ConcurrentHashMap<String, ArtistInfo>()
+    private val artists = com.music.aalap.di.CappedMap<String, ArtistInfo>(3000)
     @Volatile private var trending: Pair<Long, Set<String>>? = null
 
     /** Labels changed (new mood or chart songs): recompute what's cached. */

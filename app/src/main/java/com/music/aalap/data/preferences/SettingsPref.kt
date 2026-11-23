@@ -20,6 +20,19 @@ enum class StreamQuality(
     LOSSLESS("Lossless", "FLAC when available, else High", AudioQuality.HIGH, true),
 }
 
+/**
+ * Lossless is hidden while no free FLAC server answers (Nov 2026: one says "too many
+ * requests", one refuses, SpotiFLAC now sends people to Patreon). A saved Lossless choice is
+ * kept as it is and simply plays as High, so turning this back on restores it untouched.
+ */
+const val LOSSLESS_OFFERED = false
+
+/** The qualities shown in Settings and the download chooser. */
+val offeredQualities: List<StreamQuality>
+    get() = StreamQuality.entries.filter { LOSSLESS_OFFERED || !it.lossless }
+
+private fun StreamQuality.usable(): StreamQuality = if (lossless && !LOSSLESS_OFFERED) StreamQuality.HIGH else this
+
 private const val PREF = "settings_prefs"
 private const val KEY_WIFI_Q = "stream_quality_wifi"
 private const val KEY_CELL_Q = "stream_quality_cellular"
@@ -40,7 +53,7 @@ const val CROSSFADE_DEFAULT_MS = 6000
 private fun prefs(c: Context) = c.getSharedPreferences(PREF, Context.MODE_PRIVATE)
 
 private fun readQ(c: Context, key: String, def: StreamQuality): StreamQuality =
-    runCatching { StreamQuality.valueOf(prefs(c).getString(key, def.name)!!) }.getOrDefault(def)
+    runCatching { StreamQuality.valueOf(prefs(c).getString(key, def.name)!!) }.getOrDefault(def).usable()
 
 private fun writeQ(c: Context, key: String, q: StreamQuality) =
     prefs(c).edit().putString(key, q.name).apply()

@@ -194,6 +194,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
     val mixes by homeViewModel.dailyMixes.collectAsState()
     val stations by homeViewModel.stations.collectAsState()
     val releases by homeViewModel.newReleases.collectAsState()
+    val radar by homeViewModel.releaseRadar.collectAsState()
     val today by homeViewModel.today.collectAsState()
 
     val gen by homeViewModel.refreshGen.collectAsState()
@@ -233,7 +234,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
         if (jump.isNotEmpty() && show("jump")) item { BounceIn(6, gen) { JumpBackInRow(navController, jump) } }
         if (show("daily")) item { BounceIn(8, gen) { DailySongRows() } }
         if (show("artistRadios")) item { BounceIn(9, gen) { ArtistRadiosSection(stations) } }
-        if (show("releases")) item { BounceIn(10, gen) { NewReleasesSection(navController, releases) } }
+        if (show("releases")) item { BounceIn(10, gen) { NewReleasesSection(navController, releases, radar) } }
         if (show("more")) items(carousels.size) { i ->
             BounceIn(11 + i, gen) { HomeFeedSection(navController, carousels[i]) }
         }

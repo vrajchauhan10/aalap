@@ -35,8 +35,10 @@ object PlayContext {
     }
 
     /**
-     * The player's steer buttons: where the next picks should go. It lasts an hour, or until
-     * you choose another song or steer again; tapping the same one turns it off.
+     * The player's steer buttons: where the next picks should go. It belongs to the queue it was
+     * set in: skipping or playing on keeps it, but choosing a song yourself (search, a list,
+     * an album) starts a new queue and clears it. It also ends after an hour, or when you
+     * steer again; tapping the same one turns it off.
      */
     val steerState = androidx.compose.runtime.mutableStateOf<com.music.aalap.data.recommendation.engine.Steer?>(null)
     @Volatile private var steerAt = 0L
@@ -47,11 +49,13 @@ object PlayContext {
     /** You tapped [song] in [list]; what follows blends recommendations with the list. */
     fun choseFromList(song: SongsModel, list: List<SongsModel>, name: String) {
         current = Snapshot(song, System.currentTimeMillis(), list.filter { it.id != song.id }.distinctBy { it.id }, name)
+        steerTo(null)
     }
 
     /** You started a whole list in order (its Play / Shuffle button). */
     fun playingList(list: List<SongsModel>, name: String) {
         current = Snapshot(null, System.currentTimeMillis(), emptyList(), name)
+        steerTo(null)
     }
 
     fun markAuto(appId: Int) {

@@ -156,8 +156,11 @@ fun MiniPlayer(navController: NavHostController) {
     }
 
     // Floating card tinted by the artwork, over the theme surface (lighter wash in light mode).
+    // It drifts to the next cover's colour rather than jumping.
+    val shownTint by androidx.compose.animation.animateColorAsState(
+        darkVibrantColor, androidx.compose.animation.core.tween(600), label = "miniTint")
     val cardColor = androidx.compose.ui.graphics.lerp(
-        com.music.aalap.ui.theme.Surface, darkVibrantColor, if (com.music.aalap.ui.theme.AalapPalette.isLight) 0.22f else 0.55f)
+        com.music.aalap.ui.theme.Surface, shownTint, if (com.music.aalap.ui.theme.AalapPalette.isLight) 0.22f else 0.55f)
     val cardShape = RoundedCornerShape(20.dp)
     // Liking from here: marigold petals drop through the bar and a gold border draws itself, left to right.
     val likeBurst = rememberBarCelebration()
@@ -295,10 +298,7 @@ fun MiniPlayer(navController: NavHostController) {
                     fillColor = com.music.aalap.ui.theme.Saffron,
                     outlineColor = com.music.aalap.ui.theme.TextPrimary,
                     contentDescription = if (isLiked) "Saved" else "Add",
-                    modifier = Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
+                    modifier = Modifier.springyClick(Buzz.CONFIRM, pressedScale = 0.8f) {
                         if (isLiked) {
                             // Tap again to unlike: the button empties right to left.
                             com.music.aalap.data.preferences.removeLikedSongId(context, songId.toString())
@@ -306,7 +306,7 @@ fun MiniPlayer(navController: NavHostController) {
                             miniPlayerViewModel.updateLikeState(!likeState)
                             com.music.aalap.data.api.SpotifySync.setTrackSaved(
                                 context, currentTrack?.spotifyTrackId.orEmpty(), false)
-                            return@clickable
+                            return@springyClick
                         }
                         addLikedSongId(context, songId.toString())
                         isLiked = true

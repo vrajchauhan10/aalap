@@ -78,6 +78,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import com.music.aalap.ui.components.springyClick
+import com.music.aalap.ui.components.Buzz
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -194,6 +196,10 @@ fun PlayerScreen(navController: NavController) {
             dominentColor = color
         }
     }
+
+    // The background drifts to the new cover's colour instead of jumping.
+    val shownColor by androidx.compose.animation.animateColorAsState(
+        dominentColor, androidx.compose.animation.core.tween(700), label = "coverColor")
 
     val shuffle = playerViewModel.shuffleState.value
     val repeat = playerViewModel.repeatState.value
@@ -321,7 +327,11 @@ fun PlayerScreen(navController: NavController) {
             .swipeDownToDismiss { navController.navigateUp() }
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(dominentColor, com.music.aalap.ui.theme.ImmersiveBackground),
+                    colors = listOf(
+                        shownColor,
+                        androidx.compose.ui.graphics.lerp(shownColor, com.music.aalap.ui.theme.ImmersiveBackground, 0.55f),
+                        com.music.aalap.ui.theme.ImmersiveBackground,
+                    ),
                     startY = 100f
                 )
             )
@@ -676,10 +686,7 @@ fun PlayerInfo(
             contentDescription = if (isLiked.value) "Saved" else "Add to Liked Songs",
             size = 26.dp,
             modifier = Modifier
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
+                .springyClick(Buzz.CONFIRM, pressedScale = 0.8f) {
                     // Tap likes, tap again unlikes ("Add to playlist" is in the menu).
                     // No message either way: the button itself shows it (and petals fall on a like).
                     if (isLiked.value) removeLikedSongId(context, songId.toString())
@@ -876,10 +883,7 @@ fun PlayerFull(
         Icon(
             modifier = Modifier
                 .size(35.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
+                .springyClick {
                     // The queue itself is already in shuffled order when shuffle
                     // is on (reordered once at toggle) — never re-shuffle per tap.
                     playerViewModel.playPreviousSong(queueSongs, context)
@@ -951,10 +955,7 @@ fun PlayerFull(
         Icon(
             modifier = Modifier
                 .size(35.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
+                .springyClick {
 
                     playerViewModel.playNextSongs(queueSongs, context)
                     isLiked.value =
@@ -1829,7 +1830,7 @@ private fun SteerRow(playerViewModel: PlayerViewModel, context: Context) {
                     .clip(RoundedCornerShape(16.dp))
                     .background(if (on) com.music.aalap.ui.theme.Saffron else Color.White.copy(alpha = 0.08f))
                     .border(1.dp, if (on) com.music.aalap.ui.theme.Saffron else Color.White.copy(alpha = 0.16f), RoundedCornerShape(16.dp))
-                    .clickable {
+                    .springyClick(pressedScale = 0.92f) {
                         val to = if (on) null else kind
                         playerViewModel.steer(to, context)
                         android.widget.Toast.makeText(context, if (to == null) "Back to the usual mix" else "Next songs: ${label.lowercase()}", android.widget.Toast.LENGTH_SHORT).show()

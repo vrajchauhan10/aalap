@@ -235,6 +235,13 @@ fun MyNavHost(
             }
             PullDownToClose(navHostController) { com.music.aalap.ui.screens.AppSettingsScreen(navHostController) }
         }
+        composable(Routes.SelfCheck.route){
+            LaunchedEffect(playerState) {
+                bottomBarState.value = true
+                bottomBarPlayerState.value = playerState != ""
+            }
+            PullDownToClose(navHostController) { com.music.aalap.ui.screens.SelfCheckScreen(navHostController) }
+        }
 
         composable("mood/{mood}") { entry ->
             LaunchedEffect(playerState) {

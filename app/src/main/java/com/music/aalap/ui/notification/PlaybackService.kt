@@ -409,7 +409,7 @@ class PlaybackService : MediaLibraryService() {
     }
 
     /** Songs added after the queue ran out: "Playing from" shows their own album, not the old playlist. */
-    private val recommendedIds = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
+    private val recommendedIds = com.music.aalap.di.cappedSet<Int>(1000)
 
     private fun playingFrom(song: SongsModel): String =
         if (song.id in recommendedIds) song.album else currentSongState.album.value
