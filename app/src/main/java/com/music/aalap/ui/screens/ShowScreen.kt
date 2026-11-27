@@ -1,5 +1,6 @@
 package com.music.aalap.ui.screens
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -58,7 +59,9 @@ import com.music.aalap.ui.viewmodel.ShowViewModel
 fun ShowScreen(navController: NavController, showId: String, showName: String = "") {
     val vm: ShowViewModel = hiltViewModel()
     val context = LocalContext.current
-    LaunchedEffect(showId) { vm.loadShow(showId) }
+    LaunchedEffect(showId) { vm.loadShow(showId, showName) }
+    // Where you stopped in each episode, read once when the page opens.
+    val progress = remember(showId) { com.music.aalap.data.local.Podcasts.all(context).associateBy { it.episode.url } }
 
     val episodesState by vm.episodes.collectAsState()
     val show by vm.show.collectAsState()
@@ -119,6 +122,24 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
                 show?.publisher?.takeIf { it.isNotBlank() }?.let {
                     Text(it, color = com.music.aalap.ui.theme.TextMuted, fontSize = 13.sp)
                 }
+                // Follow: it joins "Your podcasts" and its new episodes show on the Podcasts page.
+                var following by remember(showId) { mutableStateOf(com.music.aalap.data.local.Podcasts.isFollowed(context, showId)) }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    if (following) "Following" else "Follow",
+                    color = if (following) com.music.aalap.ui.theme.OnSaffron else com.music.aalap.ui.theme.Saffron,
+                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clip(RoundedCornerShape(50))
+                        .background(if (following) com.music.aalap.ui.theme.Saffron else androidx.compose.ui.graphics.Color.Transparent)
+                        .border(1.dp, com.music.aalap.ui.theme.Saffron, RoundedCornerShape(50))
+                        .clickable {
+                            val model = com.music.aalap.data.entity.PodcastModel(showId, show?.name ?: showName, show?.publisher.orEmpty(),
+                                show?.coverUri ?: episodes.firstOrNull()?.coverUri.orEmpty())
+                            following = !following
+                            com.music.aalap.data.local.Podcasts.setFollowed(context, model, following)
+                        }
+                        .padding(horizontal = 22.dp, vertical = 8.dp),
+                )
             }
         }
 
@@ -137,6 +158,7 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
                         indication = null,
                         onLongClick = { menuSong = ep },
                         onClick = {
+                            com.music.aalap.data.local.Podcasts.rememberShow(ep.url, showId)
                             vm.updateQueue(listOf(ep))
                             SongPlayer.playSong(ep.url, context)
                             vm.updateSongState(ep.coverUri, ep.title, ep.singer, true, ep.id, 0, ep.album)
@@ -161,6 +183,18 @@ fun ShowScreen(navController: NavController, showId: String, showName: String = 
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(ep.singer, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, maxLines = 1)
+                    // Started before: how far you got (it continues from there).
+                    progress[ep.url]?.let { pr ->
+                        if (pr.finished) Text("Played", color = com.music.aalap.ui.theme.TextMuted, fontSize = 11.sp)
+                        else if (pr.positionMs > 30_000L) Column(Modifier.padding(top = 4.dp)) {
+                            androidx.compose.material3.LinearProgressIndicator(
+                                progress = { pr.fraction },
+                                modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)),
+                                color = com.music.aalap.ui.theme.Saffron, trackColor = com.music.aalap.ui.theme.SurfaceHigh,
+                            )
+                            if (pr.durationMs > 0) Text("${(pr.durationMs - pr.positionMs) / 60_000} min left", color = com.music.aalap.ui.theme.TextMuted, fontSize = 11.sp)
+                        }
+                    }
                 }
             }
         }

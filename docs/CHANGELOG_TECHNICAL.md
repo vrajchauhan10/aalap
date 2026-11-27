@@ -4,6 +4,34 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-27 — 9.1.0 (106) podcasts: Home row, Podcasts page, follow shows, playback from feeds, resume, podcast-only autoplay; double-tap seek; Edit Home drag
+- Podcast playback was broken (episodes went to the song YouTube matcher, which rejected them, and
+  the queue moved on to a song). Now `SongPlayer.resolveStreamUrl` resolves `episode:` via
+  `playback/PodcastFeed`: Apple's public podcast directory (itunes.apple.com/search) → the show's
+  RSS feed → episode matched by title (exact, else ≥ 0.8 word overlap) → enclosure audio played
+  by ExoPlayer. Feed episode lists cached a day (cacheDir/podcast_feeds), memory cap 20 feeds.
+  Fallback for feed-less (Spotify-only) shows: YouTube Music `FILTER_EPISODE` (new in innertube)
+  then video search, matched by `PodcastMatch`. Verified: TRS हिंदी episode played (90 min).
+- Spotify podcast REST (search, show, episodes) answers 429 "Rate limited": `searchPodcasts` now
+  parses podcasts/episodes from `searchDesktop` GQL first; `getShow`/`getShowEpisodes` fall back
+  to the search by show name. Episode `SongsModel` now carries `durationMs`.
+- `data/local/Podcasts`: popular today (search per language, interleaved, daily cache), followed
+  shows, per-episode progress (≤ 100, 30 days; saved from `SongPlayer.savePosition`, resumed in
+  `startStream`), `continueListening`, `topShows`, `nextAfter` (same show's next episodes, skipping
+  finished; else new from followed). `Recommender.next` returns podcast-only next for episodes.
+- UI: `PodcastsScreen` (route `podcasts`: search, Your podcasts, New from your podcasts, Continue
+  listening, Popular today), `PodcastPickerScreen` (`podcastpicker`, follow like artists),
+  `PodcastsHomeSection` (Home key `podcasts`), Follow + progress on `ShowScreen`,
+  `PodcastHistoryBlock` in History. Search: shows mixed into results (named show first), Podcasts
+  chip always shown (last), episodes labelled "Episode", slimmer search pill (46 dp), hint
+  "Songs, artists or podcasts". Steer row hidden while an episode plays.
+- Player: double-tap left/right third = −/+10 s (`SongPlayer.skipBy`), YouTube-style
+  `ui/components/SeekRipple` (adds up on repeated taps); middle still likes.
+- Edit Home: drag-and-drop by handle (`key(section)` so one drag moves several places), list
+  height capped so Done stays visible.
+- Tests: `PodcastsTest`, `PodcastMatchTest`, `PodcastFeedTest`, `PodcastNextTest`; 212 unit tests
+  pass; 4/4 on-phone checks pass.
+
 ## 2026-11-27 — 9.0.0 (105) offline lists and search, Downloads page, 24 h history, Home order, problem reports, radio-style picks, share posters
 - Offline: `data/local/OfflineLists` keeps each playlist/album song list + header (files in
   `filesDir/offline_lists`, ≤ 300 lists) when it loads; with no internet (offline mode or no

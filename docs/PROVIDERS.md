@@ -42,3 +42,9 @@ are fine for metadata/taste.
   play full tracks from another source.
 - Moving to official integrations means removing or disabling the current private-API
   sources, which is most of today's playback. That's a product decision for the owner.
+
+## Podcasts (Nov 2026)
+- Show/episode metadata: Spotify (searchDesktop GQL; REST shows/episodes is often 429).
+- Audio: the show's public RSS feed (standard podcast distribution), found through Apple's public
+  iTunes Search API (no key). Episodes matched by title. Spotify-only shows have no feed: YouTube
+  Music episodes/videos are tried instead. Nothing is sent but the show name.

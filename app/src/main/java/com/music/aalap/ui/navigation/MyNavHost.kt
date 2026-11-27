@@ -235,6 +235,20 @@ fun MyNavHost(
             }
             PullDownToClose(navHostController) { com.music.aalap.ui.screens.AppSettingsScreen(navHostController) }
         }
+        composable(Routes.PodcastPicker.route){
+            LaunchedEffect(playerState) {
+                bottomBarState.value = true
+                bottomBarPlayerState.value = playerState != ""
+            }
+            com.music.aalap.ui.screens.PodcastPickerScreen(navHostController)
+        }
+        composable(Routes.Podcasts.route){
+            LaunchedEffect(playerState) {
+                bottomBarState.value = true
+                bottomBarPlayerState.value = playerState != ""
+            }
+            com.music.aalap.ui.screens.PodcastsScreen(navHostController)
+        }
         composable(Routes.SelfCheck.route){
             LaunchedEffect(playerState) {
                 bottomBarState.value = true

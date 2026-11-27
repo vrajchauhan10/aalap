@@ -4,6 +4,19 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 9.1.0 — 27 Nov 2026 (build 106)
+- **Podcasts play properly.** Episodes now play from the show's own podcast feed (they used to
+  skip to a song), and show pages load their cover and episodes again.
+- **Continue where you stopped.** Every episode remembers its place; History shows your last
+  episode to continue and your top podcasts.
+- **After a podcast comes a podcast.** The show's next episode plays, never a song.
+- **Podcasts everywhere.** "Popular podcasts today" on Home, a Podcasts page with its own search,
+  podcasts in Search results with their own filter, and Follow your favourite shows like artists.
+- **Double-tap to skip.** Double-tap the left or right side of the cover to go back or forward
+  10 seconds, with a YouTube-style animation. The middle still likes the song.
+- **Drag to arrange Home.** In Edit Home, drag sections by their handle.
+- **A slimmer search box.**
+
 ## 9.0.0 — 27 Nov 2026 (build 105)
 - **Your downloads work with no internet, everywhere.** Playlists and albums you've opened show
   the songs you downloaded from them, and Search finds your downloaded songs, with a clear

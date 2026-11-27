@@ -343,6 +343,9 @@ object SongPlayer {
             // Restored session: continue from where the last run stopped.
             if (song == restoreQuery && restorePositionMs > 0) {
                 player!!.seekTo(restorePositionMs)
+            } else if (song.startsWith("episode:")) {
+                // A podcast episode you'd started continues where you stopped.
+                com.music.aalap.data.local.Podcasts.resumeAt(appContext, song)?.let { player!!.seekTo(it) }
             }
             restoreQuery = null
             player!!.playWhenReady = true
@@ -927,6 +930,17 @@ object SongPlayer {
                     .uppercase().takeIf { it.length in 2..5 }.orEmpty()
             }
             return song
+        }
+        // A podcast episode: its audio file from the show's public feed (YouTube only if there's none).
+        if (song.startsWith("episode:")) {
+            val ep = queuedByQuery(song)
+            val url = withContext(Dispatchers.IO) {
+                runCatching { com.music.aalap.playback.PodcastFeed.audioUrl(appContext, ep?.title.orEmpty(), ep?.singer.orEmpty()) }.getOrNull()
+            }
+            if (url != null) {
+                if (forPlayback) { currentSource = "Podcast"; currentQuality = "" }
+                return url
+            }
         }
         alternativeStreamForPlayback(song, appContext)?.let { alt ->
             invalidateResolvedStream(song)
@@ -1661,6 +1675,34 @@ object SongPlayer {
             return null
         }
         matchedVideoIds[query]?.let { known -> tryIds(listOf(known))?.let { return it } }
+        // A podcast episode: its full upload on YouTube, matched by title (song rules reject it).
+        if (query.startsWith("episode:")) {
+            val ep = queuedByQuery(query)
+            val title = ep?.title ?: metadataRegistry[query]?.title.orEmpty()
+            val show = ep?.singer ?: metadataRegistry[query]?.artist.orEmpty()
+            if (title.isNotBlank()) {
+                // Plain searches work best: the title's main part (before "|"), then with the show's
+                // name; the long full title with tags brought unrelated videos.
+                // YouTube Music's podcast episodes first; plain videos only if that finds nothing.
+                suspend fun search(q: String, filter: YouTube.SearchFilter) = runCatching {
+                    YouTube.search(q, filter).getOrNull()?.items.orEmpty().take(8).mapNotNull { item ->
+                        when (item) {
+                            is com.metrolist.innertube.models.EpisodeItem -> item.id to item.title
+                            is com.metrolist.innertube.models.SongItem -> item.id to item.title
+                            else -> null
+                        }
+                    }
+                }.getOrDefault(emptyList())
+                val queries = com.music.aalap.playback.PodcastMatch.queries(title, show)
+                val episodes = queries.flatMap { search(it, YouTube.SearchFilter.FILTER_EPISODE) }.distinctBy { it.first }
+                val found = episodes.takeIf { com.music.aalap.playback.PodcastMatch.best(title, it) != null }
+                    ?: (episodes + queries.flatMap { search(it, YouTube.SearchFilter.FILTER_VIDEO) }).distinctBy { it.first }
+                val id = com.music.aalap.playback.PodcastMatch.best(title, found)
+                Log.d(TAG, "podcast '$title': ${found.size} videos, picked $id — " + found.take(5).joinToString(" | ") { it.second })
+                if (id != null) tryIds(listOf(id))?.let { return it }
+            }
+            return null
+        }
         tryIds(resolveVideoCandidates(query).take(3))?.let { return it }
         if (!allowVideos && !com.music.aalap.data.preferences.isVideoFallbackEnabled(appContext)) {
             Log.w(TAG, "song candidates exhausted and video fallback disabled for: ${searchTextForPlayback(query)}")
@@ -2104,11 +2146,25 @@ object SongPlayer {
         val p = player ?: return
         val pos = p.currentPosition
         if (pos > 0) com.music.aalap.data.preferences.saveLastPosition(ctx, p.currentMediaItem?.mediaId, pos)
+        // A podcast episode also keeps its own place, so it continues there next time.
+        val id = p.currentMediaItem?.mediaId
+        if (pos > 0 && id != null && id.startsWith("episode:")) queuedByQuery(id)?.let { ep ->
+            val len = p.duration.takeIf { it > 0 } ?: ep.durationMs.toLong()
+            scope.launch { runCatching { com.music.aalap.data.local.Podcasts.save(ctx, ep, pos, len) } }
+        }
     }
 
     fun stop() {
         cancelCrossfade()
         player?.stop()
+    }
+
+    /** Jumps [deltaMs] forward (or back, when negative) within the current song. */
+    fun skipBy(deltaMs: Long) {
+        val now = progress().positionMs
+        val len = getDuration()
+        val to = (now + deltaMs).coerceAtLeast(0L).let { if (len > 0) it.coerceAtMost(len - 1_000L) else it }
+        seekTo(to)
     }
 
     fun seekTo(position: Long) {

@@ -18,6 +18,7 @@ object HomeSections {
         "today" to "Aaj ka Aalap",
         "quick" to "Quick picks",
         "radio" to "Aalap Radio",
+        "podcasts" to "Popular podcasts",
         "charts" to "Charts",
         "mixes" to "Made for you",
         "jump" to "Jump back in",

@@ -466,7 +466,7 @@ class Api @Inject constructor(
     }
 
     /** A podcast show's episodes, as playable [SongsModel] (url = "episode:<id>"). */
-    suspend fun getShowEpisodes(showId: String): Flow<Response<List<SongsModel>>> = flow {
+    suspend fun getShowEpisodes(showId: String, showName: String = ""): Flow<Response<List<SongsModel>>> = flow {
         emit(Response.Loading())
         if (!SpotifyTokenProvider.ensureCatalogToken(context)) {
             emit(Response.Error("Spotify not authenticated — set sp_dc cookie")); return@flow
@@ -476,14 +476,40 @@ class Api @Inject constructor(
             onSuccess = { paging ->
                 emit(Response.Success(paging.items.map { it.toEpisodeSongModel(show?.name) }))
             },
-            onFailure = { Log.e("Api", "getShowEpisodes failed", it); emit(Response.Error(it.message ?: "error")) },
+            onFailure = {
+                Log.e("Api", "getShowEpisodes failed", it)
+                // Spotify often refuses the episode list ("Rate limited"): the main search still
+                // answers, and searching the show's name brings its recent episodes.
+                val name = show?.name ?: showName
+                val found = if (name.isBlank()) emptyList() else
+                    Spotify.searchPodcasts(name, 30).getOrNull()?.episodes?.items.orEmpty()
+                        .filter { e -> e.show?.id == showId || (e.show?.id.isNullOrBlank() && e.show?.name.equals(name, true)) }
+                        .sortedByDescending { e -> e.releaseDate }
+                        .map { e -> e.toEpisodeSongModel(name) }
+                if (found.isNotEmpty()) emit(Response.Success(found)) else emit(Response.Error(it.message ?: "error"))
+            },
         )
     }
 
+    /** Podcast shows for [query] (Spotify's order: the most popular matches first). */
+    suspend fun searchShows(query: String, limit: Int = 12): List<PodcastModel> {
+        if (query.isBlank() || !SpotifyTokenProvider.ensureCatalogToken(context)) return emptyList()
+        return Spotify.searchPodcasts(query, limit).getOrNull()?.shows?.items.orEmpty()
+            .map { it.toPodcastModel() }.filter { it.id.isNotBlank() && it.name.isNotBlank() }
+    }
+
+    /** Podcast episodes for [query], playable like songs. */
+    suspend fun searchEpisodes(query: String, limit: Int = 12): List<SongsModel> {
+        if (query.isBlank() || !SpotifyTokenProvider.ensureCatalogToken(context)) return emptyList()
+        return Spotify.searchPodcasts(query, limit).getOrNull()?.episodes?.items.orEmpty().map { it.toEpisodeSongModel(null) }
+    }
+
     /** Show header (name/publisher/cover) for the detail screen. */
-    suspend fun getShow(showId: String): PodcastModel? {
+    suspend fun getShow(showId: String, showName: String = ""): PodcastModel? {
         if (!SpotifyTokenProvider.ensureCatalogToken(context)) return null
         return Spotify.show(showId).getOrNull()?.toPodcastModel()
+            // Refused ("Rate limited"): the same show from the search, by its name.
+            ?: showName.takeIf { it.isNotBlank() }?.let { n -> searchShows(n, 10).firstOrNull { it.id == showId } }
     }
 
     private fun com.metrolist.spotify.models.SpotifyShow.toPodcastModel() = PodcastModel(
@@ -502,6 +528,8 @@ class Api @Inject constructor(
             singer = subtitle,
             coverUri = images.firstOrNull()?.url ?: (show?.images?.firstOrNull()?.url ?: ""),
             url = "episode:$id",
+            // Its length, so "x min left" and finished-or-not work for podcasts.
+            durationMs = durationMs,
         )
     }
 

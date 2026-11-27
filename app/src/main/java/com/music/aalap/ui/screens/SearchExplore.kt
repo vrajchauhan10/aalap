@@ -73,7 +73,7 @@ fun AalapSearchHeader() {
     ) {
         Column(Modifier.weight(1f)) {
             Text("Search", color = TextPrimary, fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            Text("Any song, artist, album or mood", color = TextMuted, fontSize = 13.sp)
+            Text("Any song, artist, album, podcast or mood", color = TextMuted, fontSize = 13.sp)
         }
     }
 }
@@ -83,7 +83,7 @@ fun AalapSearchHeader() {
 fun AalapSearchBar(
     text: String,
     onFocusChange: (Boolean) -> Unit,
-    placeholder: String = "Songs, artists, albums or a mood",
+    placeholder: String = "Songs, artists or podcasts",
     // Set to true (by tapping the Search tab while on Search) to put the cursor here with the keyboard up.
     focusRequest: kotlinx.coroutines.flow.MutableStateFlow<Boolean>? = null,
     onTextChange: (String) -> Unit,
@@ -102,26 +102,27 @@ fun AalapSearchBar(
             }
         }
     }
-    Box(Modifier.fillMaxWidth().background(AppBackground).padding(horizontal = 16.dp, vertical = 10.dp)) {
+    // A slimmer, lighter pill: 46 dp tall with smaller text, so it doesn't look crammed.
+    Box(Modifier.fillMaxWidth().background(AppBackground).padding(horizontal = 16.dp, vertical = 8.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(54.dp)
+                .height(46.dp)
                 .clip(RoundedCornerShape(50))
                 .background(Surface)
                 .border(if (focused) 1.5.dp else 1.dp, if (focused) Saffron else Hairline, RoundedCornerShape(50))
-                .padding(horizontal = 18.dp),
+                .padding(horizontal = 16.dp),
         ) {
-            Icon(Icons.Default.Search, contentDescription = null, tint = if (focused) Saffron else TextMuted, modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(12.dp))
+            Icon(Icons.Default.Search, contentDescription = null, tint = if (focused) Saffron else TextMuted, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                if (text.isEmpty()) Text(placeholder, color = TextMuted, fontSize = 15.sp)
+                if (text.isEmpty()) Text(placeholder, color = TextMuted, fontSize = 14.sp, maxLines = 1)
                 BasicTextField(
                     value = text,
                     onValueChange = onTextChange,
                     singleLine = true,
-                    textStyle = TextStyle(color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium),
+                    textStyle = TextStyle(color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                     cursorBrush = SolidColor(Saffron),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
@@ -131,8 +132,8 @@ fun AalapSearchBar(
             if (text.isNotEmpty()) {
                 Box(
                     contentAlignment = Alignment.Center,
-                    modifier = Modifier.size(28.dp).clip(CircleShape).background(SurfaceHigh).clickable { onTextChange("") },
-                ) { Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextPrimary, modifier = Modifier.size(16.dp)) }
+                    modifier = Modifier.size(24.dp).clip(CircleShape).background(SurfaceHigh).clickable { onTextChange("") },
+                ) { Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextPrimary, modifier = Modifier.size(14.dp)) }
             }
         }
     }
@@ -148,7 +149,8 @@ fun SearchFilterChips(selected: SearchFilter, available: Set<SearchFilter>, onSe
         contentPadding = PaddingValues(horizontal = 16.dp),
         modifier = Modifier.background(AppBackground).padding(bottom = 6.dp),
     ) {
-        val list = SearchFilter.entries.filter { it == SearchFilter.ALL || it in available }
+        // Podcasts always has its chip, like Songs, Artists and Albums.
+        val list = SearchFilter.entries.filter { it == SearchFilter.ALL || it == SearchFilter.PODCASTS || it in available }
         items(list.size) { i ->
             val f = list[i]
             val on = f == selected
@@ -171,6 +173,8 @@ fun SearchFilterChips(selected: SearchFilter, available: Set<SearchFilter>, onSe
 internal data class ExploreTile(val title: String, val query: String, val colors: Pair<Long, Long>, val craft: com.music.aalap.ui.components.Craft)
 
 internal val EXPLORE = listOf(
+    // Podcasts first: it opens their own page (search, popular today, continue listening).
+    ExploreTile("Podcasts", "Hindi podcast", 0xFF1E3264 to 0xFF100B1C, com.music.aalap.ui.components.Craft.LOTUS),
     ExploreTile("Bollywood", "Bollywood hits", 0xFFFF8A3D to 0xFFB8235A, com.music.aalap.ui.components.Craft.MIRROR),
     ExploreTile("Punjabi", "Punjabi hits", 0xFFFFC56B to 0xFFE0661B, com.music.aalap.ui.components.Craft.PHULKARI),
     ExploreTile("Gujarati", "Gujarati songs", 0xFFE5397A to 0xFF6C1238, com.music.aalap.ui.components.Craft.AJRAK),
@@ -186,7 +190,6 @@ internal val EXPLORE = listOf(
     ExploreTile("International", "Top hits global", 0xFF2BB3C0 to 0xFF3A1F6B, com.music.aalap.ui.components.Craft.DHOKRA),
     ExploreTile("K-Pop", "K-pop", 0xFFE5397A to 0xFF3D6BE0, com.music.aalap.ui.components.Craft.JAALI),
     ExploreTile("New releases", "New releases India", 0xFFFF8A3D to 0xFF3A1F6B, com.music.aalap.ui.components.Craft.MANDALA),
-    ExploreTile("Podcasts", "Hindi podcast", 0xFF1E3264 to 0xFF100B1C, com.music.aalap.ui.components.Craft.LOTUS),
 )
 
 /**
@@ -260,7 +263,8 @@ fun SearchExplore(navController: NavController, refreshKey: Int = 0, onQuickSear
                             .height(92.dp)
                             .clip(RoundedCornerShape(20.dp))
                             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                                navController.navigate(categoryRoute(tile.query, tile.title))
+                                if (tile.title == "Podcasts") navController.navigate(com.music.aalap.ui.navigation.Routes.Podcasts.route)
+                                else navController.navigate(categoryRoute(tile.query, tile.title))
                             },
                     ) {
                         // Hand-drawn craft motif on every tile (no plain blocks).

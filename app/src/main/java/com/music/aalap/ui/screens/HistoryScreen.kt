@@ -241,6 +241,8 @@ fun HistoryScreen(navController: NavController) {
                         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 36.dp, bottom = 8.dp),
                     )
                 }
+                // Podcasts: continue the last episode where you stopped, and your top shows.
+                item { PodcastHistoryBlock(navController) }
 
                 if (period.isEmpty()) {
                     item {

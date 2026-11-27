@@ -33,6 +33,7 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
@@ -1238,7 +1239,57 @@ object Spotify {
     // Catalog search + a show's episode list via the stable REST Web API. Uses
     // the same web bearer token as track/artist reads; episodes play through the
     // hidden Spotify web player (SpotifyWebPlayer.playEpisode).
+    /**
+     * Podcast shows and episodes for [query]. Read from the same search the app uses for songs
+     * (searchDesktop, which returns podcasts too and isn't rate-limited); the REST search, which
+     * Spotify now often answers with "Rate limited", is only the fallback.
+     */
     suspend fun searchPodcasts(query: String, limit: Int = 20): Result<com.metrolist.spotify.models.SpotifyPodcastSearchResult> =
+        searchPodcastsGql(query, limit).takeIf { r -> r.getOrNull()?.let { !it.shows?.items.isNullOrEmpty() || !it.episodes?.items.isNullOrEmpty() } == true }
+            ?: searchPodcastsRest(query, limit)
+
+    private suspend fun searchPodcastsGql(query: String, limit: Int): Result<com.metrolist.spotify.models.SpotifyPodcastSearchResult> =
+        runCatching {
+            val vars = buildJsonObject {
+                put("searchTerm", query); put("offset", 0); put("limit", limit); put("numberOfTopResults", 5)
+                put("includeAudiobooks", false); put("includeArtistHasConcertsField", false)
+                put("includePreReleases", false); put("includeLocalConcertsField", false); put("includeAuthors", false)
+            }
+            val data = graphqlPost(operationName = "searchDesktop", variables = vars).obj("data")?.obj("searchV2")
+                ?: throw SpotifyException(500, "Invalid searchDesktop response")
+            fun images(o: JsonObject?) = o?.obj("coverArt")?.arr("sources")?.mapNotNull { el ->
+                val im = el.jsonObject
+                im.str("url")?.let { com.metrolist.spotify.models.SpotifyImage(it, im.int("height"), im.int("width")) }
+            }.orEmpty().sortedByDescending { it.width ?: 0 }
+            fun inner(el: JsonElement): JsonObject? = el.jsonObject.let { it.obj("data") ?: it.obj("item")?.obj("data") }
+            val shows = data.obj("podcasts")?.arr("items")?.mapNotNull { el ->
+                val d = inner(el) ?: return@mapNotNull null
+                if (d.str("__typename") != "Podcast") return@mapNotNull null
+                val uri = d.str("uri") ?: return@mapNotNull null
+                com.metrolist.spotify.models.SpotifyShow(
+                    id = uri.substringAfterLast(':'), name = d.str("name").orEmpty(),
+                    publisher = d.obj("publisher")?.str("name").orEmpty(), images = images(d), uri = uri,
+                )
+            }.orEmpty()
+            val episodes = data.obj("episodes")?.arr("items")?.mapNotNull { el ->
+                val d = inner(el) ?: return@mapNotNull null
+                if (d.str("__typename") != "Episode") return@mapNotNull null
+                val uri = d.str("uri") ?: return@mapNotNull null
+                val pod = d.obj("podcastV2")?.obj("data")
+                com.metrolist.spotify.models.SpotifyEpisode(
+                    id = uri.substringAfterLast(':'), name = d.str("name").orEmpty(),
+                    images = images(d), durationMs = d.obj("duration")?.int("totalMilliseconds") ?: 0,
+                    releaseDate = d.obj("releaseDate")?.str("isoString")?.take(10).orEmpty(), uri = uri,
+                    show = pod?.let { p -> com.metrolist.spotify.models.SpotifyShow(id = p.str("uri")?.substringAfterLast(':').orEmpty(), name = p.str("name").orEmpty(), images = images(p)) },
+                )
+            }.orEmpty()
+            com.metrolist.spotify.models.SpotifyPodcastSearchResult(
+                shows = com.metrolist.spotify.models.SpotifyPaging(shows.take(limit)),
+                episodes = com.metrolist.spotify.models.SpotifyPaging(episodes.take(limit)),
+            )
+        }
+
+    private suspend fun searchPodcastsRest(query: String, limit: Int): Result<com.metrolist.spotify.models.SpotifyPodcastSearchResult> =
         runCatching {
             authenticatedGet<com.metrolist.spotify.models.SpotifyPodcastSearchResult>("search") {
                 parameter("q", query)

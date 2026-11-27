@@ -26,6 +26,8 @@ sealed class Routes(
     object Settings : Routes(0, "Settings", "settings")
     object AppSettings : Routes(0, "AppSettings", "appsettings")
     object SelfCheck : Routes(0, "SelfCheck", "selfcheck")
+    object Podcasts : Routes(0, "Podcasts", "podcasts")
+    object PodcastPicker : Routes(0, "PodcastPicker", "podcastpicker")
     object History : Routes(0, "History", "history")
     object Sound : Routes(0, "Sound", "sound")
     object Wrapped : Routes(0, "Wrapped", "wrapped")

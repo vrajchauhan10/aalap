@@ -150,14 +150,14 @@ fun SumUpSearchScreen(
             if (results.shows.isNotEmpty() || results.episodes.isNotEmpty()) add(SearchFilter.PODCASTS)
         }
     }
-    val mixed = remember(results, filter) {
-        mixSearchResults(results).filter { row ->
+    val mixed = remember(results, filter, text) {
+        mixSearchResults(results, text).filter { row ->
             when (filter) {
                 SearchFilter.ALL -> true
                 SearchFilter.SONGS -> row is SearchRow.Song
                 SearchFilter.ARTISTS -> row is SearchRow.Artist
                 SearchFilter.ALBUMS -> row is SearchRow.Album
-                SearchFilter.PODCASTS -> false
+                SearchFilter.PODCASTS -> row is SearchRow.Show
             }
         }
     }
@@ -311,6 +311,13 @@ fun SumUpSearchScreen(
                             ))
                             navController.navigate(artistRoute(row.artist.name, row.artist.id))
                         }
+                        is SearchRow.Show -> SearchShowRow(row.show) {
+                            recordRecent(com.music.aalap.data.preferences.RecentItem(
+                                type = "show", key = row.show.id, name = row.show.name,
+                                singer = row.show.publisher, image = row.show.coverUri,
+                            ))
+                            navController.navigate(showRoute(row.show.id, row.show.name))
+                        }
                         is SearchRow.Album -> SearchAlbumRow(row.album) {
                             recordRecent(com.music.aalap.data.preferences.RecentItem(
                                 type = "album",
@@ -324,23 +331,11 @@ fun SumUpSearchScreen(
                     }
                     }
                 }
-                // ── Podcasts: shows (→ detail) then individual episodes (→ play) ──
-                if (showPodcasts && results.shows.isNotEmpty()) {
-                    item { SearchSectionHeader("Podcasts") }
-                    items(results.shows.size) { i ->
-                        val show = results.shows[i]
-                        SearchShowRow(show) {
-                            recordRecent(com.music.aalap.data.preferences.RecentItem(
-                                type = "show",
-                                key = show.id,
-                                name = show.name,
-                                singer = show.publisher,
-                                image = show.coverUri,
-                            ))
-                            navController.navigate(showRoute(show.id, show.name))
-                        }
-                    }
+                if (filter == SearchFilter.PODCASTS && results.shows.isEmpty() && results.episodes.isEmpty()) item(key = "no-podcasts") {
+                    Text("No podcasts for this search yet. Try the show's name, or open Podcasts in Search for popular shows.",
+                        color = com.music.aalap.ui.theme.TextMuted, fontSize = 14.sp, modifier = Modifier.padding(20.dp))
                 }
+                // ── Podcast episodes ──
                 if (showPodcasts && results.episodes.isNotEmpty()) {
                     item { SearchSectionHeader("Episodes") }
                     items(results.episodes.size) { i ->
@@ -362,6 +357,7 @@ sealed class SearchRow {
     data class Song(val song: SongsModel) : SearchRow() { override val key get() = "s:${song.id}" }
     data class Artist(val artist: com.music.aalap.data.entity.ArtistsModel) : SearchRow() { override val key get() = "a:${artist.id.ifBlank { artist.name }}" }
     data class Album(val album: com.music.aalap.data.entity.AlbumsModel) : SearchRow() { override val key get() = "l:${album.id}:${album.name}" }
+    data class Show(val show: com.music.aalap.data.entity.PodcastModel) : SearchRow() { override val key get() = "p:${show.id}" }
 }
 
 /**
@@ -369,15 +365,23 @@ sealed class SearchRow {
  * (2 songs per artist+album cycle) so the list reads as mixed rather than
  * grouped, while songs — the most common search intent — stay prominent.
  */
-private fun mixSearchResults(results: SearchResults): List<SearchRow> {
+private fun mixSearchResults(results: SearchResults, query: String = ""): List<SearchRow> {
     val songs = results.songs.iterator()
     val artists = results.artists.iterator()
     val albums = results.albums.iterator()
     val out = ArrayList<SearchRow>()
-    while (songs.hasNext() || artists.hasNext() || albums.hasNext()) {
+    val shows = results.shows.iterator()
+    // Search is universal: a podcast you named (its name is what you typed, or close) goes first,
+    // like an artist would, and other podcasts are mixed in, labelled "Podcast".
+    fun norm(t: String) = t.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
+    val q = norm(query)
+    results.shows.firstOrNull { q.length >= 3 && (norm(it.name) == q || norm(it.name).startsWith(q) || (q.startsWith(norm(it.name)) && norm(it.name).length >= 4)) }
+        ?.let { out += SearchRow.Show(it) }
+    while (songs.hasNext() || artists.hasNext() || albums.hasNext() || shows.hasNext()) {
         repeat(2) { if (songs.hasNext()) out += SearchRow.Song(songs.next()) }
         if (artists.hasNext()) out += SearchRow.Artist(artists.next())
         if (albums.hasNext()) out += SearchRow.Album(albums.next())
+        if (shows.hasNext()) out += SearchRow.Show(shows.next())
     }
     return out.distinctBy { it.key } // unique keys for the animated list
 }
@@ -432,7 +436,7 @@ fun RecentItemRow(
         ) {
             Text(text = item.name, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
             val subtitle = when (item.type) {
-                "song" -> "Song • ${com.music.aalap.ui.components.shortArtists(item.singer, max = 1)}"
+                "song" -> (if (item.songUrl.startsWith("episode:")) "Episode • ${item.singer}" else "Song • ${com.music.aalap.ui.components.shortArtists(item.singer, max = 1)}")
                 "artist" -> "Artist"
                 "album" -> "Album • ${item.singer}"
                 "show" -> "Podcast" + (if (item.singer.isNotBlank()) " • ${item.singer}" else "")
@@ -518,7 +522,7 @@ fun SearchSongRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = song.title, color = currentPlayingIndicatorColor, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                 // One name + "& 3 more" leaves room for the tags on the right; "…" if it still doesn't fit.
-                Text(text = "Song • ${com.music.aalap.ui.components.shortArtists(song.singer, max = 1)}", color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(text = (if (song.url.startsWith("episode:")) "Episode • ${song.singer}" else "Song • ${com.music.aalap.ui.components.shortArtists(song.singer, max = 1)}"), color = Color.Gray, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
         }
         // The tag ("Liked", "Your taste"…) says it all; like/unlike stays in the long-press menu.

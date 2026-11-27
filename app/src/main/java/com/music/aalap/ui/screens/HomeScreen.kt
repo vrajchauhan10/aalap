@@ -230,6 +230,7 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
                 "recent" -> if (recent.isNotEmpty()) item(key = "recent") { BounceIn(step, gen) { SongTileRow("Recently played", recent) } }
                 "quick" -> item(key = "quick") { BounceIn(step, gen) { QuickPicksSection(quick, quickStatus, navController = navController) { homeViewModel.retryQuickPicks() } } }
                 "radio" -> item(key = "radio") { BounceIn(step, gen) { com.music.aalap.ui.components.AalapRadioSection() } }
+                "podcasts" -> item(key = "podcasts") { BounceIn(step, gen) { PodcastsHomeSection(navController) } }
                 "charts" -> item(key = "charts") { BounceIn(step, gen) { ChartsRow(navController) } }
                 "mixes" -> item(key = "mixes") { BounceIn(step, gen) { MadeForYouSection(mixes) } }
                 "jump" -> if (jump.isNotEmpty()) item(key = "jump") { BounceIn(step, gen) { JumpBackInRow(navController, jump) } }

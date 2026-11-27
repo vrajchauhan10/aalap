@@ -344,6 +344,8 @@ object YouTube {
         companion object {
             val FILTER_SONG = SearchFilter("EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D")
             val FILTER_VIDEO = SearchFilter("EgWKAQIQAWoKEAkQChAFEAMQBA%3D%3D")
+            // Podcast episodes (YouTube Music's "Episodes" tab).
+            val FILTER_EPISODE = SearchFilter("EgWKAQJIAWoKEAkQBRAKEAMQBA%3D%3D")
         }
     }
 

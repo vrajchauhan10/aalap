@@ -78,6 +78,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.zIndex
 import com.music.aalap.ui.components.springyClick
 import com.music.aalap.ui.components.Buzz
 import androidx.compose.runtime.mutableStateOf
@@ -396,6 +397,8 @@ fun PlayerScreen(navController: NavController) {
             // petals fall if it wasn't liked yet). Double-tapping a liked song only pops the heart.
             val bloom = com.music.aalap.ui.components.rememberHeartBloom()
             val bloomScope = rememberCoroutineScope()
+            // YouTube-style seek ripple after a double-tap on either side (taps in a row add up).
+            val seekRipple = remember { com.music.aalap.ui.components.SeekRippleState() }
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -403,6 +406,15 @@ fun PlayerScreen(navController: NavController) {
                     .fillMaxWidth()
                     .pointerInput(songId) {
                         detectTapGestures(onDoubleTap = { at ->
+                            // Like YouTube: double-tap the left side to go back 10 s, the right side
+                            // to go forward 10 s. The middle still likes the song.
+                            val third = size.width / 3f
+                            if (at.x < third || at.x > size.width - third) {
+                                val forward = at.x > size.width - third
+                                SongPlayer.skipBy(if (forward) SEEK_STEP_MS else -SEEK_STEP_MS)
+                                seekRipple.tap(forward, bloomScope)
+                                return@detectTapGestures
+                            }
                             bloomScope.launch { bloom.show(at) }
                             if (!isLiked.value) {
                                 addLikedSongId(context, songId.toString())
@@ -414,6 +426,7 @@ fun PlayerScreen(navController: NavController) {
                         })
                     }
             ) {
+                com.music.aalap.ui.components.SeekRipple(seekRipple, Modifier.matchParentSize().zIndex(2f))
                 if (queueSongs.isEmpty()) {
                     GlideImage(
                         modifier = Modifier
@@ -471,8 +484,9 @@ fun PlayerScreen(navController: NavController) {
                 PlayerFull(songPlayingState, playerViewModel, context, isLiked, shuffle, repeat, queueSongs)
             }
 
-            // Steer what plays next: calmer, more energy, same vibe, something new.
-            SteerRow(playerViewModel, context)
+            // Steer what plays next: calmer, more energy, same vibe, something new (songs only:
+            // after a podcast episode comes the next episode).
+            if (queueSongs.firstOrNull { it.id == songId }?.url?.startsWith("episode:") != true) SteerRow(playerViewModel, context)
             // The three things people open the ⋮ menu for most, one tap away.
             PlayerQuickActions(
                 song = queueSongs.firstOrNull { it.id == songId },
@@ -1840,3 +1854,6 @@ private fun SteerRow(playerViewModel: PlayerViewModel, context: Context) {
         }
     }
 }
+
+/** How far a double-tap on the cover's side jumps. */
+private const val SEEK_STEP_MS = 10_000L
