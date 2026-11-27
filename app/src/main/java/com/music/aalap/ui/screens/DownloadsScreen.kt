@@ -84,6 +84,35 @@ fun DownloadsScreen(navController: NavController) {
     // while the screen is open so a track appears here the moment its download starts,
     // shows a live percentage, and moves into the list when it finishes.
     var songs by remember { mutableStateOf(getDownloadedSongs(context)) }
+    // Each download with when it was saved and its size, for sorting and the total shown on top.
+    val items = remember(songs) {
+        com.music.aalap.data.preferences.getDownloadedEntries(context).map { (s, path) ->
+            val f = java.io.File(path)
+            DownloadsView.Item(s, if (f.exists()) f.lastModified() else 0L, if (f.exists()) f.length() else 0L)
+        }
+    }
+    var query by remember { mutableStateOf("") }
+    var sort by remember { mutableStateOf(DownloadsView.Sort.RECENT) }
+    var show by remember { mutableStateOf(DownloadsView.Show.ALL) }
+    val liked = remember(songs, com.music.aalap.data.preferences.likedVersion.collectAsState().value) {
+        com.music.aalap.data.preferences.getLikedSongIds(context)
+    }
+    val shown = remember(items, query, sort, show, liked) { DownloadsView.apply(items, query, sort, show, liked).map { it.song } }
+    var confirmClear by remember { mutableStateOf(false) }
+    if (confirmClear) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { confirmClear = false },
+        title = { Text("Remove all downloads?") },
+        text = { Text("${com.music.aalap.ui.components.counted(songs.size, "song")} will be deleted from this phone. You can download them again later.") },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                confirmClear = false
+                val n = com.music.aalap.data.preferences.clearAllDownloads(context)
+                songs = getDownloadedSongs(context)
+                android.widget.Toast.makeText(context, "Removed $n download${if (n == 1) "" else "s"}", android.widget.Toast.LENGTH_SHORT).show()
+            }) { Text("Remove all", color = Color(0xFFE57373)) }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmClear = false }) { Text("Keep") } },
+    )
     var inProgress by remember {
         mutableStateOf(com.music.aalap.di.Downloads.downloadingSnapshot())
     }
@@ -147,7 +176,7 @@ fun DownloadsScreen(navController: NavController) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(360.dp)
+                        .height(300.dp)
                         .background(
                             brush = Brush.verticalGradient(
                                 colors = listOf(accent.copy(alpha = 0.5f), Color(AppBackground.toArgb())),
@@ -160,7 +189,8 @@ fun DownloadsScreen(navController: NavController) {
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Box(
                             modifier = Modifier
-                                .size(200.dp)
+                                .size(150.dp)
+                                .clip(RoundedCornerShape(18.dp))
                                 .background(accent.copy(alpha = 0.25f)),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -182,60 +212,93 @@ fun DownloadsScreen(navController: NavController) {
                     )
                     Text(
                         modifier = Modifier.padding(20.dp, 4.dp, 20.dp, 0.dp),
-                        text = com.music.aalap.ui.components.counted(songs.size, "song") + " • available offline",
+                        text = com.music.aalap.ui.components.counted(songs.size, "song") +
+                            (items.sumOf { it.bytes }.takeIf { it > 0 }?.let { " • " + com.music.aalap.ui.components.formatBytes(it) } ?: "") +
+                            " • plays with no internet",
                         color = Color.Gray,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
 
-                // ── Bulk actions: Export all / Clear all ──
                 if (songs.isNotEmpty()) {
+                    // Play in the order shown, or shuffled (songs you haven't heard lately first).
                     Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(20.dp, 0.dp, 20.dp, 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Text(
-                            text = "Export all",
-                            color = Color(AppPalette.toArgb()),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(com.music.aalap.ui.theme.Surface)
-                                .clickable {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clip(RoundedCornerShape(50)).background(accent)
+                                .clickable(enabled = shown.isNotEmpty()) { playerViewModel.playAll(shown, "Downloaded", context) }
+                                .padding(horizontal = 20.dp, vertical = 10.dp),
+                        ) {
+                            Icon(painterResource(R.drawable.play_svgrepo_com), null, tint = com.music.aalap.ui.theme.OnSaffron, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Play", color = com.music.aalap.ui.theme.OnSaffron, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clip(RoundedCornerShape(50)).background(com.music.aalap.ui.theme.Surface)
+                                .clickable(enabled = shown.isNotEmpty()) {
+                                    playerViewModel.playAll(com.music.aalap.data.preferences.smartShuffled(context, shown), "Downloaded", context)
+                                }
+                                .padding(horizontal = 18.dp, vertical = 10.dp),
+                        ) {
+                            Icon(painterResource(R.drawable.ic_player_shuffle), null, tint = com.music.aalap.ui.theme.TextPrimary, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Shuffle", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(Modifier.weight(1f))
+                        var more by remember { mutableStateOf(false) }
+                        Box {
+                            Text("⋯", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 22.sp,
+                                modifier = Modifier.clip(RoundedCornerShape(50)).clickable { more = true }.padding(horizontal = 12.dp, vertical = 4.dp))
+                            androidx.compose.material3.DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                                androidx.compose.material3.DropdownMenuItem(text = { Text("Save all to phone storage") }, onClick = {
+                                    more = false
                                     CoroutineScope(Dispatchers.IO).launch {
                                         val (n, dest) = com.music.aalap.data.preferences.exportDownloads(context)
                                         withContext(Dispatchers.Main) {
-                                            android.widget.Toast.makeText(
-                                                context,
-                                                if (n > 0) "Exported $n track${if (n == 1) "" else "s"} to $dest"
-                                                else dest,
-                                                android.widget.Toast.LENGTH_LONG,
-                                            ).show()
+                                            android.widget.Toast.makeText(context,
+                                                if (n > 0) "Saved $n song${if (n == 1) "" else "s"} to $dest" else dest,
+                                                android.widget.Toast.LENGTH_LONG).show()
                                         }
                                     }
-                                }
-                                .padding(horizontal = 18.dp, vertical = 10.dp),
-                        )
-                        Text(
-                            text = "Clear all",
-                            color = Color(0xFFE57373),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(com.music.aalap.ui.theme.Surface)
-                                .clickable {
-                                    val n = com.music.aalap.data.preferences.clearAllDownloads(context)
-                                    songs = getDownloadedSongs(context)
-                                    android.widget.Toast.makeText(
-                                        context, "Removed $n download${if (n == 1) "" else "s"}",
-                                        android.widget.Toast.LENGTH_SHORT,
-                                    ).show()
-                                }
-                                .padding(horizontal = 18.dp, vertical = 10.dp),
-                        )
+                                })
+                                androidx.compose.material3.DropdownMenuItem(text = { Text("Remove all downloads", color = Color(0xFFE57373)) }, onClick = {
+                                    more = false; confirmClear = true
+                                })
+                            }
+                        }
+                    }
+                    // Search your downloads.
+                    androidx.compose.material3.OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        placeholder = { Text("Search downloads", color = com.music.aalap.ui.theme.TextMuted) },
+                        trailingIcon = if (query.isNotEmpty()) ({
+                            Text("✕", color = com.music.aalap.ui.theme.TextMuted, modifier = Modifier.clickable { query = "" }.padding(12.dp))
+                        }) else null,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+                    )
+                    // Filters and order.
+                    androidx.compose.foundation.lazy.LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                    ) {
+                        items(DownloadsView.Show.entries.size) { i ->
+                            val v = DownloadsView.Show.entries[i]
+                            DlChip(v.label, show == v) { show = v }
+                        }
+                        item { Spacer(Modifier.width(6.dp)) }
+                        items(DownloadsView.Sort.entries.size) { i ->
+                            val v = DownloadsView.Sort.entries[i]
+                            DlChip(v.label, sort == v && query.isBlank()) { sort = v }
+                        }
                     }
                 }
 
@@ -293,14 +356,19 @@ fun DownloadsScreen(navController: NavController) {
                         modifier = Modifier.padding(20.dp),
                     )
                 } else {
-                    repeat(songs.size) { index ->
-                        com.music.aalap.ui.components.SwipeToQueue(songs[index]) {
-                        val song = songs[index]
+                    if (shown.isEmpty()) Text(
+                        text = if (query.isNotBlank()) "No downloads match \"$query\"." else "No liked songs among your downloads yet.",
+                        color = Color.Gray, fontSize = 14.sp, modifier = Modifier.padding(20.dp),
+                    )
+                    repeat(shown.size) { index ->
+                        com.music.aalap.ui.components.SwipeToQueue(shown[index]) {
+                        val song = shown[index]
 
                         com.music.aalap.ui.components.SongRow(
                             song = song,
                             playing = song.id == playerViewModel.currentSongId.value,
-                            onClick = { playerViewModel.playFromList(song, songs, "Downloaded", context) },
+                            // A tap plays from here through the list as shown (all downloaded, so it works offline).
+                            onClick = { playerViewModel.playAll(shown, "Downloaded", context, index) },
                             onMenu = { menuSong = song },
                         )
                         }
@@ -311,4 +379,18 @@ fun DownloadsScreen(navController: NavController) {
             }
         }
     }
+}
+
+@Composable
+private fun DlChip(label: String, on: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        color = if (on) com.music.aalap.ui.theme.OnSaffron else com.music.aalap.ui.theme.TextPrimary,
+        fontSize = 13.sp,
+        fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+        modifier = Modifier.clip(RoundedCornerShape(50))
+            .background(if (on) AppPalette else com.music.aalap.ui.theme.SurfaceHigh)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
 }

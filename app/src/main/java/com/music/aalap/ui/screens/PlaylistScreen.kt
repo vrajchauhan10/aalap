@@ -1,5 +1,7 @@
 package com.music.aalap.ui.screens
 
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import android.annotation.SuppressLint
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -341,10 +343,10 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                                                 interactionSource = remember { MutableInteractionSource() },
                                                 indication = null,
                                             ) {
+                                                // A picture card of the playlist, with the readable list and its Aalap code as the message.
                                                 val name = playlist?.name?.ifBlank { null } ?: playlistName.ifBlank { "Playlist" }
-                                                val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
-                                                    .putExtra(android.content.Intent.EXTRA_TEXT, com.music.aalap.ui.share.PlaylistShare.message(name, songs))
-                                                context.startActivity(android.content.Intent.createChooser(send, "Share $name"))
+                                                com.music.aalap.ui.share.SharePosters.list(context, "Playlist", name, playlist?.coverUri.orEmpty(), songs,
+                                                    com.music.aalap.ui.share.PlaylistShare.message(name, songs))
                                             },
                                         contentDescription = "Share playlist",
                                     )
@@ -445,6 +447,13 @@ fun PlaylistScreen(navController: NavController, playlistId: String, playlistNam
                     item { Spacer(modifier = Modifier.height(com.music.aalap.ui.components.BottomClearance)) }
                 }
             }
+        }
+        // No internet: only the songs you downloaded from this list are shown, and it says so.
+        if (com.music.aalap.data.local.OfflineLists.noInternet) androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+            com.music.aalap.ui.components.OfflineNote(
+                "No internet: showing the songs from here you've downloaded.",
+                Modifier.align(androidx.compose.ui.Alignment.TopCenter).then(Modifier.windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBars)).padding(top = 52.dp),
+            )
         }
     }
 }

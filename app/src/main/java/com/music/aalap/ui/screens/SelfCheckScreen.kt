@@ -62,7 +62,7 @@ object SelfCheck {
     enum class Status { OK, WARN, FAIL }
 
     /** What to do about a problem. */
-    enum class Fix { NONE, APP_SETTINGS, NOTIFICATIONS, SIGN_IN, STORAGE }
+    enum class Fix { NONE, APP_SETTINGS, NOTIFICATIONS, SIGN_IN, STORAGE, SHARE_REPORT }
 
     data class Result(val title: String, val status: Status, val line: String, val fix: Fix = Fix.NONE, val fixLabel: String = "")
 
@@ -115,6 +115,7 @@ object SelfCheck {
             async { storage(runCatching { android.os.StatFs(ctx.filesDir.path).availableBytes }.getOrDefault(0L)) },
             async { background(ctx) },
             async { notifications(ctx) },
+            async { stability(ctx) },
         )
         if (net) {
             val remote = listOf(
@@ -169,6 +170,14 @@ object SelfCheck {
         }
     }
 
+    private fun stability(c: Context): Result {
+        val n = com.music.aalap.CrashReport.recentCount(c)
+        return if (n == 0) Result("App stability", Status.OK, "No crashes or freezes this week")
+        else Result("App stability", Status.WARN,
+            "Aalap closed or froze ${if (n == 1) "once" else "$n times"} this week. A report was saved; share it so it can be fixed.",
+            Fix.SHARE_REPORT, "Share report")
+    }
+
     private fun notifications(c: Context): Result {
         val on = androidx.core.app.NotificationManagerCompat.from(c).areNotificationsEnabled()
         return if (on) Result("Notifications", Status.OK, "On: player controls show on the lock screen")
@@ -183,6 +192,7 @@ object SelfCheck {
             Fix.NOTIFICATIONS -> Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                 .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, c.packageName)
             Fix.STORAGE -> Intent(android.provider.Settings.ACTION_INTERNAL_STORAGE_SETTINGS)
+            Fix.SHARE_REPORT -> { com.music.aalap.CrashReport.share(c); return }
             else -> return
         }
         runCatching { c.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }

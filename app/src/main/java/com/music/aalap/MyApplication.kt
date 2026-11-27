@@ -79,6 +79,8 @@ class MyApplication : Application(), androidx.appfunctions.service.AppFunctionCo
         }
         // Offline mode + network watcher (also drives Wi-Fi auto-downloads).
         com.music.aalap.data.preferences.OfflineState.init(this)
+        // History is kept for a day: clear older plays once per start, off the main thread.
+        Thread { runCatching { com.music.aalap.data.preferences.pruneListeningHistory(this) } }.start()
 
         // Deezer support was removed in 2.0: wipe any saved Deezer login token.
         runCatching { deleteSharedPreferences("Deezer") }

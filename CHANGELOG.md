@@ -4,6 +4,23 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 9.0.0 — 27 Nov 2026 (build 105)
+- **Your downloads work with no internet, everywhere.** Playlists and albums you've opened show
+  the songs you downloaded from them, and Search finds your downloaded songs, with a clear
+  "No internet" note instead of "no data".
+- **A new Downloads page.** Play, Shuffle, search, Liked filter, sort by recently added, title
+  or artist, and the total size. "Remove all" now asks first.
+- **Smarter, radio-style next songs.** What plays next keeps the mood and pace of your song,
+  like the mood stations do: a fast song is followed by fast songs, a slow one by slow ones.
+  Calmer and More energy now always find songs that go that way.
+- **Arrange Home your way.** Move sections up or down in Edit Home; Aaj ka Aalap stays on top.
+- **History keeps one day.** Plays older than 24 hours are cleared every day. (Your
+  recommendations still remember your taste; Replay and Wrapped now show the last day.)
+- **Share as pictures.** Playlists, albums, artists and your Blend invite share as poster
+  cards. Albums get a share button.
+- **Problem reports.** If Aalap crashes or freezes, a report is saved by itself (no logins or
+  emails in it); share it from Settings or "Is everything working?" so it can be fixed.
+
 ## 8.16.0 — 23 Nov 2026 (build 104)
 - **Is everything working?** A new check in Profile tests the internet, search, every music
   source, storage and background playback, and tells you in plain words how to fix anything.

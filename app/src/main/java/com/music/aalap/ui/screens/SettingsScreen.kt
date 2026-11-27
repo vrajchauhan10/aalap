@@ -767,17 +767,18 @@ private fun AppUpdateRow() {
     }
 }
 
-/** Shown only after Aalap closed unexpectedly: share the report (text), or dismiss it. */
+/** Shown when Aalap has saved problem reports: share them all as one file, or delete them. */
 @Composable
 private fun CrashReportRow() {
     val context = LocalContext.current
-    var has by remember { mutableStateOf(com.music.aalap.CrashReport.last(context) != null) }
-    if (!has) return
-    NavRow("Aalap closed unexpectedly", "Tap to share what happened (phone, Android version and the error), e.g. by email.") {
-        com.music.aalap.CrashReport.share(context)
-    }
-    androidx.compose.material3.TextButton(onClick = { com.music.aalap.CrashReport.clear(context); has = false }) {
-        Text("Dismiss crash report", color = com.music.aalap.ui.theme.TextMuted)
+    var count by remember { mutableStateOf(com.music.aalap.CrashReport.reports(context).size) }
+    if (count == 0) return
+    NavRow(
+        "Problem reports ($count)",
+        "Aalap closed or froze ${if (count == 1) "once" else "$count times"}. Tap to share the report (phone, Android version, the error and what Aalap was doing) so it can be fixed.",
+    ) { com.music.aalap.CrashReport.share(context) }
+    androidx.compose.material3.TextButton(onClick = { com.music.aalap.CrashReport.clear(context); count = 0 }) {
+        Text("Delete problem reports", color = com.music.aalap.ui.theme.TextMuted)
     }
 }
 

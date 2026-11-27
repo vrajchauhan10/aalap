@@ -37,6 +37,10 @@ class SearchViewModel @Inject constructor(private val repository: AppRepository,
 
     private var searchJob: Job? = null
 
+    /** The results shown are from your downloads (no internet). */
+    private val _offlineResults = MutableStateFlow(false)
+    val offlineResults: StateFlow<Boolean> = _offlineResults
+
     /** The artist you searched for, shown at the top as a big card that opens their page. */
     data class ArtistTop(val artist: com.music.aalap.data.entity.ArtistsModel, val songs: List<SongsModel>)
     private val _artistTop = MutableStateFlow<ArtistTop?>(null)
@@ -99,6 +103,15 @@ class SearchViewModel @Inject constructor(private val repository: AppRepository,
         _artistTop.value?.artist?.name?.lowercase()?.let { a -> if (q.isEmpty() || !(a.startsWith(q) || q.startsWith(a))) _artistTop.value = null }
         searchJob = viewModelScope.launch(Dispatchers.IO) {
             delay(150) // short debounce for snappy real-time results
+            // No internet: search your downloads instead of showing nothing.
+            if (com.music.aalap.data.local.OfflineLists.noInternet) {
+                val found = com.music.aalap.data.local.OfflineLists.searchDownloads(com.music.aalap.MyApplication.instance, query)
+                _offlineResults.value = true
+                _results.value = Response.Success(SearchResults(songs = found))
+                _songs.value = Response.Success(found)
+                return@launch
+            }
+            _offlineResults.value = false
             repository.searchEverything(query).collect { result ->
                 // While you type, the last results stay up until the new ones arrive (a loading
                 // state on every letter left the page blank until you stopped typing).

@@ -141,7 +141,9 @@ data class PickState(
         rediscover = rediscover + if (f.rediscover) 1 else 0,
         surprise = surprise + if (f.surprise) 1 else 0,
         languages = if (f.language.isBlank()) languages else languages + (f.language to (languages[f.language] ?: 0) + 1),
-        lastVibe = f.vibe,
+        // A song whose feel isn't known can't set the pace: the one before keeps it (an unknown
+        // pick used to free the next step from any pace rule).
+        lastVibe = if (f.vibe.energyKnown || lastVibe == null) f.vibe else lastVibe,
     )
 }
 
@@ -302,6 +304,9 @@ object QueuePicker {
     fun flowOk(prev: Vibe, next: Vibe, session: Vibe, strict: Boolean): Boolean {
         val stepMax = if (strict) 0.22 else 0.32
         val sessionMax = if (strict) 0.30 else 0.40
+        // Strict: a song whose energy nobody knows can't prove it fits a song whose energy we
+        // do know. (Unknown songs used to pass freely: a slow romantic song followed a fast one.)
+        if (strict && !next.energyKnown && next.bpm == null && (prev.energyKnown || session.energyKnown)) return false
         if (next.energyKnown) {
             if (prev.energyKnown && kotlin.math.abs(prev.energy - next.energy) > stepMax) return false
             if (session.energyKnown && kotlin.math.abs(session.energy - next.energy) > sessionMax) return false
@@ -388,10 +393,60 @@ object QueuePicker {
             byId[sc.song.id]?.let { steerLeans(steer, prev, it) } ?: false
         }.takeIf { it.size >= 2 } ?: fresh
         fun enough(l: List<Scored>) = l.count { likedShare < LIKED_CAP || byId[it.song.id]?.liked != true } >= MIN_FLOW
-        val paced = steered.filter { passes(it, strict = true) }.takeIf(::enough)
-            ?: steered.filter { passes(it, strict = false) }.takeIf(::enough)
+        fun known(sc: Scored) = byId[sc.song.id]?.vibe?.energyKnown == true
+        // Strict first; then a looser step among songs whose feel is known; then unknown songs
+        // too; anything at all only when nothing else is left (the engine adds songs from the
+        // matching mood station before it gets that far, see QueueEngine.chain).
+        val full = steered.filter { passes(it, strict = true) }.takeIf(::enough)
+            ?: steered.filter { known(it) && passes(it, strict = false) }.takeIf(::enough)
+        val paced = full
+            ?: steered.filter { passes(it, strict = true) }.takeIf { it.isNotEmpty() }
+            ?: steered.filter { passes(it, strict = false) }.takeIf { it.isNotEmpty() }
             ?: steered
-        val pool = paced.sortedByDescending { it.final }.take(TOP_N)
+        // In the small fallback stages, liked songs past their share give way to others that
+        // also passed (a stage with few songs could otherwise be all likes).
+        val capped = if (full == null && likedShare >= LIKED_CAP) paced.filter { byId[it.song.id]?.liked != true }.ifEmpty { paced } else paced
+        val pool = capped.sortedByDescending { it.final }.take(TOP_N)
         return Diversifier.sampleWeighted(pool, rnd) { it.final * it.final }
+    }
+
+    /** How many [candidates] can follow [prev] under the strict pace rule. */
+    fun strictFits(candidates: List<Features>, prev: Vibe?, session: Vibe): Int =
+        if (prev == null) candidates.size else candidates.count { flowOk(prev, it.vibe, session, strict = true) }
+
+    /**
+     * The feel of a song we know nothing about, read from what plays after it: the songs other
+     * apps suggest next mostly share its mood and pace (that's how their radios stay in one
+     * mood), so their known feels, weighted by how strongly they're suggested, stand in for it.
+     * Needs at least 3 known suggestions; null otherwise.
+     */
+    fun stationFeel(suggestions: List<Pair<Vibe, Double>>): Vibe? {
+        val known = suggestions.filter { it.first.energyKnown && it.second > 0 }.take(8)
+        if (known.size < 3) return null
+        val total = known.sumOf { it.second }
+        val w = HashMap<Feel, Double>()
+        known.forEach { (v, s) -> v.weights.forEach { (f, x) -> w[f] = (w[f] ?: 0.0) + x * s / total } }
+        val energy = known.sumOf { it.first.energy * it.second } / total
+        val bpms = known.mapNotNull { it.first.bpm }
+        val sum = w.values.sum().takeIf { it > 0 } ?: 1.0
+        return Vibe(w.mapValues { it.value / sum }, 0.3, audioEnergy = energy, bpm = bpms.takeIf { it.size >= 3 }?.sorted()?.get(bpms.size / 2))
+    }
+
+    /**
+     * The mood station a queue draws on when its own suggestions run short: the station of the
+     * song's main feel, or one step calmer / livelier when steered that way.
+     */
+    fun stationMood(v: Vibe?, steer: Steer?): String? {
+        val feel = v?.dominant ?: return null
+        val e = v.energy
+        return when (steer) {
+            Steer.CALMER -> when { e >= 0.8 -> "HAPPY"; e >= 0.55 -> "ROMANTIC"; else -> "CHILL" }
+            Steer.ENERGY -> when { e < 0.4 -> "HAPPY"; e < 0.65 -> "PARTY"; else -> "ENERGETIC" }
+            else -> when (feel) {
+                Feel.ENERGETIC -> "ENERGETIC"; Feel.PARTY -> "PARTY"; Feel.HAPPY -> "HAPPY"
+                Feel.ROMANTIC -> "ROMANTIC"; Feel.DEVOTIONAL -> "DEVOTIONAL"; Feel.CHILL -> "CHILL"
+                Feel.SAD -> "SAD"; Feel.FOCUS -> "FOCUS"
+            }
+        }
     }
 }

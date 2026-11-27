@@ -4,6 +4,36 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-27 — 9.0.0 (105) offline lists and search, Downloads page, 24 h history, Home order, problem reports, radio-style picks, share posters
+- Offline: `data/local/OfflineLists` keeps each playlist/album song list + header (files in
+  `filesDir/offline_lists`, ≤ 300 lists) when it loads; with no internet (offline mode or no
+  network) `AppRepository.providePlaylistSongs/providePlaylist/provideAlbumSongs` answer from it,
+  showing only downloaded songs; `OfflineNote` strip on Playlist/Album/Search. `SearchViewModel`
+  searches downloads offline (`OfflineLists.search`: every word in title/artist/album).
+- Downloads page: Play (in order shown), Shuffle (`smartShuffled`), search, All/Liked, sort
+  (recent by file time / title / artist; `ui/screens/DownloadsView`), total size, "Remove all"
+  behind a ⋯ menu with confirmation. Tapping a row plays the shown list from there.
+- History: `HISTORY_KEEP_MS` 24 h; `getListeningHistory` hides older entries, `pruneListeningHistory`
+  deletes them at app start (and every add rewrites without them). Taste/recommendations live in
+  `RecoDb` and are unaffected; Wrapped/Replay stats now cover the last day only.
+- Home: `HomeSections.order` (saved, `normalise` appends new sections), Aaj ka Aalap pinned first and
+  always shown; Edit Home has ▲/▼ per section and Reset order. `HomeScreen` renders in that order.
+- Problem reports: `CrashReport` keeps the last 10 reports (`files/crash/<time>_<kind>.txt`) with
+  Aalap's own last 400 log lines (logcat --pid, ≤ 2 s, secrets/emails masked by `scrub`), and at
+  start reads `ApplicationExitInfo` (API 30+) for freezes (ANR traces) and native crashes. Shared
+  as one file via FileProvider; Settings row "Problem reports (N)"; Self-check "App stability".
+  Verified on the S24 with `am crash`: report saved with phone, error and 400 log lines.
+- Recommendations: see docs/recommendation/README (Radio rules). `flowOk` strict rejects unknown
+  energy+tempo; `PickState.after` keeps the last known pace; picker stages; liked cap in the
+  fallback stages; `QueueEngine.chain` adds mood-station candidates.
+- Share: `ShareCards.listCard/artistCard/tasteCard`, `ui/share/SharePosters` — playlists, albums
+  (new share button), artists and the Blend invite are image cards with the old message (link or
+  Aalap code) as the caption.
+- Tests: `OfflineAndHomeTest`, `CrashScrubTest`, `FlowRuleTest` radio rules; 205 unit tests pass;
+  4/4 on-phone `ScreenChecksTest` pass (S24, Android 17).
+- Performance: no background work added; offline lists are a file write per list load; mood
+  stations only when the suggestions run short (cached daily); history prune once per start.
+
 ## 2026-11-23 — 8.16.0 (104) self-check, Release Radar, cover colours, haptics, lyrics, caches
 - Steer follows the queue: `PlayContext.choseFromList/playingList` also clear it, and
   `CurrentSongState.updateQueue` clears it when the new queue shares no song with the last one

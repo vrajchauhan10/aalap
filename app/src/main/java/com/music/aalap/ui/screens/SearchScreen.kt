@@ -271,6 +271,13 @@ fun SumUpSearchScreen(
                     }
                 }
             } else {
+                // No internet: say so, and that these are your downloads (not "no data").
+                if (com.music.aalap.data.local.OfflineLists.noInternet) item(key = "offline-note") {
+                    com.music.aalap.ui.components.OfflineNote(
+                        if (results.songs.isEmpty()) "No internet, and none of your downloads match. Try another word, or connect to search everything."
+                        else "No internet: showing your downloaded songs that match."
+                    )
+                }
                 // Searched for an artist: the artist first, as a card that opens their page.
                 val top = artistTop
                 if (top != null && (filter == SearchFilter.ALL || filter == SearchFilter.ARTISTS)) item(key = "artist-top") {

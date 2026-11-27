@@ -308,6 +308,19 @@ object QueueEngine {
             "aim ${"%.0f".format(targets.familiar * 100)}% known songs" + (if (poolSongs.isNotEmpty()) ", ${"%.0f".format(targets.fromList * 100)}% from '${play.poolName}'" else ""))
         val rnd = Random()
         var cur = seed
+        // Mood stations, as the radio uses them: songs from people's playlists of one mood.
+        // Drawn on when the suggestions after a song don't have enough that fit its pace, so the
+        // queue stays in the mood instead of relaxing the rule. Each is saved for the day.
+        val stations = HashMap<String, kotlinx.coroutines.Deferred<List<Song>>>()
+        fun station(mood: String) = stations.getOrPut(mood) {
+            scope.async {
+                runCatching {
+                    val m = com.music.aalap.data.api.Mood.valueOf(mood)
+                    db.resolveAll(com.music.aalap.data.api.Discover.moodMix(context, m).map(SongBridge::toCandidate))
+                }.getOrDefault(emptyList())
+            }
+        }
+        if (!offline) QueuePicker.stationMood(state.lastVibe?.takeIf { it.energyKnown }, com.music.aalap.data.recommendation.PlayContext.steer())?.let { station(it) }
         for (step in 0 until length) {
             RecoTrace.log("\n── Pick #${step + 1}: what comes after '${cur.title}'? ──")
             var ranked = if (offline) emptyMap() else ranked(context, cur, if (step == 0) SOURCE_TIMEOUT_MS else BACKGROUND_TIMEOUT_MS)
@@ -340,7 +353,7 @@ object QueueEngine {
             val vibes = VibeStore.vibes(context, songs.values)
             val session = Session(sessionSongs, profile.dayPartFeel)
             var otherLanguage = 0
-            val features = songs.values.mapNotNull { s ->
+            var features = songs.values.mapNotNull { s ->
                 if (s.id in excluded || SongBridge.appId(s) in excludeAppIds || feedback.blocked(s)) return@mapNotNull null
                 if (offline && s.id !in offlineIds) return@mapNotNull null
                 val v = vibes[s.id] ?: Vibe.UNKNOWN
@@ -367,6 +380,42 @@ object QueueEngine {
                         SongMatcher.artistKeys(s.artists).firstOrNull() !in profile.usualArtists && session.vibeScore(v) >= 0.65,
                     feedback = feedback.factor(s, v),
                 )
+            }
+            // The current song's feel unknown: read it from what plays after it, so the pace rule
+            // has something to hold to (with nothing known, anything used to pass).
+            val steerNow = com.music.aalap.data.recommendation.PlayContext.steer()
+            if (state.lastVibe?.energyKnown != true) {
+                QueuePicker.stationFeel(features.filter { it.global > 0 }.sortedByDescending { it.global }.map { it.vibe to it.global })?.let {
+                    RecoTrace.log("  '${cur.title}' feel unknown; from what plays after it: $it")
+                    state = state.copy(lastVibe = it)
+                }
+            }
+            // Too few fit the pace (or you steered calmer / livelier): add the mood station's songs.
+            val fits = QueuePicker.strictFits(features, state.lastVibe, session.vibe)
+            val mood = if (offline) null else QueuePicker.stationMood(state.lastVibe?.takeIf { it.energyKnown }, steerNow)
+            if (mood != null && (fits < QueueEngineLimits.FIT_ENOUGH || steerNow == Steer.CALMER || steerNow == Steer.ENERGY)) {
+                val waitMs = if (step == 0) 6_000L else 3_000L
+                val fromStation = withTimeoutOrNull(waitMs) { station(mood).await() }.orEmpty()
+                val have = features.mapTo(HashSet()) { it.song.id }
+                val moodVibe = Vibe(Vibe.forMoodName(mood), 0.4)
+                val added = fromStation.asSequence().filter { it.id !in have && it.id !in excluded && SongBridge.appId(it) !in excludeAppIds && !feedback.blocked(it) }
+                    .mapNotNull { s ->
+                        val lang = VibeStore.language(context, s)
+                        if (queueLang.isNotBlank() && lang.isNotBlank() && !LanguageGuess.same(lang, queueLang)) return@mapNotNull null
+                        if (mix.isNotEmpty() && lang.isNotBlank() && (mix[lang] ?: 0.0) <= 0.0) return@mapNotNull null
+                        // On a mood playlist: that's its feel, unless the sound itself was measured.
+                        val v = VibeStore.vibe(context, s).let { known -> if (known.energyKnown) known else moodVibe.withAudio(null, known.bpm) }
+                        Features(
+                            song = s, global = 0.3, session = 0.0, vibe = v, language = lang,
+                            taste = profile.taste(s.info, s.id, v), habit = 0.0,
+                            familiar = s.id in profile.heard, liked = s.id in profile.liked,
+                            feedback = feedback.factor(s, v),
+                        )
+                    }.take(40).toList()
+                if (added.isNotEmpty()) {
+                    features = features + added
+                    RecoTrace.log("  only $fits fit the pace: added ${added.size} songs from the $mood station")
+                }
             }
             if (!offline && queueLang.isNotBlank() && sameLangRadio == null &&
                 features.count { it.language.isNotBlank() && LanguageGuess.same(it.language, queueLang) } < 8) {
@@ -641,3 +690,6 @@ object QueueEngine {
             .let { list -> Diversifier.spreadArtists(list) { it.singer } }
     }
 }
+
+/** How many songs must fit the pace before the mood station isn't needed. */
+internal object QueueEngineLimits { const val FIT_ENOUGH = 6 }

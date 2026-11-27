@@ -9,6 +9,11 @@ import java.net.URLEncoder
  */
 object ShareMessage {
     /** An artist: their name and a link anyone can open, with no Spotify address in it. */
+    fun forAlbum(name: String, artist: String): String {
+        val q = java.net.URLEncoder.encode("$name $artist".trim(), "UTF-8")
+        return "Listen to $name${if (artist.isNotBlank()) " by $artist" else ""} on Aalap\n\nhttps://music.youtube.com/search?q=$q"
+    }
+
     fun forArtist(name: String): String {
         val q = java.net.URLEncoder.encode(name, "UTF-8")
         return "Listen to $name on Aalap\n\nhttps://music.youtube.com/search?q=$q"

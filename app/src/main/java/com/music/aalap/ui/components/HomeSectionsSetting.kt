@@ -17,21 +17,37 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import com.music.aalap.data.preferences.HomeSections
 
-/** A switch per Home section: off hides it from Home (nothing is deleted). */
+/**
+ * Home's sections in order: arrows move one up or down, the switch shows or hides it.
+ * Aaj ka Aalap stays first and always shows.
+ */
 @Composable
 fun HomeSectionsSetting() {
     val context = LocalContext.current
     LaunchedEffect(Unit) { HomeSections.load(context) }
     Column {
-        HomeSections.ALL.forEach { (key, label) ->
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+            Text(HomeSections.label(HomeSections.PINNED), color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
+            Text("Always first", color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
+        }
+        val order = HomeSections.order
+        order.forEachIndexed { i, key ->
             val on = HomeSections.shows(key)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().clickable { HomeSections.set(context, key, !on) }.padding(vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
             ) {
-                Text(label, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                Text(
+                    HomeSections.label(key),
+                    color = if (on) com.music.aalap.ui.theme.TextPrimary else com.music.aalap.ui.theme.TextMuted,
+                    fontSize = 15.sp, modifier = Modifier.weight(1f),
+                )
+                Arrow("▲", i > 0, "Move ${HomeSections.label(key)} up") { HomeSections.move(context, key, -1) }
+                Arrow("▼", i < order.lastIndex, "Move ${HomeSections.label(key)} down") { HomeSections.move(context, key, +1) }
                 Switch(
                     checked = on,
                     onCheckedChange = { HomeSections.set(context, key, it) },
@@ -39,8 +55,27 @@ fun HomeSectionsSetting() {
                 )
             }
         }
+        if (order != HomeSections.defaultOrder()) Text(
+            "Reset order", color = com.music.aalap.ui.theme.Saffron, fontSize = 13.sp,
+            modifier = Modifier.clickable { HomeSections.resetOrder(context) }.padding(vertical = 10.dp),
+        )
     }
 }
+
+@Composable
+private fun Arrow(glyph: String, enabled: Boolean, description: String, onClick: () -> Unit) {
+    Text(
+        glyph,
+        color = if (enabled) com.music.aalap.ui.theme.TextPrimary else com.music.aalap.ui.theme.TextMuted.copy(alpha = 0.3f),
+        fontSize = 14.sp,
+        modifier = Modifier
+            .androidx_semantics(description)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+    )
+}
+
+private fun Modifier.androidx_semantics(d: String) = this.semantics { contentDescription = d }
 
 /** "Edit Home" from the bottom of Home: the same switches in a dialog. */
 @Composable

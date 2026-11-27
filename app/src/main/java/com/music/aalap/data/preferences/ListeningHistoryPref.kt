@@ -32,6 +32,13 @@ private const val PREF = "ListeningHistory"
 private const val KEY = "entries"
 private const val MAX_ENTRIES = 500
 
+/**
+ * History is kept for one day only: older plays are deleted (at app start and with each new
+ * play), so the phone doesn't hold a long record of what you listened to. What Aalap has
+ * learned about your taste lives in the recommendation database and isn't affected.
+ */
+const val HISTORY_KEEP_MS = 24 * 3_600_000L
+
 private fun HistoryEntry.toJson() = JSONObject().apply {
     put("ts", ts); put("songId", songId); put("title", title)
     put("singer", singer); put("album", album); put("image", image)
@@ -49,10 +56,19 @@ private fun JSONObject.toEntry() = HistoryEntry(
 fun getListeningHistory(context: Context): List<HistoryEntry> {
     val raw = context.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString(KEY, null)
         ?: return emptyList()
+    val cut = System.currentTimeMillis() - HISTORY_KEEP_MS
     return runCatching {
         val arr = JSONArray(raw)
-        (0 until arr.length()).map { arr.getJSONObject(it).toEntry() }
+        (0 until arr.length()).map { arr.getJSONObject(it).toEntry() }.filter { it.ts >= cut }
     }.getOrDefault(emptyList())
+}
+
+/** Deletes plays older than a day from the phone (reading already hides them). */
+fun pruneListeningHistory(context: Context) {
+    val raw = context.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString(KEY, null) ?: return
+    val total = runCatching { JSONArray(raw).length() }.getOrDefault(0)
+    val kept = getListeningHistory(context)
+    if (kept.size != total) save(context, kept)
 }
 
 private fun save(context: Context, entries: List<HistoryEntry>) {

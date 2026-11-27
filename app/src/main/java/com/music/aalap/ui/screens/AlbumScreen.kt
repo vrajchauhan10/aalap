@@ -1,5 +1,8 @@
 package com.music.aalap.ui.screens
 
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
@@ -124,6 +127,13 @@ fun AlbumScreen(navController: NavController, albumName: String, artist: String 
                     SumUpAlbumScreen(navController = navController,albumViewModel, albumsResponse, songsResponse, albumName, context)
                 }
             }
+        }
+        // No internet: only the songs you downloaded from this list are shown, and it says so.
+        if (com.music.aalap.data.local.OfflineLists.noInternet) androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+            com.music.aalap.ui.components.OfflineNote(
+                "No internet: showing the songs from here you've downloaded.",
+                Modifier.align(androidx.compose.ui.Alignment.TopCenter).then(Modifier.windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBars)).padding(top = 52.dp),
+            )
         }
     }
 
@@ -373,6 +383,19 @@ fun SumUpAlbumScreen(
                                     }
                                 }
                             }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            // Share the album as a picture card (cover, name, first songs).
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.Share,
+                                tint = com.music.aalap.ui.theme.TextPrimary,
+                                contentDescription = "Share album",
+                                modifier = Modifier.size(22.dp).clickable {
+                                    val cover = album.firstOrNull()?.coverUri.orEmpty()
+                                    val by = album.firstOrNull()?.artists.orEmpty().ifBlank { albumSongs.firstOrNull()?.singer.orEmpty() }
+                                    com.music.aalap.ui.share.SharePosters.list(context, "Album", albumName, cover, albumSongs,
+                                        com.music.aalap.ui.share.ShareMessage.forAlbum(albumName, by))
+                                },
+                            )
                             Spacer(modifier = Modifier.width(16.dp))
                             // Shuffle-play: start the album in random order.
                             Icon(

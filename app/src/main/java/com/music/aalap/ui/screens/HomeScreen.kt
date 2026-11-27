@@ -219,24 +219,25 @@ fun HomeFeedContent(navController: NavController, feed: HomeFeedModel) {
         item { com.music.aalap.ui.components.UpdateBanner() }
         item { ContinueCard() }
         item { LastWeekCard(navController) }
-        // Your recent songs first, so picking up where you left off is one tap.
-        if (recent.isNotEmpty() && show("recent")) item { BounceIn(1, gen) { SongTileRow("Recently played", recent) } }
-        // Moods live in Aalap Radio below (and in Search), not as a second row of pills.
-        // Aalap Radio replaces the feed's featured playlist (whose art carried another brand).
-        // Order: today's poster (opens the 30), Quick picks to choose from, then moods.
-        // After a refresh, every section drops in one after another, top to bottom.
-        // Each section can be hidden from "Edit Home" (all show until you hide one).
-        if (show("today")) item { BounceIn(1, gen) { com.music.aalap.ui.components.TodayPlaylistSection(today) { navController.navigate(com.music.aalap.ui.navigation.Routes.Today.route) } } }
-        if (show("quick")) item { BounceIn(2, gen) { QuickPicksSection(quick, quickStatus, navController = navController) { homeViewModel.retryQuickPicks() } } }
-        if (show("radio")) item { BounceIn(3, gen) { com.music.aalap.ui.components.AalapRadioSection() } }
-        if (show("charts")) item { BounceIn(4, gen) { ChartsRow(navController) } }
-        if (show("mixes")) item { BounceIn(5, gen) { MadeForYouSection(mixes) } }
-        if (jump.isNotEmpty() && show("jump")) item { BounceIn(6, gen) { JumpBackInRow(navController, jump) } }
-        if (show("daily")) item { BounceIn(8, gen) { DailySongRows() } }
-        if (show("artistRadios")) item { BounceIn(9, gen) { ArtistRadiosSection(stations) } }
-        if (show("releases")) item { BounceIn(10, gen) { NewReleasesSection(navController, releases, radar) } }
-        if (show("more")) items(carousels.size) { i ->
-            BounceIn(11 + i, gen) { HomeFeedSection(navController, carousels[i]) }
+        // Aaj ka Aalap always first (it opens today's 30). Then the sections in the order you set
+        // in "Edit Home" (each can be hidden there too). After a refresh, every section drops in
+        // one after another, top to bottom.
+        item { BounceIn(1, gen) { com.music.aalap.ui.components.TodayPlaylistSection(today) { navController.navigate(com.music.aalap.ui.navigation.Routes.Today.route) } } }
+        com.music.aalap.data.preferences.HomeSections.order.forEachIndexed { pos, key ->
+            if (!show(key)) return@forEachIndexed
+            val step = 2 + pos
+            when (key) {
+                "recent" -> if (recent.isNotEmpty()) item(key = "recent") { BounceIn(step, gen) { SongTileRow("Recently played", recent) } }
+                "quick" -> item(key = "quick") { BounceIn(step, gen) { QuickPicksSection(quick, quickStatus, navController = navController) { homeViewModel.retryQuickPicks() } } }
+                "radio" -> item(key = "radio") { BounceIn(step, gen) { com.music.aalap.ui.components.AalapRadioSection() } }
+                "charts" -> item(key = "charts") { BounceIn(step, gen) { ChartsRow(navController) } }
+                "mixes" -> item(key = "mixes") { BounceIn(step, gen) { MadeForYouSection(mixes) } }
+                "jump" -> if (jump.isNotEmpty()) item(key = "jump") { BounceIn(step, gen) { JumpBackInRow(navController, jump) } }
+                "daily" -> item(key = "daily") { BounceIn(step, gen) { DailySongRows() } }
+                "artistRadios" -> item(key = "artistRadios") { BounceIn(step, gen) { ArtistRadiosSection(stations) } }
+                "releases" -> item(key = "releases") { BounceIn(step, gen) { NewReleasesSection(navController, releases, radar) } }
+                "more" -> items(carousels.size) { i -> BounceIn(step + i, gen) { HomeFeedSection(navController, carousels[i]) } }
+            }
         }
         item {
             androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(top = 24.dp), contentAlignment = Alignment.Center) {

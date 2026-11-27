@@ -193,6 +193,110 @@ object ShareCards {
         return bmp
     }
 
+    /** Draws [img] cropped to fill [rect] with rounded corners (a plain tile when missing). */
+    private fun Canvas.image(img: Bitmap?, rect: RectF, radius: Float) {
+        if (img == null) { drawRoundRect(rect, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF2A2140.toInt() }); return }
+        val shader = android.graphics.BitmapShader(img, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+        val scale = maxOf(rect.width() / img.width, rect.height() / img.height)
+        shader.setLocalMatrix(android.graphics.Matrix().apply {
+            setScale(scale, scale)
+            postTranslate(rect.left + (rect.width() - img.width * scale) / 2f, rect.top + (rect.height() - img.height * scale) / 2f)
+        })
+        drawRoundRect(rect, radius, radius, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.shader = shader })
+    }
+
+    private fun accentOf(img: Bitmap?, fallback: Int = 0xFF3A1A08.toInt()) = img?.let {
+        runCatching { androidx.palette.graphics.Palette.from(it).generate().getDarkVibrantColor(fallback) }.getOrNull()
+    } ?: fallback
+
+    /** Numbered song lines ("1  Title — Artist"), returns the height used. */
+    private fun Canvas.songList(ctx: Context, songs: List<Pair<String, String>>, x: Float, y0: Float): Float {
+        var y = y0
+        songs.take(5).forEachIndexed { i, (t, a) ->
+            // Stop before the Aalap mark at the bottom.
+            if (y + 110f > H - 200f) return y - y0
+            drawText("${i + 1}", x, y + 46f, text(ctx, 44f, GOLD, true))
+            block(t, text(ctx, 42f, 0xFFFFFFFF.toInt(), true), x + 70f, y, W - 290, maxLines = 1)
+            block(a, text(ctx, 32f, MUTED, false), x + 70f, y + 54f, W - 290, maxLines = 1)
+            y += 118f
+        }
+        return y - y0
+    }
+
+    /**
+     * A playlist or album as a poster: up to four covers in a grid (one large cover when
+     * there's only one), its name, how many songs, and the first five songs.
+     */
+    fun listCard(ctx: Context, kind: String, covers: List<Bitmap>, title: String, subtitle: String, songs: List<Pair<String, String>>): Bitmap {
+        val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
+        Canvas(bmp).apply {
+            background(accentOf(covers.firstOrNull()))
+            drawText(kind.uppercase(), 110f, 220f, text(ctx, 40f, GOLD, true))
+            val size = 640f; val left = (W - size) / 2f; val top = 280f
+            if (covers.size >= 4) {
+                val half = size / 2f
+                // Four covers inside one rounded square.
+                save()
+                clipPath(android.graphics.Path().apply { addRoundRect(RectF(left, top, left + size, top + size), 40f, 40f, android.graphics.Path.Direction.CW) })
+                covers.take(4).forEachIndexed { i, c ->
+                    val x = left + (i % 2) * half; val y = top + (i / 2) * half
+                    image(c, RectF(x, y, x + half, y + half), 0f)
+                }
+                restore()
+            } else image(covers.firstOrNull(), RectF(left, top, left + size, top + size), 40f)
+            var y = top + size + 70f
+            y += block(title, text(ctx, 72f, 0xFFFFFFFF.toInt(), true), 110f, y, W - 220, maxLines = 2)
+            y += 10f + block(subtitle, text(ctx, 38f, MUTED, false), 110f, y + 10f, W - 220, maxLines = 1)
+            songList(ctx, songs, 110f, y + 50f)
+            footer(ctx)
+        }
+        return bmp
+    }
+
+    /** An artist: their photo in a circle, name, and their top songs. */
+    fun artistCard(ctx: Context, photo: Bitmap?, name: String, songs: List<Pair<String, String>>): Bitmap {
+        val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
+        Canvas(bmp).apply {
+            background(accentOf(photo))
+            drawText("ARTIST", 110f, 220f, text(ctx, 40f, GOLD, true))
+            val size = 560f; val left = (W - size) / 2f; val top = 290f
+            image(photo, RectF(left, top, left + size, top + size), size / 2f)
+            var y = top + size + 80f
+            y += block(name, text(ctx, 84f, 0xFFFFFFFF.toInt(), true), 110f, y, W - 220, maxLines = 2)
+            if (songs.isNotEmpty()) {
+                drawText("TOP SONGS", 110f, y + 80f, text(ctx, 34f, GOLD, true))
+                songList(ctx, songs, 110f, y + 110f)
+            }
+            footer(ctx)
+        }
+        return bmp
+    }
+
+    /** A Blend invite: your name, the artists and languages you play most, and how to blend. */
+    fun tasteCard(ctx: Context, name: String, artists: List<String>, languages: List<String>): Bitmap {
+        val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
+        Canvas(bmp).apply {
+            background(0xFF5A1F4A.toInt())
+            drawText("BLEND WITH ME", 110f, 300f, text(ctx, 44f, GOLD, true))
+            var y = 360f
+            y += block("${name.ifBlank { "My" }}${if (name.isBlank()) "" else "'s"} music taste", text(ctx, 96f, 0xFFFFFFFF.toInt(), true), 110f, y, W - 220, maxLines = 3)
+            y += 60f
+            if (artists.isNotEmpty()) {
+                drawText("ARTISTS I PLAY MOST", 110f, y + 40f, text(ctx, 34f, GOLD, true))
+                y += 70f
+                artists.take(6).forEach { a -> block("•  $a", text(ctx, 50f, 0xFFFFFFFF.toInt(), true), 110f, y, W - 220, maxLines = 1); y += 74f }
+            }
+            if (languages.isNotEmpty()) {
+                y += 30f
+                block("In " + languages.take(3).joinToString(", ") { it.replaceFirstChar { c -> c.uppercase() } }, text(ctx, 42f, MUTED, false), 110f, y, W - 220, maxLines = 1)
+                y += 70f
+            }
+            block("Copy my message and open Aalap → Blend to see how well our music matches.", text(ctx, 40f, MUTED, false), 110f, y + 40f, W - 220, maxLines = 3)
+            footer(ctx)
+        }
+        return bmp
+    }
+
     /** Saves [bitmap] to the share cache and opens the Android share sheet. */
     fun share(ctx: Context, bitmap: Bitmap, name: String, message: String, link: String? = null) {
         val dir = java.io.File(ctx.cacheDir, "share").apply { mkdirs() }

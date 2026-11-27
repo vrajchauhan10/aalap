@@ -18,7 +18,11 @@ class AppRepository @Inject constructor(private val api : Api) {
 
     suspend fun searchEverything(query: String) = api.searchEverything(query)
 
-    suspend fun provideAlbumSongs(albumName: String, artist: String = "") = api.getAlbumSongs(albumName, artist)
+    // Albums and playlists open with no internet too: the songs you downloaded from them (OfflineLists).
+    suspend fun provideAlbumSongs(albumName: String, artist: String = "") =
+        com.music.aalap.data.local.OfflineLists.songsFlow(com.music.aalap.MyApplication.instance, "album:$albumName|$artist") {
+            api.getAlbumSongs(albumName, artist)
+        }
 
     suspend fun provideArtistSongs(artistName: String) = api.getArtistSongs(artistName)
 
@@ -32,7 +36,9 @@ class AppRepository @Inject constructor(private val api : Api) {
                     com.music.aalap.data.local.AalapPlaylists.get(com.music.aalap.MyApplication.instance, playlistId)?.songs.orEmpty()
                 )
             }
-        else api.getPlaylistSongs(playlistId)
+        else com.music.aalap.data.local.OfflineLists.songsFlow(com.music.aalap.MyApplication.instance, "playlist:$playlistId") {
+            api.getPlaylistSongs(playlistId)
+        }
 
     suspend fun providePlaylist(playlistId: String): kotlinx.coroutines.flow.Flow<com.music.aalap.data.api.Response<com.music.aalap.data.entity.AlbumsModel>> =
         if (com.music.aalap.data.local.AalapPlaylists.isLocal(playlistId))
@@ -48,7 +54,9 @@ class AppRepository @Inject constructor(private val api : Api) {
                     )
                 )
             }
-        else api.getPlaylist(playlistId)
+        else com.music.aalap.data.local.OfflineLists.headerFlow(com.music.aalap.MyApplication.instance, "playlist:$playlistId") {
+            api.getPlaylist(playlistId)
+        }
 
     suspend fun provideShowEpisodes(showId: String) = api.getShowEpisodes(showId)
 

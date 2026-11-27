@@ -163,7 +163,7 @@ fun HistoryScreen(navController: NavController) {
         AlertDialog(
             onDismissRequest = { confirmClear = false },
             title = { Text("Clear recent plays?") },
-            text = { Text("This empties the list below. Your Replay stats, top artists and recommendations keep all your listening.") },
+            text = { Text("This empties the list below. Aalap keeps plays for 24 hours only anyway; your recommendations still remember your taste.") },
             confirmButton = {
                 TextButton(onClick = {
                     clearHistoryList(context)
@@ -244,7 +244,7 @@ fun HistoryScreen(navController: NavController) {
 
                 if (period.isEmpty()) {
                     item {
-                        Text("No listening here yet. Play something and it shows up in your Replay.",
+                        Text("Nothing played in the last 24 hours. Plays show here for a day, then they're cleared.",
                             color = TextMuted, fontSize = 14.sp, modifier = Modifier.padding(20.dp))
                     }
                 } else {
@@ -331,7 +331,7 @@ fun HistoryScreen(navController: NavController) {
                 // Recent plays (clearable without touching the stats above).
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 30.dp, bottom = 6.dp)) {
-                        Text("Recent plays", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text("Last 24 hours", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                         if (recent.isNotEmpty()) {
                             Text("Clear all", color = Saffron, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.clip(RoundedCornerShape(50)).clickable { confirmClear = true }.padding(8.dp))

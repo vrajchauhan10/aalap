@@ -33,8 +33,10 @@ class FlowRuleTest {
         assertTrue(QueuePicker.flowOk(midSlow, v(0.42, 108.0, Feel.ROMANTIC), midSlow, strict = false))
     }
 
-    @Test fun unknownCannotFail() {
-        assertTrue(QueuePicker.flowOk(midSlow, v(null, null), midSlow, strict = true))
+    @Test fun unknownFailsStrictButPassesLoose() {
+        // A song nobody knows the feel of can't prove it fits (a slow song followed a fast one).
+        assertFalse(QueuePicker.flowOk(midSlow, v(null, null), midSlow, strict = true))
+        assertTrue(QueuePicker.flowOk(midSlow, v(null, null), midSlow, strict = false))
     }
 
     @Test fun stationSearchesInYourLanguage() {
@@ -68,5 +70,37 @@ class FlowRuleTest {
         val guessLively = v(null, null).let { Vibe(mapOf(Feel.ENERGETIC to 0.5, Feel.ROMANTIC to 0.5), 0.11, emptySet(), null, null) }
         assertFalse(QueuePicker.steerLeans(com.music.aalap.data.recommendation.engine.Steer.CALMER, v(0.55, 100.0, Feel.ROMANTIC), f(guessLively)))
         assertTrue(QueuePicker.steerLeans(com.music.aalap.data.recommendation.engine.Steer.CALMER, v(0.55, 100.0, Feel.ROMANTIC), f(v(0.30, null, Feel.SAD))))
+    }
+
+    // ── radio-style rules (Mango Shake → Dilruba) ──
+
+    private val fast = v(0.93, 140.0, Feel.ENERGETIC)
+
+    @Test fun slowRomanticNeverFollowsAFastSongStrictly() {
+        assertFalse(QueuePicker.flowOk(fast, v(0.40, 84.0, Feel.ROMANTIC), fast, strict = true))
+        assertFalse(QueuePicker.flowOk(fast, v(0.40, 84.0, Feel.ROMANTIC), fast, strict = false))
+        // A song we know nothing about can't sneak in strictly either.
+        assertFalse(QueuePicker.flowOk(fast, v(null, null), fast, strict = true))
+    }
+
+    @Test fun unknownSongReadsItsFeelFromWhatPlaysAfterIt() {
+        val after = listOf(v(0.9, 138.0, Feel.ENERGETIC) to 1.0, v(0.88, 142.0, Feel.PARTY) to 0.8,
+            v(0.95, 136.0, Feel.ENERGETIC) to 0.6, v(null, null) to 0.9)
+        val guess = QueuePicker.stationFeel(after)!!
+        assertTrue(guess.energyKnown)
+        assertTrue("energy ${guess.energy}", guess.energy > 0.85)
+        assertEquals(Feel.ENERGETIC, guess.dominant)
+        assertEquals(138.0, guess.bpm!!, 0.1)
+        // Fewer than three known suggestions: no guess.
+        assertEquals(null, QueuePicker.stationFeel(after.take(2)))
+    }
+
+    @Test fun stationMoodFollowsTheSongAndTheSteer() {
+        assertEquals("ENERGETIC", QueuePicker.stationMood(fast, null))
+        assertEquals("ROMANTIC", QueuePicker.stationMood(midSlow, null))
+        assertEquals("HAPPY", QueuePicker.stationMood(fast, com.music.aalap.data.recommendation.engine.Steer.CALMER))
+        assertEquals("CHILL", QueuePicker.stationMood(midSlow, com.music.aalap.data.recommendation.engine.Steer.CALMER))
+        assertEquals("PARTY", QueuePicker.stationMood(midSlow, com.music.aalap.data.recommendation.engine.Steer.ENERGY))
+        assertEquals(null, QueuePicker.stationMood(null, null))
     }
 }

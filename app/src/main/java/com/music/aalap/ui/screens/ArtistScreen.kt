@@ -351,9 +351,9 @@ private fun ArtistOverviewContent(
                                 text = { Text("Share artist", color = com.music.aalap.ui.theme.TextPrimary) },
                                 onClick = {
                                     more = false
-                                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
-                                        .putExtra(android.content.Intent.EXTRA_TEXT, com.music.aalap.ui.share.ShareMessage.forArtist(displayName))
-                                    context.startActivity(android.content.Intent.createChooser(send, "Share $displayName"))
+                                    com.music.aalap.ui.share.SharePosters.artist(context, displayName,
+                                        overview.avatarImage.ifBlank { overview.headerImage }, tracks.map { it.song },
+                                        com.music.aalap.ui.share.ShareMessage.forArtist(displayName))
                                 },
                             )
                         }

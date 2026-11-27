@@ -180,8 +180,8 @@ private fun BlendScreen(state: CurrentSongState, onClose: () -> Unit) {
                     }
                     Pill("Share", primary = true, modifier = Modifier.weight(1f)) {
                         val card = me ?: return@Pill
-                        context.startActivity(Intent.createChooser(
-                            Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, Blend.shareText(context, card)), "Send your Aalap taste"))
+                        // A picture card of your taste, with the message (and its code) your friend pastes.
+                        com.music.aalap.ui.share.SharePosters.taste(context, card.name, card.artists, card.languages, Blend.shareText(context, card))
                     }
                 }
                 Text("Your friend copies your message and opens Aalap → Blend, or taps Share → Aalap. It fills in by itself.",
