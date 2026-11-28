@@ -33,6 +33,12 @@ import java.util.Random
  */
 object HomeMixes {
     private const val PREF = "home_mixes"
+    /** Your languages changed: the cached mixes (made for the old ones) are made again. */
+    fun forgetCaches(c: Context) {
+        val p = prefs(c)
+        p.edit().apply { p.all.keys.filter { it.endsWith(".stamp") || it == "releases" }.forEach { remove(it) } }.apply()
+    }
+
     private fun prefs(c: Context) = c.getSharedPreferences(PREF, Context.MODE_PRIVATE)
     private fun key(name: String) = SongMatcher.artistKeys(name).firstOrNull().orEmpty()
 
@@ -81,7 +87,7 @@ object HomeMixes {
     suspend fun yourMix(c: Context, force: Boolean = false): List<SongsModel> {
         val stamp = window3h()
         if (!force) readSongs("yourmix", stamp)?.let { return it }
-        val songs = AalapRadio.yourMix(c, salt = stamp.hashCode().toLong())
+        val songs = com.music.aalap.data.recommendation.engine.LanguageFilter.keep(c, AalapRadio.yourMix(c, salt = stamp.hashCode().toLong()))
         writeSongs("yourmix", stamp, songs)
         return songs
     }
@@ -156,7 +162,8 @@ object HomeMixes {
             repeat(2) { if (out.size < 24 && k < known.size) out += known[k++] }
             if (n >= newKept.size) while (out.size < 24 && k < known.size) out += known[k++]
         }
-        val result = Diversifier.spreadArtists(com.music.aalap.data.recommendation.engine.MixClean.songs(out.distinctBy { it.id })) { it.singer }
+        val result = Diversifier.spreadArtists(com.music.aalap.data.recommendation.engine.LanguageFilter.keep(c,
+            com.music.aalap.data.recommendation.engine.MixClean.songs(out.distinctBy { it.id }))) { it.singer }
         // The last three sets are remembered, so the next one leads with other songs.
         val shownBefore = prefs(c).getString("quick.shownList", "").orEmpty().split(',').filter { it.isNotBlank() }
         val keep = (result.map { "${it.id}" } + shownBefore).take(72)
@@ -298,7 +305,8 @@ object HomeMixes {
                 if (seen.add(sameSong(s))) unique += s
             }
         }
-        val ordered = Diversifier.spreadArtists(unique) { it.first.singer }.take(30)
+        // Only your languages, whichever list a song came from (charts, likes, taste).
+        val ordered = Diversifier.spreadArtists(com.music.aalap.data.recommendation.engine.LanguageFilter.keepBy(c, unique) { it.first }) { it.first.singer }.take(30)
         // Mark songs that fit your taste closely, whatever brought them in.
         val profile = Personalizer.profile(c)
         val result = ordered.map { (s, why) ->

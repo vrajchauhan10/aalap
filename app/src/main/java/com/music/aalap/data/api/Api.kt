@@ -379,13 +379,19 @@ class Api @Inject constructor(
                     albums = res.albums?.items.orEmpty().map { it.toAlbumModel() }.filter { it.name.isNotBlank() }.distinctBy { "${same(it.name)}|${firstArtist(it.artists)}" },
                     artists = res.artists?.items.orEmpty().map { it.toArtistModel() }.filter { it.name.isNotBlank() }.distinctBy { it.name.lowercase().trim() },
                 )
-                // Songs, albums and artists show at once, while you type; podcasts (a second,
-                // slower search) are added when they arrive instead of holding everything back.
-                emit(Response.Success(music))
+                // Songs, albums and artists show at once, while you type; YouTube Music's songs (they
+                // match lyrics too, and have the original) and podcasts join when they arrive.
+                val mix = com.music.aalap.data.preferences.RecoPrefs.languageMix(context)
+                val first = SearchTop.merge(query, music.songs, emptyList(), mix)
+                emit(Response.Success(music.copy(songs = first.songs, topSong = first.top)))
+                val yt = runCatching { youTubeSongs(query) }.getOrDefault(emptyList())
+                val merged = SearchTop.merge(query, music.songs, yt, mix)
+                val withYt = music.copy(songs = merged.songs, topSong = merged.top, topByLyrics = merged.byLyrics)
+                if (yt.isNotEmpty()) emit(Response.Success(withYt))
                 val podcasts = Spotify.searchPodcasts(query, limit = 12)
                     .onFailure { Log.e("Api", "searchPodcasts FAILED: ${it.message}", it) }
                     .getOrNull()
-                if (podcasts != null && (!podcasts.shows?.items.isNullOrEmpty() || !podcasts.episodes?.items.isNullOrEmpty())) emit(Response.Success(music.copy(
+                if (podcasts != null && (!podcasts.shows?.items.isNullOrEmpty() || !podcasts.episodes?.items.isNullOrEmpty())) emit(Response.Success(withYt.copy(
                     shows = podcasts.shows?.items.orEmpty().map { it.toPodcastModel() },
                     episodes = podcasts.episodes?.items.orEmpty().map { it.toEpisodeSongModel(null) },
                 )))
@@ -445,24 +451,32 @@ class Api @Inject constructor(
         )
     }
 
-    private suspend fun youTubeSongSearch(query: String): Response<SearchResults> {
+    /** YouTube Music's songs for [query] (its search matches lyrics too), in its own order. */
+    private suspend fun youTubeSongs(query: String): List<SongsModel> {
         val items = com.metrolist.innertube.YouTube.search(query, com.metrolist.innertube.YouTube.SearchFilter.FILTER_SONG)
             .onFailure { Log.e("Api", "YouTube search failed", it) }
             .getOrNull()?.items.orEmpty()
             .filterIsInstance<com.metrolist.innertube.models.SongItem>()
-        if (items.isEmpty()) return Response.Error("Nothing found. Check your connection and try again.")
+            .take(12)
+        if (items.isEmpty()) return emptyList()
         val db = com.music.aalap.data.recommendation.engine.RecoDb.get(context)
-        val songs = db.resolveAll(items.map {
+        return db.resolveAll(items.map {
             com.music.aalap.data.recommendation.engine.Candidate(
                 title = it.title, artists = it.artists.joinToString { a -> a.name }, durationSec = it.duration ?: 0,
                 album = it.album?.name.orEmpty(), cover = it.thumbnail, ytId = it.id, explicit = it.explicit,
             )
         }).map(com.music.aalap.data.recommendation.engine.SongBridge::toSongsModel).filter { it.title.isNotBlank() }.distinctBy { it.id }
-            .let { SearchRank.rank(query, it) }
+    }
+
+    private suspend fun youTubeSongSearch(query: String): Response<SearchResults> {
+        val found = youTubeSongs(query)
+        if (found.isEmpty()) return Response.Error("Nothing found. Check your connection and try again.")
+        val top = SearchTop.merge(query, emptyList(), found, com.music.aalap.data.preferences.RecoPrefs.languageMix(context))
+        val songs = top.songs
         // The artist too, so the artist card still shows when Spotify is down.
         val artist = com.metrolist.innertube.YouTube.artistByName(query).getOrNull()
             ?.let { listOf(com.music.aalap.data.entity.ArtistsModel(it.name, it.thumbnail)) }.orEmpty()
-        return Response.Success(SearchResults(songs = songs, artists = artist))
+        return Response.Success(SearchResults(songs = songs, artists = artist, topSong = top.top, topByLyrics = top.byLyrics))
     }
 
     /** A podcast show's episodes, as playable [SongsModel] (url = "episode:<id>"). */

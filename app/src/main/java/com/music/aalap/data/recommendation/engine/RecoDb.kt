@@ -298,6 +298,23 @@ class RecoDb private constructor(context: Context) :
 
     // ── song_tags ───────────────────────────────────────────────────────────
 
+    /**
+     * Songs the trained playlists confirm: labelled with every tag in [all] and at least one of
+     * [any] (empty = no such condition). The pool of songs known to fit, for queues.
+     */
+    fun songsWithTags(all: List<String>, any: List<String>, limit: Int = 80): List<Song> {
+        if (all.isEmpty() && any.isEmpty()) return emptyList()
+        val conds = ArrayList<String>(); val args = ArrayList<String>()
+        all.forEach { t -> conds += "song_id IN (SELECT song_id FROM song_tags WHERE tag = ?)"; args += t }
+        if (any.isNotEmpty()) { conds += "song_id IN (SELECT song_id FROM song_tags WHERE tag IN (${any.joinToString(",") { "?" }}))"; args += any }
+        val ids = ArrayList<String>()
+        readableDatabase.rawQuery(
+            "SELECT DISTINCT song_id FROM song_tags WHERE ${conds.joinToString(" AND ")} ORDER BY RANDOM() LIMIT $limit",
+            args.toTypedArray(),
+        ).use { c -> while (c.moveToNext()) ids += c.getString(0) }
+        return songs(ids).values.toList()
+    }
+
     data class Tag(val tag: String, val src: String, val weight: Double, val at: Long)
 
     /** Tags [ids] with [tag] from [src] (re-tagging keeps the higher weight and the new time). */

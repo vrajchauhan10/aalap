@@ -150,6 +150,7 @@ fun SumUpSearchScreen(
             if (results.shows.isNotEmpty() || results.episodes.isNotEmpty()) add(SearchFilter.PODCASTS)
         }
     }
+    var showAll by remember(text) { mutableStateOf(false) }
     val mixed = remember(results, filter, text) {
         mixSearchResults(results, text).filter { row ->
             when (filter) {
@@ -278,6 +279,16 @@ fun SumUpSearchScreen(
                         else "No internet: showing your downloaded songs that match."
                     )
                 }
+                // The song you meant (the original, or the one whose lyrics you typed): big, on top.
+                val topSong = results.topSong
+                if (topSong != null && (filter == SearchFilter.ALL || filter == SearchFilter.SONGS)) item(key = "song-top") {
+                    TopSongCard(topSong, results.topByLyrics) {
+                        recordRecent(topSong.toRecentItem())
+                        searchViewModel.startRadioFromSong(topSong)
+                        SongPlayer.playSong(topSong.url, context)
+                        searchViewModel.updateSongState(topSong.coverUri, topSong.title, topSong.singer, true, topSong.id, 0, topSong.album)
+                    }
+                }
                 // Searched for an artist: the artist first, as a card that opens their page.
                 val top = artistTop
                 if (top != null && (filter == SearchFilter.ALL || filter == SearchFilter.ARTISTS)) item(key = "artist-top") {
@@ -293,7 +304,10 @@ fun SumUpSearchScreen(
                 }
                 // Keyed rows glide into place when a filter (Songs, Artists…) changes the list.
                 // The artist in the card above isn't listed a second time.
-                val rows = if (top == null) mixed else mixed.filterNot { it is SearchRow.Artist && it.artist.name == top.artist.name }
+                val allRows = (if (top == null) mixed else mixed.filterNot { it is SearchRow.Artist && it.artist.name == top.artist.name })
+                    .filterNot { topSong != null && it is SearchRow.Song && it.song.id == topSong.id }
+                // The 10 best first; the rest (other versions, more songs) behind View more.
+                val rows = if (showAll || filter != SearchFilter.ALL) allRows else allRows.take(10)
                 items(rows.size, key = { i -> rows[i].key }) { i ->
                     Box(Modifier.animateItemPlacement(androidx.compose.animation.core.tween(300))) {
                     when (val row = rows[i]) {
@@ -334,6 +348,16 @@ fun SumUpSearchScreen(
                 if (filter == SearchFilter.PODCASTS && results.shows.isEmpty() && results.episodes.isEmpty()) item(key = "no-podcasts") {
                     Text("No podcasts for this search yet. Try the show's name, or open Podcasts in Search for popular shows.",
                         color = com.music.aalap.ui.theme.TextMuted, fontSize = 14.sp, modifier = Modifier.padding(20.dp))
+                }
+                if (!showAll && filter == SearchFilter.ALL && allRows.size > rows.size) item(key = "view-more") {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                        Text(
+                            "View more (${allRows.size - rows.size})",
+                            color = com.music.aalap.ui.theme.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.clip(RoundedCornerShape(50)).background(com.music.aalap.ui.theme.Surface)
+                                .clickable { showAll = true }.padding(horizontal = 22.dp, vertical = 10.dp),
+                        )
+                    }
                 }
                 // ── Podcast episodes ──
                 if (showPodcasts && results.episodes.isNotEmpty()) {
@@ -665,5 +689,40 @@ fun ArtistTopSongs(top: SearchViewModel.ArtistTop, onOpenArtist: () -> Unit) {
             Text("Songs, albums and more", color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
         }
         Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = com.music.aalap.ui.theme.TextMuted)
+    }
+}
+
+/**
+ * The top result when you searched for a song: the original (or the song whose lyrics you typed),
+ * bigger than the rest, like the artist card. A tap plays it.
+ */
+@OptIn(ExperimentalGlideComposeApi::class)
+@Composable
+fun TopSongCard(song: SongsModel, byLyrics: Boolean, onPlay: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(16.dp, 10.dp, 16.dp, 6.dp)
+            .clip(RoundedCornerShape(20.dp)).background(com.music.aalap.ui.theme.Surface)
+            .clickable { onPlay() }.padding(14.dp),
+    ) {
+        GlideImage(
+            model = song.coverUri, contentDescription = song.title, contentScale = ContentScale.Crop,
+            failure = placeholder(R.drawable.placeholder), loading = placeholder(R.drawable.placeholder),
+            modifier = Modifier.size(84.dp).clip(RoundedCornerShape(14.dp)),
+        )
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            Text(if (byLyrics) "MATCHES THE LYRICS" else "TOP RESULT", color = com.music.aalap.ui.theme.Saffron,
+                fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text(song.title, color = com.music.aalap.ui.theme.TextPrimary, fontSize = 19.sp, fontWeight = FontWeight.Bold,
+                maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text("Song • " + com.music.aalap.ui.components.shortArtists(song.singer, max = 2), color = com.music.aalap.ui.theme.TextMuted,
+                fontSize = 12.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(44.dp).clip(androidx.compose.foundation.shape.CircleShape).background(com.music.aalap.ui.theme.Saffron),
+        ) {
+            Icon(painterResource(R.drawable.play_svgrepo_com), contentDescription = "Play", tint = com.music.aalap.ui.theme.OnSaffron, modifier = Modifier.size(18.dp))
+        }
     }
 }

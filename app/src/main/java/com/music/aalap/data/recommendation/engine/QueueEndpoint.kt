@@ -143,6 +143,47 @@ object QueueEndpoint {
             }
             return
         }
+        if (target.startsWith("/train")) {
+            // Debug: run the playlist training now (any network). /train
+            com.music.aalap.data.recommendation.engine.Trainer.maybeRun(context.applicationContext, force = true)
+            val body = "{\"started\":true}".toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray()); write(body); flush()
+            }
+            return
+        }
+        if (target.startsWith("/langaudit")) {
+            // Debug: how many of a song's next-song candidates (q=…) or a mood station's songs
+            // (mood=GYM) have a known language. /langaudit?q=mango%20shake  /langaudit?mood=GYM
+            val c = context.applicationContext
+            val p = target.substringAfter("?", "").split("&").filter { "=" in it }.associate {
+                URLDecoder.decode(it.substringBefore("="), "UTF-8") to URLDecoder.decode(it.substringAfter("="), "UTF-8")
+            }
+            val db = RecoDb.get(c)
+            val songs: List<Song> = runBlocking {
+                p["mood"]?.let { m ->
+                    com.music.aalap.data.api.Discover.clearToday(c)
+                    db.resolveAll(com.music.aalap.data.api.Discover.moodMix(c, com.music.aalap.data.api.Mood.valueOf(m)).map(SongBridge::toCandidate))
+                } ?: run {
+                    val cand = com.music.aalap.data.api.Api(c).searchCandidate(p["q"].orEmpty()) ?: error("no song")
+                    val seed = db.resolve(cand)
+                    val fused = Fusion.fuse(QueueEngine.ranked(c, seed)).take(60)
+                    db.songs(fused.map { it.id }).values.toList()
+                }
+            }
+            val byLang = songs.groupBy { VibeStore.language(c, it).ifBlank { "UNKNOWN" } }
+            val out = JSONObject().put("total", songs.size)
+            val counts = JSONObject(); byLang.forEach { (l, v) -> counts.put(l, v.size) }
+            out.put("languages", counts)
+            out.put("unknown_examples", JSONArray(byLang["UNKNOWN"].orEmpty().take(15).map { "${it.title} — ${it.artists}" }))
+            out.put("english_examples", JSONArray(byLang["english"].orEmpty().take(10).map { "${it.title} — ${it.artists}" }))
+            val body = out.toString(2).toByteArray()
+            socket.getOutputStream().apply {
+                write("HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                write(body); flush()
+            }
+            return
+        }
         if (target.startsWith("/reco5")) {
             // Debug (5.0): /reco5?dial=SURPRISE  /reco5?langs=punjabi:2,english:1 (or langs=auto)
             //   /reco5?feedback=BLOCK_ARTIST&q=…  /reco5?clearfeedback=1  /reco5?audio=1  /reco5?blend=1

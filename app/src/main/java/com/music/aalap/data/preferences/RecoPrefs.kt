@@ -27,8 +27,8 @@ object RecoPrefs {
         "tamil" to "Tamil", "telugu" to "Telugu", "marathi" to "Marathi", "bengali" to "Bengali",
     )
 
-    /** How much of a language: 0 none, 1 some, 2 lots. */
-    val LEVELS = listOf("Off", "Some", "Lots")
+    /** How much of a language: 0 off (never plays), 1 low, 2 medium, 3 high. */
+    val LEVELS = listOf("Off", "Low", "Medium", "High")
 
     private fun p(c: Context) = c.getSharedPreferences(PREF, Context.MODE_PRIVATE)
 
@@ -41,14 +41,43 @@ object RecoPrefs {
     fun followPace(c: Context): Boolean = p(c).getBoolean("follow_pace", true)
     fun setFollowPace(c: Context, on: Boolean) = p(c).edit().putBoolean("follow_pace", on).apply()
 
-    /** Levels per language (0..2); empty = automatic. */
+    /**
+     * Levels per language (0 Off .. 3 High). Asked before you can enter the app (see
+     * [languagesChosen]); empty only until then. Older versions saved 0..2 (Off/Some/Lots):
+     * those come back as Off/Medium/High, pre-filled for you to confirm.
+     */
     fun languageLevels(c: Context): Map<String, Int> = runCatching {
+        p(c).getString("languages_v2", null)?.let { raw ->
+            val o = JSONObject(raw)
+            return@runCatching o.keys().asSequence().associateWith { o.getInt(it).coerceIn(0, 3) }
+        }
         val o = JSONObject(p(c).getString("languages", "{}") ?: "{}")
-        o.keys().asSequence().associateWith { o.getInt(it) }
+        o.keys().asSequence().associateWith { when (o.getInt(it)) { 0 -> 0; 1 -> 2; else -> 3 } }
     }.getOrDefault(emptyMap())
 
     fun setLanguageLevels(c: Context, levels: Map<String, Int>) =
-        p(c).edit().putString("languages", JSONObject(levels as Map<*, *>).toString()).apply()
+        p(c).edit().putString("languages_v2", JSONObject(levels.mapValues { it.value.coerceIn(0, 3) } as Map<*, *>).toString()).apply()
+
+    /** Whether you've chosen your languages (needed once, after this update or a fresh install). */
+    fun languagesChosen(c: Context): Boolean =
+        p(c).getBoolean("languages_chosen", false) && languageLevels(c).values.any { it > 0 }
+
+    fun setLanguagesChosen(c: Context) = p(c).edit().putBoolean("languages_chosen", true).apply()
+
+    /**
+     * Whether a song in [lang] may play. Your languages are a hard rule everywhere (next songs,
+     * radio, mixes): an Off language never plays, and a song whose language isn't known doesn't
+     * either (it used to slip through, which is how English songs reached a Hindi gym radio).
+     * Before you've chosen, everything is allowed.
+     */
+    fun languageAllowed(c: Context, lang: String): Boolean = languageAllowed(languageMix(c), lang)
+
+    fun languageAllowed(mix: Map<String, Double>, lang: String): Boolean {
+        if (mix.isEmpty()) return true
+        val l = lang.lowercase().trim()
+        if (l.isBlank()) return false
+        return mix.entries.any { (k, v) -> v > 0 && com.music.aalap.data.recommendation.engine.LanguageGuess.same(k, l) }
+    }
 
     /** The mix as shares adding up to 1 (empty = automatic, or nothing chosen). */
     fun languageMix(c: Context): Map<String, Double> {

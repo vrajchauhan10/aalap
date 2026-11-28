@@ -77,6 +77,8 @@ class SearchViewModel @Inject constructor(private val repository: AppRepository,
      * if the user has since started something else.
      */
     fun startRadioFromSong(song: SongsModel) {
+        // The song you searched for is what the next songs grow from.
+        com.music.aalap.data.recommendation.PlayContext.chose(song)
         currentSongState.updateQueue(listOf(song))
         com.music.aalap.di.VoicePlay.openPlayerRequest.value = true // the full player opens
         viewModelScope.launch(Dispatchers.IO) {

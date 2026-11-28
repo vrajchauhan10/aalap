@@ -12,8 +12,10 @@ object SearchRank {
     private val versionWords = listOf(
         "cover", "remix", "lofi", "lo-fi", "lo fi", "slowed", "reverb", "sped up", "reprise", "karaoke",
         "instrumental", "club mix", "mashup", "female version", "male version", "unplugged", "acoustic",
-        "8d", "bass boosted", "nightcore", "version", "edit", "mix",
+        "8d", "bass boosted", "nightcore", "version", "edit", "mix", "jhankar", "dj",
     )
+
+    private val coverArtist = Regex("""(?i)\b(presents?|studios?|records|recordings|cover|covers|karaoke|tribute|official channel)\b""")
 
     private fun norm(t: String) = t.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
 
@@ -33,6 +35,9 @@ object SearchRank {
         }
         val asked = versionWords.filter { q.contains(it) }
         if (versionWords.any { w -> w !in asked && Regex("\\b${Regex.escape(w)}\\b").containsMatchIn(title) }) s += 4
+        // Re-uploads and covers credited to a channel or label instead of a singer ("Akm Present",
+        // "Mono Guruji Studio", "XYZ Records") go below the real recordings.
+        if (coverArtist.containsMatchIn(song.singer)) s += 3
         return s
     }
 

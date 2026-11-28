@@ -79,6 +79,10 @@ class MyApplication : Application(), androidx.appfunctions.service.AppFunctionCo
         }
         // Offline mode + network watcher (also drives Wi-Fi auto-downloads).
         com.music.aalap.data.preferences.OfflineState.init(this)
+        // The engine's weekly lesson from playlists (Wi-Fi only; see Trainer), 30 s after start.
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            runCatching { com.music.aalap.data.recommendation.engine.Trainer.maybeRun(this) }
+        }, 30_000)
         // History is kept for a day: clear older plays once per start, off the main thread.
         Thread { runCatching { com.music.aalap.data.preferences.pruneListeningHistory(this) } }.start()
 

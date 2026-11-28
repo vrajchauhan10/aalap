@@ -82,8 +82,14 @@ class CurrentSongState @Inject constructor() {
         // A queue that shares no song with the last one means you started something new yourself
         // (search, an album, a mood…): the player's Calmer / More energy belongs to the old queue.
         // Skips, recommendations and reorders keep songs, so they leave it on.
-        if (registeredIds.isNotEmpty() && fresh.size == songs.size && songs.isNotEmpty())
+        if (registeredIds.isNotEmpty() && fresh.size == songs.size && songs.isNotEmpty()) {
             com.music.aalap.data.recommendation.PlayContext.steerTo(null)
+            // Whatever started it (search, Home, a list…), the new queue's first song is what the
+            // next songs grow from. An earlier session's song used to carry over: a party song was
+            // followed by slow romantic ones because a sad song from before was still the anchor.
+            val pc = com.music.aalap.data.recommendation.PlayContext
+            if (System.currentTimeMillis() - pc.current.at > 3_000) pc.chose(songs.first())
+        }
         registeredIds = songs.mapTo(HashSet()) { it.id }
         SongPlayer.registerLossless(fresh.map { it.url to it.spotifyTrackId })
         SongPlayer.registerAlternativeKeys(fresh.map {
@@ -220,6 +226,10 @@ class CurrentSongState @Inject constructor() {
                     com.music.aalap.MyApplication.instance, track)
             }
         }
+        // The queue never runs dry: with 3 or fewer songs left, the next ones are found in the
+        // background (same starting song, languages, era and genre). It used to wait for the last
+        // song to end, which left "Nothing up next" and a pause.
+        if (playingState && !loopsQueue) SmartPlay.topUpIfLow(com.music.aalap.MyApplication.instance, this)
         // Fast loading: resolve the next two queue songs now so skipping to them starts at once.
         if (playingState && com.music.aalap.data.preferences.isFastLoading(com.music.aalap.MyApplication.instance)) {
             val idx = _queue.value.indexOfFirst { it.id == songId }

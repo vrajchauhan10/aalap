@@ -187,7 +187,10 @@ object Discover {
 
     /** The mood's search in a language: "romantic hindi songs" → "romantic punjabi songs". */
     internal fun queryFor(mood: Mood, lang: String): String {
-        if (lang.isBlank() || lang == "hindi") return mood.query
+        if (lang.isBlank()) return mood.query
+        // Every search names the language: Gym's "gym workout" had none, so it brought English
+        // workout playlists to a Hindi listener.
+        if (lang == "hindi") return if (Regex("\\b(hindi|bollywood|indian|bhakti|desi)\\b").containsMatchIn(mood.query)) mood.query else "hindi ${mood.query}"
         val swapped = mood.query.replace(Regex("\\b(hindi|bollywood|indian)\\b"), lang)
         return if (swapped != mood.query) swapped else "$lang ${mood.query}"
     }
@@ -195,16 +198,21 @@ object Discover {
     /** Drops songs known to be in a language you didn't choose (unknown ones stay). */
     private fun keepLanguages(context: Context, songs: List<SongsModel>, langs: List<String>, label: String): List<SongsModel> {
         if (langs.any { it.isBlank() } || songs.isEmpty()) return songs
+        val mix = com.music.aalap.data.preferences.RecoPrefs.languageMix(context)
+        val chosen = mix.isNotEmpty()
         return runCatching {
             val db = com.music.aalap.data.recommendation.engine.RecoDb.get(context)
             val canon = db.resolveAll(songs.map(com.music.aalap.data.recommendation.engine.SongBridge::toCandidate))
             val kept = songs.zip(canon).filter { (_, c) ->
                 val l = com.music.aalap.data.recommendation.engine.VibeStore.language(context, c)
-                l.isBlank() || langs.any { want -> com.music.aalap.data.recommendation.engine.LanguageGuess.same(l, want) }
+                // Chosen languages: only songs known to be in them (unknown ones used to stay).
+                if (chosen) com.music.aalap.data.preferences.RecoPrefs.languageAllowed(mix, l) && langs.any { want -> com.music.aalap.data.recommendation.engine.LanguageGuess.same(l, want) }
+                else l.isBlank() || langs.any { want -> com.music.aalap.data.recommendation.engine.LanguageGuess.same(l, want) }
             }.map { it.first }
             Log.d(TAG, "$label: kept ${kept.size} of ${songs.size} in ${langs.joinToString()}")
-            // Too few left (a rare language for this mood): keep what there is rather than nothing.
-            if (kept.size >= 12) kept else songs
+            // Your languages chosen: never other languages, even when few are left. Automatic: a
+            // short list keeps what there is rather than nothing.
+            if (chosen || kept.size >= 12) kept else songs
         }.getOrDefault(songs)
     }
 

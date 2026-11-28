@@ -69,6 +69,8 @@ fun MyNavHost(
         // Until "Connect your music" was passed once (signing in is optional), not on every launch.
         SpotifySession.spDc(context).isBlank() && !com.music.aalap.data.preferences.isYoutubeLoggedIn(context) &&
             com.music.aalap.data.preferences.getPrimaryMusicSource(context) == null -> Routes.MusicSource.route
+        // Your languages, once (after this update too): every recommendation follows them.
+        !com.music.aalap.data.preferences.RecoPrefs.languagesChosen(context) -> LANGUAGES_FIRST
         else -> Routes.Home.route
     }
 
@@ -101,6 +103,9 @@ fun MyNavHost(
             if (want && navHostController.currentDestination?.route != Routes.Settings.route &&
                 com.music.aalap.data.preferences.isAalapOnboarded(context)) navHostController.navigate(Routes.Settings.route)
         }
+    }
+    LaunchedEffect(Unit) {
+        LanguagesNav.open.collect { if (it) { LanguagesNav.open.value = false; navHostController.navigate(Routes.Languages.route) } }
     }
     // A voice request opened the app: show the player once the music starts.
     LaunchedEffect(Unit) {
@@ -159,6 +164,11 @@ fun MyNavHost(
             SpotifyLoginScreen(navHostController)
         }
         composable(Routes.Home.route){
+            LaunchedEffect(Unit) {
+                if (!com.music.aalap.data.preferences.RecoPrefs.languagesChosen(context) &&
+                    com.music.aalap.data.preferences.isAalapOnboarded(context))
+                    navHostController.navigate(LANGUAGES_FIRST) { popUpTo(0) { inclusive = true } }
+            }
             LaunchedEffect(playerState) {
                 bottomBarState.value = true
                 bottomBarPlayerState.value = playerState != ""
@@ -241,6 +251,19 @@ fun MyNavHost(
                 bottomBarPlayerState.value = playerState != ""
             }
             com.music.aalap.ui.screens.PodcastPickerScreen(navHostController)
+        }
+        // Asked before entering (no way around it: no back, no bottom bar), and from Settings.
+        composable(LANGUAGES_FIRST) {
+            LaunchedEffect(Unit) { bottomBarState.value = false; bottomBarPlayerState.value = false }
+            androidx.activity.compose.BackHandler(enabled = true) { }
+            com.music.aalap.ui.screens.LanguagesScreen(navHostController, firstTime = true)
+        }
+        composable(Routes.Languages.route) {
+            LaunchedEffect(playerState) {
+                bottomBarState.value = true
+                bottomBarPlayerState.value = playerState != ""
+            }
+            com.music.aalap.ui.screens.LanguagesScreen(navHostController, firstTime = false)
         }
         composable(Routes.Podcasts.route){
             LaunchedEffect(playerState) {
@@ -500,3 +523,6 @@ private val PullExit: ExitTransition =
     androidx.compose.animation.slideOutVertically(tween(300, easing = MotionEasing)) { it / 2 } + fadeOut(tween(260))
 /** The page beneath simply fades back in (no sideways drift) under a pulled-down page. */
 private val PullEnter: EnterTransition = fadeIn(tween(220))
+
+/** The languages page shown before entering the app (its own route, so it opens without back or tabs). */
+private const val LANGUAGES_FIRST = "languages_first"

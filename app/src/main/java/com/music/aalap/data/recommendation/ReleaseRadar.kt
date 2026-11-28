@@ -75,7 +75,7 @@ object ReleaseRadar {
                 async { runCatching { api.releaseWithSongs(id) }.getOrNull()?.let { (date, songs) -> Release(name, date, songs) } }
             }.map { it.await() }
         }.filterNotNull()
-        val list = pick(loaded, LocalDate.now())
+        val list = com.music.aalap.data.recommendation.engine.LanguageFilter.keep(c, pick(loaded, LocalDate.now()))
         if (list.isNotEmpty()) prefs(c).edit().putString("week", weekOf(LocalDate.now()).toString()).putString("songs", write(list)).apply()
         return list
     }

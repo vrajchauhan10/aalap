@@ -138,8 +138,39 @@ object SmartPlay {
         val cur = q.indexOfFirst { it.id == state.songId.value }
         val playing = q.getOrNull(cur) ?: return
         val kept = q.filterIndexed { i, s -> i <= cur || !PlayContext.isAuto(s.id) }
+        android.util.Log.d("SmartPlay", "steer ${PlayContext.steer()}: queue ${q.size}, current #$cur, dropped ${q.size - kept.size} engine picks")
         if (kept.size != q.size) state.updateQueue(kept)
         refill(app, state, playing)
+    }
+
+    @Volatile private var toppingUp = false
+
+    /**
+     * Keeps the queue going for as long as you listen: when 3 or fewer songs are left after the
+     * current one, adds the next 10 after the last song (no work otherwise, so about once every
+     * seven songs). Podcasts continue with podcasts the same way.
+     */
+    fun topUpIfLow(app: Context, state: CurrentSongState) {
+        if (toppingUp || job?.isActive == true) return
+        // A queue you just started is still being built by whatever started it (search, a list,
+        // Home): a second builder alongside picked the same songs twice.
+        if (System.currentTimeMillis() - PlayContext.current.at < 45_000) return
+        val q = state.queue.value
+        val cur = q.indexOfFirst { it.id == state.songId.value }
+        if (cur < 0 || q.size - 1 - cur > 3) return
+        val last = q.lastOrNull() ?: return
+        toppingUp = true
+        scope.launch {
+            try {
+                Recommender.next(app, last, state.queue.value.mapTo(HashSet()) { it.id }).collect { next ->
+                    val now = state.queue.value
+                    // You started something else meanwhile: stop adding to the old queue.
+                    if (now.none { it.id == last.id }) throw CancellationException("queue replaced")
+                    if (now.none { it.id == next.id }) state.updateQueue(now + next)
+                }
+            } catch (_: Throwable) {
+            } finally { toppingUp = false }
+        }
     }
 
     /** Adds fresh recommendations after [seed] (the engine sees the feedback). */
@@ -149,6 +180,7 @@ object SmartPlay {
             runCatching {
                 Recommender.next(app, seed, state.queue.value.mapTo(HashSet()) { it.id }, length = 6).collect { next ->
                     val q = state.queue.value
+                    android.util.Log.d("SmartPlay", "refill +'${next.title}' (${PlayContext.steer()})")
                     if (q.none { it.id == next.id }) state.updateQueue(q + next)
                 }
             }

@@ -115,7 +115,17 @@ data class Features(
     val surprise: Boolean = false,
     /** Your "more / less like this" feedback, as a multiplier (1 = none). */
     val feedback: Double = 1.0,
+    /** Its era (index into Trainer.ERAS: 70s-80s .. new), when known. */
+    val era: Int? = null,
+    /** Its genres (rap, sufi, ghazal, indie…), when known. */
+    val genres: Set<String> = emptySet(),
 )
+
+/**
+ * The song a queue grows from (the one you chose): its feel and energy, era and genres. Every
+ * pick stays close to it, so song 30 still fits song 1 (picks used to drift a little each time).
+ */
+data class Anchor(val vibe: Vibe?, val era: Int? = null, val genres: Set<String> = emptySet())
 
 /** How the songs picked so far are made up, so the queue keeps a good mix. */
 data class PickState(
@@ -327,14 +337,85 @@ object QueuePicker {
      */
     fun steerFits(steer: Steer, prev: Vibe?, f: Features): Boolean {
         val v = f.vibe
-        fun slower() = prev?.bpm != null && v.bpm != null && v.bpm < prev.bpm * 0.97 && v.bpm * 2 > prev.bpm * 1.1
-        fun faster() = prev?.bpm != null && v.bpm != null && v.bpm > prev.bpm * 1.03
+        // Tempo 5–20% slower / faster (half and double time count as the same pulse).
+        fun ratio(): Double? {
+            val a = prev?.bpm ?: return null; val b = v.bpm ?: return null
+            if (a <= 0 || b <= 0) return null
+            return listOf(b / a, b * 2 / a, b / 2 / a).minByOrNull { kotlin.math.abs(it - 1.0) }
+        }
+        val r = ratio()
+        val de = if (prev?.energyKnown == true && v.energyKnown) v.energy - prev.energy else null
         return when (steer) {
-            Steer.CALMER -> v.energyKnown && (if (prev?.energyKnown == true) v.energy <= prev.energy - 0.05 || slower() else v.energy <= 0.5)
-            Steer.ENERGY -> v.energyKnown && (if (prev?.energyKnown == true) v.energy >= prev.energy + 0.05 || faster() else v.energy >= 0.6)
-            Steer.SAME -> prev == null || (v.similarity(prev) >= 0.7 && flowOk(prev, v, prev, strict = true))
+            // Calmer: each next song 0.05–0.20 lower in energy, or 5–20% slower.
+            Steer.CALMER -> v.energyKnown && ((de != null && de in -0.20..-0.05) || (r != null && r in 0.80..0.95) ||
+                (de == null && r == null && v.energy <= 0.5))
+            // More energy: 0.05–0.20 higher, or 5–20% faster.
+            Steer.ENERGY -> v.energyKnown && ((de != null && de in 0.05..0.20) || (r != null && r in 1.05..1.20) ||
+                (de == null && r == null && v.energy >= 0.6))
+            // Same vibe: within ±0.08 energy and ±8% tempo, same feel.
+            Steer.SAME -> prev == null || (v.energyKnown && (de == null || kotlin.math.abs(de) <= 0.08) &&
+                (r == null || r in 0.92..1.08) && v.similarity(prev) >= 0.7)
+            // Something new: never heard, not a like (language, pace and era rules still apply).
             Steer.NEW -> !f.familiar && !f.liked
         }
+    }
+
+    /** Upbeat (party, energetic) and soft (romantic, sad, chill, devotional, focus) feels don't follow each other. */
+    private val UP = setOf(Feel.ENERGETIC, Feel.PARTY)
+    private val SOFT = setOf(Feel.ROMANTIC, Feel.SAD, Feel.CHILL, Feel.DEVOTIONAL, Feel.FOCUS)
+
+    fun sameFamily(a: Vibe, b: Vibe): Boolean {
+        val x = a.dominant ?: return true; val y = b.dominant ?: return true
+        if (!a.known || !b.known) return true
+        return !((x in UP && y in SOFT) || (x in SOFT && y in UP))
+    }
+
+    /**
+     * Whether a pick stays close to the song the queue grew from: energy within 0.25 (0.35 on the
+     * looser step), the same family of feel (strict step), and at most one era away (two on the
+     * looser step). Calmer / More energy move the energy on purpose, so it's left free then.
+     * Whatever isn't known can't fail here (the pace rule already judges unknown energy).
+     */
+    fun fitsAnchor(anchor: Anchor, v: Vibe, era: Int?, strict: Boolean, steer: Steer?): Boolean {
+        val a = anchor.vibe
+        val moving = steer == Steer.CALMER || steer == Steer.ENERGY
+        if (a != null && a.energyKnown && v.energyKnown && !moving &&
+            kotlin.math.abs(a.energy - v.energy) > (if (strict) 0.25 else 0.35)) return false
+        // Calmer / More energy change the energy, not the kind of song: the feel family still holds.
+        if (strict && a != null && !sameFamily(a, v)) return false
+        // At most one era away on every step (two let a 2004 song into a 70s queue).
+        if (anchor.era != null && era != null && kotlin.math.abs(anchor.era - era) > 1) return false
+        // After a 90s-or-older song, a song nobody knows the era of could be anything (a 2024 hit
+        // slipped into a queue of classics): on the strict step it waits.
+        if (strict && anchor.era != null && anchor.era <= 2 && era == null) return false
+        return true
+    }
+
+    /**
+     * A strong genre (rap, ghazal, sufi, devotional) of the song you started from carries on: on the
+     * strict step a pick must share it (or not be known yet). Pure, unit-tested.
+     */
+    fun keepsGenre(anchorGenres: Set<String>, genres: Set<String>, strict: Boolean): Boolean {
+        // Devotional, ghazal and sufi only follow their own kind: a chant never lands in a dance queue.
+        if (genres.any { it in Trainer.OWN_WORLD && it !in anchorGenres }) return false
+        // Rap after a song known not to be rap: not on the strict step.
+        if (strict && "rap" in genres && anchorGenres.isNotEmpty() && "rap" !in anchorGenres) return false
+        val strong = anchorGenres.filter { it in Trainer.STRONG_GENRES }
+        if (!strict || strong.isEmpty() || genres.isEmpty()) return true
+        return genres.any { it in strong }
+    }
+
+    /**
+     * The era and genres of a song we know nothing about, read from the songs suggested after it
+     * (a classic is followed by classics, rap by rap): the most common among at least 3 labelled.
+     */
+    fun stationEra(eras: List<Int>): Int? =
+        eras.takeIf { it.size >= 4 }?.groupingBy { it }?.eachCount()?.maxByOrNull { it.value }?.takeIf { it.value * 5 >= eras.size * 3 }?.key
+
+    fun stationGenres(genres: List<Set<String>>): Set<String> {
+        val labelled = genres.filter { it.isNotEmpty() }
+        if (labelled.size < 3) return emptySet()
+        return labelled.flatten().groupingBy { it }.eachCount().filter { it.value * 2 >= labelled.size }.keys
     }
 
     /** Softer than [steerFits]: not going the other way, judged on the best guess of energy. */
@@ -359,6 +440,7 @@ object QueuePicker {
         exclude: Set<String>,
         rnd: Random,
         steer: Steer? = null,
+        anchor: Anchor? = null,
     ): Scored? {
         val scored = candidates.asSequence()
             .filter { it.song.id !in exclude }
@@ -378,8 +460,14 @@ object QueuePicker {
         // song before), but the session's own pace no longer holds it back.
         val anchorVibe = if ((steer == Steer.CALMER || steer == Steer.ENERGY) && prev != null) prev else session.vibe
         fun passes(sc: Scored, strict: Boolean): Boolean {
-            val v = byId[sc.song.id]?.vibe ?: return true
-            return prev == null || flowOk(prev, v, anchorVibe, strict)
+            val f = byId[sc.song.id] ?: return false
+            val v = f.vibe
+            // Confirmed, never assumed: what the song you started from has known, the pick must have
+            // known too (unknown used to pass, which is how songs slipped in).
+            if (anchor != null && !confirmed(anchor, f)) return false
+            if (prev != null && !flowOk(prev, v, anchorVibe, strict)) return false
+            if (anchor != null && !keepsGenre(anchor.genres, f.genres, strict)) return false
+            return anchor == null || fitsAnchor(anchor, v, f.era, strict, steer)
         }
         // Your liked songs often share the pace exactly; once they're over their share, a pace
         // step counts only if enough other songs pass it too, so likes don't fill the queue.
@@ -399,15 +487,38 @@ object QueuePicker {
         // matching mood station before it gets that far, see QueueEngine.chain).
         val full = steered.filter { passes(it, strict = true) }.takeIf(::enough)
             ?: steered.filter { known(it) && passes(it, strict = false) }.takeIf(::enough)
+        // Nothing that fits: no pick (the queue waits for more songs) rather than a wrong one.
         val paced = full
             ?: steered.filter { passes(it, strict = true) }.takeIf { it.isNotEmpty() }
             ?: steered.filter { passes(it, strict = false) }.takeIf { it.isNotEmpty() }
-            ?: steered
+            ?: (if (anchor == null || (anchor.vibe == null && anchor.era == null)) steered else return null)
         // In the small fallback stages, liked songs past their share give way to others that
         // also passed (a stage with few songs could otherwise be all likes).
         val capped = if (full == null && likedShare >= LIKED_CAP) paced.filter { byId[it.song.id]?.liked != true }.ifEmpty { paced } else paced
-        val pool = capped.sortedByDescending { it.final }.take(TOP_N)
+        // Same genre and same era as the song you started from rank a little higher.
+        fun kin(sc: Scored): Double {
+            val f = byId[sc.song.id] ?: return 1.0
+            var k = 1.0
+            if (anchor != null && anchor.genres.isNotEmpty() && f.genres.any { it in anchor.genres }) k += 0.15
+            if (anchor?.era != null && f.era == anchor.era) k += 0.10
+            // After an old song, a song whose era nobody knows is a risk: it ranks lower.
+            if (anchor?.era != null && anchor.era <= 2 && f.era == null) k -= 0.20
+            if (anchor != null && anchor.genres.any { it in Trainer.STRONG_GENRES } && f.genres.isEmpty()) k -= 0.15
+            return k
+        }
+        val pool = capped.sortedByDescending { it.final * kin(it) }.take(TOP_N)
         return Diversifier.sampleWeighted(pool, rnd) { it.final * it.final }
+    }
+
+    /**
+     * A candidate is confirmed for this queue when everything the starting song has known is known
+     * for it too: its feel and energy (when the start's are known) and its era (when the start's
+     * is). Pure, unit-tested.
+     */
+    fun confirmed(anchor: Anchor, f: Features): Boolean {
+        if (anchor.vibe != null && anchor.vibe.known && !(f.vibe.known && f.vibe.energyKnown)) return false
+        if (anchor.era != null && f.era == null) return false
+        return true
     }
 
     /** How many [candidates] can follow [prev] under the strict pace rule. */

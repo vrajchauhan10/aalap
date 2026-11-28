@@ -4,6 +4,46 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-28 — 9.2.0 (107) languages as a hard rule, playlist training, confirmed-only queues, lyrics search
+- Added after on-phone testing: `QueuePicker.confirmed` (a pick must have known feel/energy and era
+  when the start song does; no unverified fallbacks; `pick` returns null rather than a wrong song;
+  chain skips `fallback()` when the anchor is known); confirmed pool from the trained library
+  (`RecoDb.songsWithTags`); `engine/Labeler` labels held-back candidates from their neighbours
+  (≥ 4 labelled, 60% agreement); era ±1 on every step; several era labels → newest; ERA_5060;
+  strong genres (`keepsGenre`: devotional/ghazal/sufi only after their own kind, rap not after
+  known non-rap); steer keeps the feel family; anchor era/genres from suggestions; first training
+  round on any network, 4 playlists per feed; new queue (any path) → `PlayContext.chose(first)`;
+  `SmartPlay.topUpIfLow` (≤ 3 left → 10 more; not within 45 s of a new queue); DEFAULT_LENGTH 10;
+  clips < 90 s excluded.
+- Search: `SearchTop` merges Spotify + YouTube Music songs (YT matches lyrics) with one score
+  (title/film match, both-sources agreement, YT #1, language off → bottom, versions/cover
+  channels lower, originals by credit subset among YT top 5); `TopSongCard` (top result / matches
+  the lyrics), first 10 rows + View more; Podcasts filter always shown; slimmer search pill.
+- Language picker: pick languages, then Low/Medium/High; `languages_first` route (no back/tabs).
+- Languages: `RecoPrefs` levels 0..3 (Off/Low/Medium/High) under `languages_v2` (old 0..2 maps to
+  Off/Medium/High); `languagesChosen` gates entry (`LanguagesScreen`, route `languages?first=`,
+  also from Settings → Recommendations). `RecoPrefs.languageAllowed(mix, lang)`: Off or unknown
+  language never plays. Applied in `QueueEngine.chain` (+ mood-station top-up), `rerank` (all
+  stations/moods), `freshPicks`, Quick picks, Aaj ka Aalap, Your Mix, Release Radar
+  (`engine/LanguageFilter`), and `Discover.keepLanguages` (no unknowns, no fall-back to all).
+  `queryFor` always names the language (Gym searched "gym workout" → English playlists).
+  `LanguageChange.applied` drops today's caches and starts training.
+- Training: `engine/Trainer` — per chosen language, 20 feeds (7 moods, 5 eras, 8 genres), top 2
+  playlists each, songs tagged (`song_tags`: feel names / ERA_* / G_* / LANG_*). Weekly, Wi-Fi
+  only, sequential with pauses, resumable; 30 s after app start and after a language change.
+  `VibeStore.labels` (era, genres, language hint; artist's usual era as fallback);
+  `VibeStore.language` falls back to the LANG_ hint. ERA_NEW beats older era labels.
+- Engine: `Anchor` (start song's vibe, era, genres) held for the whole queue across refills;
+  `QueuePicker.fitsAnchor` (energy ±0.25/±0.35, same feel family on the strict step, ≤ 1 era
+  step strict / 2 loose; free while steering calmer/livelier); same genre +15%, same era +10%.
+  Steer ranges: Calmer −0.05..−0.20 energy or 5–20% slower; More energy the reverse; Same vibe
+  ±0.08 energy, ±8% tempo, similarity ≥ 0.7. `NO_REPEAT_MS` 4 days excluded from engine picks.
+- Debug endpoints: `/langaudit?mood=GYM|q=…`, `/train`.
+- S24 (test copy, Hindi High, Punjabi Medium, English Off, after one training round): Gym station
+  40/40 Hindi/Punjabi; Kesariya → 10 romantic (E 0.32–0.48); Brown Munde → 10 party/energetic
+  (E 0.79–0.93); Mango Shake → 20 energetic (E 0.81–0.95), all Hindi/Punjabi, no repeats.
+- Tests: `EngineRulesTest` (+ existing); 210 unit tests pass.
+
 ## 2026-11-27 — 9.1.0 (106) podcasts: Home row, Podcasts page, follow shows, playback from feeds, resume, podcast-only autoplay; double-tap seek; Edit Home drag
 - Podcast playback was broken (episodes went to the song YouTube matcher, which rejected them, and
   the queue moved on to a song). Now `SongPlayer.resolveStreamUrl` resolves `episode:` via

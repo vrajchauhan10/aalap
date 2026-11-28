@@ -4,6 +4,26 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 9.2.0 — 28 Nov 2026 (build 107)
+- **Your languages, everywhere.** Pick your languages first (Off, Low, Medium or High for each);
+  next songs, every radio including Gym, and every mix play only those. No more English songs
+  on a Hindi gym radio.
+- **Next songs that stay in the mood.** Every queue stays with the song you started from: its
+  language, era (one step at most: 90s can lead to 2000s, not to brand-new), mood (romantic stays
+  romantic, party stays party) and genre (rap with rap; devotional, ghazal and sufi only after
+  their own kind). It keeps going for as long as you listen, topping up before it runs out.
+- **Only songs that are known to fit.** A song joins only when Aalap knows it matches; songs it
+  doesn't know yet are learned in the background (from the songs played next to them) and
+  join once they're known.
+- **Aalap learns your music.** Once a week (on Wi-Fi) it reads playlists of each mood, era and
+  genre in your languages, so it knows what each song is.
+- **Calmer, More energy and Same vibe really steer** the songs coming up, within clear ranges,
+  keeping the same kind of song.
+- **No repeats** of anything played in the last 4 days, and no 1-minute clips.
+- **Search by lyrics.** Type a line and find the song. The original comes first in a big top
+  card (not a cover, remix or a song in a language you turned off), then the 10 best results,
+  with View more for the rest.
+
 ## 9.1.0 — 27 Nov 2026 (build 106)
 - **Podcasts play properly.** Episodes now play from the show's own podcast feed (they used to
   skip to a song), and show pages load their cover and episodes again.

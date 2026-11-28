@@ -87,32 +87,19 @@ fun RecommendationSettings() {
         Text(dial.blurb, color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, top = 6.dp))
 
         Spacer(Modifier.height(18.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // Your languages (Off / Low / Medium / High each) have their own page; a summary here.
+        val summary = RecoPrefs.LANGUAGES.mapNotNull { (code, label) -> levels[code]?.takeIf { it > 0 }?.let { "$label ${RecoPrefs.LEVELS[it]}" } }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .clickable { com.music.aalap.ui.navigation.LanguagesNav.open.value = true }.padding(vertical = 6.dp),
+        ) {
             Column(Modifier.weight(1f)) {
-                Text("Language mix", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text(
-                    if (levels.isEmpty()) "Automatic: follows what you're playing" else "Your mix: tap a language for Off, Some or Lots",
-                    color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp,
-                )
+                Text("Your languages", color = com.music.aalap.ui.theme.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text(summary.joinToString(" · ").ifBlank { "Not chosen yet" } + ". Only these play, everywhere.",
+                    color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
             }
-            Text("Choose", color = com.music.aalap.ui.theme.TextMuted, fontSize = 12.sp)
-            Spacer(Modifier.width(6.dp))
-            Switch(checked = levels.isNotEmpty(), onCheckedChange = { on ->
-                levels = if (on) mapOf("hindi" to 2, "punjabi" to 1, "english" to 1) else emptyMap()
-                RecoPrefs.setLanguageLevels(context, levels)
-            })
-        }
-        if (levels.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                RecoPrefs.LANGUAGES.forEach { (code, label) ->
-                    val level = levels[code] ?: 0
-                    Chip("$label · ${RecoPrefs.LEVELS[level]}", level > 0, strong = level == 2) {
-                        levels = levels + (code to (level + 1) % 3)
-                        RecoPrefs.setLanguageLevels(context, levels)
-                    }
-                }
-            }
+            Text("›", color = com.music.aalap.ui.theme.TextMuted, fontSize = 22.sp)
         }
 
         Spacer(Modifier.height(18.dp))

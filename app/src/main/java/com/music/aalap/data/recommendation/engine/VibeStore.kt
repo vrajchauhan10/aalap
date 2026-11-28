@@ -40,7 +40,10 @@ object VibeStore {
     @Volatile private var trending: Pair<Long, Set<String>>? = null
 
     /** Labels changed (new mood or chart songs): recompute what's cached. */
-    fun invalidate() { cache.evictAll(); artists.clear(); trending = null }
+    fun invalidate() { cache.evictAll(); artists.clear(); trending = null; labelCache.evictAll(); languages.evictAll() }
+
+    /** Forget one song's worked-out feel, labels and language (it was just labelled). */
+    fun forget(id: String) { cache.remove(id); labelCache.remove(id); languages.remove(id) }
 
     // ── a song's own evidence ──────────────────────────────────────────────
 
@@ -153,7 +156,54 @@ object VibeStore {
             .ifBlank { LanguageGuess.script(song.title + " " + song.artists) }
             .ifBlank { artistInfo(RecoDb.get(context), key).language }
             .ifBlank { LanguageGuess.ofArtist(song.artists) }
-            .ifBlank { guessLanguage(song.title, song.info.album) }.lowercase().also { languages.put(song.id, it) }
+            .ifBlank { guessLanguage(song.title, song.info.album) }
+            // Learned from the language playlists it's on (Trainer).
+            .ifBlank { labels(context, song).language }
+            .lowercase().also { languages.put(song.id, it) }
+    }
+
+    /**
+     * What the trained playlists say about a song: its era (an index into [Trainer.ERAS]), its
+     * genres, and a language hint. Falls back to its artist's usual era when the song itself
+     * wasn't on an era playlist.
+     */
+    data class Labels(val era: Int?, val genres: Set<String>, val language: String)
+
+    private val labelCache = android.util.LruCache<String, Labels>(4000)
+
+    fun labels(context: Context, song: Song): Labels {
+        labelCache.get(song.id)?.let { return it }
+        val db = RecoDb.get(context)
+        val own = db.tags(listOf(song.id))[song.id].orEmpty()
+        val l = labelsOf(own).let { mine ->
+            if (mine.era != null && mine.genres.isNotEmpty()) mine else {
+                // The artist's usual era and genres: the most common among their labelled songs.
+                val key = SongMatcher.artistKeys(song.artists).firstOrNull().orEmpty()
+                val songs = if (key.isBlank()) emptyList() else db.songsByArtist(key).take(60)
+                val theirs = db.tags(songs.map { it.id }).values.map { labelsOf(it) }
+                val era = mine.era ?: theirs.mapNotNull { it.era }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.takeIf { it.value >= 2 }?.key
+                val genres = mine.genres.ifEmpty {
+                    val counts = theirs.flatMap { it.genres }.groupingBy { it }.eachCount()
+                    counts.filter { it.value >= 2 && it.value * 3 >= theirs.count { t -> t.genres.isNotEmpty() } }.keys
+                }
+                mine.copy(era = era, genres = genres)
+            }
+        }
+        labelCache.put(song.id, l)
+        return l
+    }
+
+    /** Era, genres and language from a song's tags. Pure, unit-tested. */
+    fun labelsOf(tags: List<RecoDb.Tag>): Labels {
+        // A song on a "new this week" playlist is new, whatever older playlist also carries it
+        // (decade playlists often slip recent hits in); otherwise the strongest era label.
+        val eraTags = tags.filter { it.tag in Trainer.ERAS }
+        // Several era labels: the newest wins (recent hits get slipped into nostalgia playlists,
+        // old songs almost never into new ones).
+        val era = eraTags.maxOfOrNull { Trainer.ERAS.indexOf(it.tag) }?.takeIf { it >= 0 }
+        val genres = tags.filter { it.tag.startsWith("G_") }.mapTo(HashSet()) { it.tag.removePrefix("G_").lowercase() }
+        val lang = tags.filter { it.tag.startsWith("LANG_") }.groupBy { it.tag }.maxByOrNull { (_, v) -> v.sumOf { it.weight } }?.key?.removePrefix("LANG_").orEmpty()
+        return Labels(era, genres, lang)
     }
 
     /** Saves a song's measured tempo and energy (from [com.music.aalap.audio.AudioAnalysis]). */

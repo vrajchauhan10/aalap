@@ -178,3 +178,10 @@ The scenario test simulates 15 genres and a listener whose likes lean to romanti
 Bollywood, runs the old and the new engine many times, and writes the comparison to
 `app/build/reports/reco-scenarios.md` (same feel, tempo gap, language, liked share,
 artist repeats; tapping in Liked Songs; skipping; a new listener; the known/new/trending mix).
+
+## Nov 2026 rules (9.2)
+- Languages are a hard rule everywhere (Off/Low/Medium/High per language, chosen before entry);
+  unknown-language songs are left out.
+- Every queue is anchored to the song it grew from (energy, feel family, era, genres), across refills.
+- Song labels (mood, era, genre, language) are trained weekly from playlists per language (`Trainer`).
+- Steer buttons have fixed ranges; engine picks never repeat the last 4 days.
