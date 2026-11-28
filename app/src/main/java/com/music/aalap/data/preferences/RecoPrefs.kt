@@ -79,6 +79,34 @@ object RecoPrefs {
         return mix.entries.any { (k, v) -> v > 0 && com.music.aalap.data.recommendation.engine.LanguageGuess.same(k, l) }
     }
 
+    /**
+     * "Mix languages": off by default. Off, you can still turn on several languages, but each
+     * queue stays in the language of the song you started (a Hindi song, only Hindi next; an
+     * English one, only English), and stations play your main language. On, queues and
+     * stations blend your languages by their Low / Medium / High levels.
+     */
+    fun mixLanguages(c: Context): Boolean = p(c).getBoolean("mix_languages", false)
+    fun setMixLanguages(c: Context, on: Boolean) = p(c).edit().putBoolean("mix_languages", on).apply()
+
+    /** Whether queues blend languages: Mix is on and more than one language is turned on. */
+    fun mixing(mixOn: Boolean, mix: Map<String, Double>): Boolean = mixOn && mix.count { it.value > 0 } > 1
+
+    /** The language set highest (ties: alphabetical, so it doesn't change between runs). */
+    fun mainLanguage(mix: Map<String, Double>): String =
+        mix.entries.filter { it.value > 0 }.sortedWith(compareByDescending<Map.Entry<String, Double>> { it.value }.thenBy { it.key })
+            .firstOrNull()?.key.orEmpty()
+
+    /**
+     * The one language a queue stays in ("" = blend, when [mixing]): the song you started's,
+     * else the session's; when neither is one of your languages, your main language. Before
+     * you've chosen languages, the song's (or session's) language, as before.
+     */
+    fun queueLanguage(mix: Map<String, Double>, mixOn: Boolean, songLang: String, sessionLang: String): String {
+        if (mixing(mixOn, mix)) return ""
+        if (mix.isEmpty()) return songLang.ifBlank { sessionLang }
+        return listOf(songLang, sessionLang).firstOrNull { it.isNotBlank() && languageAllowed(mix, it) } ?: mainLanguage(mix)
+    }
+
     /** The mix as shares adding up to 1 (empty = automatic, or nothing chosen). */
     fun languageMix(c: Context): Map<String, Double> {
         val levels = languageLevels(c)

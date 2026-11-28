@@ -166,14 +166,19 @@ object Discover {
     }
 
     /**
-     * The languages a station plays, with their shares: your language mix from Settings when
-     * you chose one, otherwise the languages you actually finish songs in (up to three).
+     * The languages a station plays, with their shares: your languages from Settings when
+     * you chose them (all of them only with "Mix languages" on, else the main one), otherwise the languages you actually finish songs in (up to three).
      * Instrumental moods have no language.
      */
     fun radioLanguages(context: Context, mood: Mood): List<Pair<String, Double>> {
         if (mood == Mood.FOCUS) return listOf("" to 1.0)
         val mix = com.music.aalap.data.preferences.RecoPrefs.languageMix(context).filter { it.value > 0 }
-        if (mix.isNotEmpty()) return mix.entries.sortedByDescending { it.value }.map { it.key.lowercase() to it.value }
+        if (mix.isNotEmpty()) {
+            // "Mix languages" off: a station plays your main language only.
+            if (!com.music.aalap.data.preferences.RecoPrefs.mixing(com.music.aalap.data.preferences.RecoPrefs.mixLanguages(context), mix))
+                return listOf(com.music.aalap.data.preferences.RecoPrefs.mainLanguage(mix).lowercase() to 1.0)
+            return mix.entries.sortedByDescending { it.value }.map { it.key.lowercase() to it.value }
+        }
         val taste = runCatching { com.music.aalap.data.recommendation.engine.Personalizer.profile(context).language }.getOrDefault(emptyMap())
             .filterKeys { it.isNotBlank() }.mapKeys { if (it.key.lowercase() == "urdu") "hindi" else it.key.lowercase() }
         val total = taste.values.filter { it > 0 }.sum()

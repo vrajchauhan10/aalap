@@ -125,7 +125,7 @@ data class Features(
  * The song a queue grows from (the one you chose): its feel and energy, era and genres. Every
  * pick stays close to it, so song 30 still fits song 1 (picks used to drift a little each time).
  */
-data class Anchor(val vibe: Vibe?, val era: Int? = null, val genres: Set<String> = emptySet())
+data class Anchor(val vibe: Vibe?, val era: Int? = null, val genres: Set<String> = emptySet(), val language: String = "")
 
 /** How the songs picked so far are made up, so the queue keeps a good mix. */
 data class PickState(
@@ -517,8 +517,28 @@ object QueuePicker {
      */
     fun confirmed(anchor: Anchor, f: Features): Boolean {
         if (anchor.vibe != null && anchor.vibe.known && !(f.vibe.known && f.vibe.energyKnown)) return false
-        if (anchor.era != null && f.era == null) return false
+        // A song of another of your languages (Mix languages on) after a 2000s-or-newer song may
+        // have no era yet: Aalap learns eras from playlists in each language, and a language you
+        // just added has none, so every English song was turned away. Its feel must still be known.
+        if (anchor.era != null && f.era == null && !(anchor.era >= ERA_00 && otherMixLanguage(anchor, f))) return false
         return true
+    }
+
+    private const val ERA_00 = 3 // Trainer.ERAS index of the 2000s
+
+    private fun otherMixLanguage(anchor: Anchor, f: Features) =
+        anchor.language.isNotBlank() && f.language.isNotBlank() && !LanguageGuess.same(anchor.language, f.language)
+
+    /**
+     * The same song in another release or upload ("Dhadak Title Track" / "Dhadak - Title Track"):
+     * a shared artist and one title's words all inside the other's. Pure, unit-tested.
+     */
+    fun sameTune(aTitle: String, aArtists: String, bTitle: String, bArtists: String): Boolean {
+        if (!SongMatcher.artistsOverlap(aArtists, bArtists)) return false
+        fun words(t: String) = SongMatcher.titleKey(t).split(' ').filter { it.isNotBlank() }.toSet()
+        val a = words(aTitle); val b = words(bTitle)
+        if (a.isEmpty() || b.isEmpty()) return false
+        return a.containsAll(b) || b.containsAll(a)
     }
 
     /** How many [candidates] can follow [prev] under the strict pace rule. */

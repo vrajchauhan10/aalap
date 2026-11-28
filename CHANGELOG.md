@@ -4,6 +4,17 @@ Every change to the app raises the version: each change bumps the minor number
 (3.1 → 3.2 → 3.3 …) and the build number (`versionCode`) goes up by one, so phones
 always see it as an update. Newest first.
 
+## 9.3.0 — 28 Nov 2026 (build 108)
+- **Mix languages, your choice.** With several languages picked, a new **Mix languages** switch
+  decides how they play. Off (the default): each queue stays in the language of the song you
+  start (start a Hindi song, only Hindi follows; an English song, only English), and radio plays
+  your main language. On: queues and radio blend your languages by their Low / Medium / High.
+- **Mixed queues really mix.** With Mix on, your other languages join from the very first next
+  song (they used to arrive too late, or never, for a language you'd just added).
+- **No double songs.** The same song in two releases ("Dhadak Title Track" and "Dhadak - Title
+  Track") no longer plays twice in one queue.
+- A language you add is learned right away, not only on the next Wi-Fi.
+
 ## 9.2.0 — 28 Nov 2026 (build 107)
 - **Your languages, everywhere.** Pick your languages first (Off, Low, Medium or High for each);
   next songs, every radio including Gym, and every mix play only those. No more English songs

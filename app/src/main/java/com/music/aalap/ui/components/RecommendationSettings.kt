@@ -88,7 +88,12 @@ fun RecommendationSettings() {
 
         Spacer(Modifier.height(18.dp))
         // Your languages (Off / Low / Medium / High each) have their own page; a summary here.
-        val summary = RecoPrefs.LANGUAGES.mapNotNull { (code, label) -> levels[code]?.takeIf { it > 0 }?.let { "$label ${RecoPrefs.LEVELS[it]}" } }
+        // Mix on: each with its level. Mix off: your main language first, one language per queue.
+        val mixOn = RecoPrefs.mixing(RecoPrefs.mixLanguages(context), levels.mapValues { it.value.toDouble() })
+        val main = RecoPrefs.mainLanguage(levels.mapValues { it.value.toDouble() })
+        val on = RecoPrefs.LANGUAGES.filter { (levels[it.first] ?: 0) > 0 }
+        val summary = if (mixOn) on.map { (code, label) -> "$label ${RecoPrefs.LEVELS[levels[code] ?: 0]}" } + "mixed"
+            else on.sortedByDescending { it.first == main }.map { it.second } + (if (on.size > 1) listOf("one language per queue") else emptyList())
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))

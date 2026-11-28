@@ -4,6 +4,28 @@ Significant technical changes only (user-facing notes stay in `/CHANGELOG.md`). 
 Template: date · change · files/modules · decisions · tests run (actual result) ·
 performance implications · known limitations.
 
+## 2026-11-28 — 9.3.0 (108) Mix languages toggle
+- `RecoPrefs.mixLanguages` (pref `mix_languages`, default false), `mixing(mixOn, mix)` (on and > 1
+  language), `mainLanguage(mix)` (highest level; ties alphabetical), `queueLanguage(...)` (blank =
+  blend; else song's → session's → main, each only if allowed). `QueueEngine.chain`: `Targets.languageMix`
+  and `languageRadio` only when mixing; otherwise `queueLang` from `queueLanguage` (hard rule
+  `languageAllowed(mix)` unchanged). `Discover.radioLanguages`: main language only unless mixing.
+  `LanguagesScreen`: step 2 switch (≥ 2 languages), step 3 main language (off) or levels (on);
+  Settings summary shows the mode.
+- Found on the phone (release build, temporary log): with Mix on no English joined. (1) the
+  language radio finished ~2 s after the first 4 picks → chain now awaits it (≤ 6 s) when mixing;
+  (2) every English candidate had era = null (Trainer had only Hindi rounds) and `confirmed`
+  rejected all 20 → `Anchor.language` (set only when mixing); a pick in another mix language may
+  have unknown era after a 2000s-or-newer anchor (feel still required; old anchors unchanged).
+  `Trainer.maybeRun` now runs on any network when a language was added.
+- `QueuePicker.sameTune` (artist overlap + one title key's words ⊂ the other's) drops second
+  releases of a queued song in the chain, confirmed pool and mood-station top-up.
+- Tests: `EngineRulesTest` +4 (mix off/on queue language, main language, cross-language era,
+  sameTune). App 230 / innertube 6 / spotify 2 pass. Phone (release build, Hindi High + English
+  Medium): Mix off — English seed → 10/10 English, Hindi seed → 10/10 Hindi; Mix on — Hindi seed →
+  7 Hindi + 3 English, no repeats.
+- Performance: one extra wait (≤ 6 s, off the main thread) only when mixing; no per-song work added.
+
 ## 2026-11-28 — 9.2.0 (107) languages as a hard rule, playlist training, confirmed-only queues, lyrics search
 - Added after on-phone testing: `QueuePicker.confirmed` (a pick must have known feel/energy and era
   when the start song does; no unverified fallbacks; `pick` returns null rather than a wrong song;

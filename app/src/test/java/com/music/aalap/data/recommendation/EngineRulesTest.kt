@@ -38,6 +38,50 @@ class EngineRulesTest {
         assertTrue(RecoPrefs.languageAllowed(emptyMap(), "english")) // before you choose
     }
 
+    @Test fun mixOffKeepsEachQueueInTheStartingSongsLanguage() {
+        val two = mapOf("hindi" to 0.6, "english" to 0.4)
+        // Off (the default): a Hindi song gives a Hindi queue, an English one an English queue.
+        assertEquals("hindi", RecoPrefs.queueLanguage(two, false, "hindi", ""))
+        assertEquals("english", RecoPrefs.queueLanguage(two, false, "english", "hindi"))
+        // Song's language unknown: the session's; a language you didn't pick: your main one.
+        assertEquals("english", RecoPrefs.queueLanguage(two, false, "", "english"))
+        assertEquals("hindi", RecoPrefs.queueLanguage(two, false, "tamil", ""))
+        // On, with two languages: the queue blends them.
+        assertEquals("", RecoPrefs.queueLanguage(two, true, "hindi", ""))
+        assertTrue(RecoPrefs.mixing(true, two))
+        // On but only one language turned on: nothing to mix.
+        assertFalse(RecoPrefs.mixing(true, mapOf("hindi" to 1.0, "english" to 0.0)))
+        assertEquals("hindi", RecoPrefs.queueLanguage(mapOf("hindi" to 1.0), true, "", ""))
+        // Before you choose languages: the song's own, as before.
+        assertEquals("tamil", RecoPrefs.queueLanguage(emptyMap(), false, "tamil", ""))
+    }
+
+    @Test fun anotherMixLanguageNeedNotKnowItsEraAfterARecentSong() {
+        val romantic = v(0.4, 95.0, Feel.ROMANTIC)
+        val english = Features(Song("e", Candidate("Until I Found You", "Stephen Sanchez")), 0.5, 0.0, romantic, "english", 0.0, 0.0)
+        val hindi = english.copy(language = "hindi")
+        val recentHindi = Anchor(romantic, era = 4, language = "hindi")
+        // Mix on: an English song with no era yet may follow a 2010s Hindi song...
+        assertTrue(QueuePicker.confirmed(recentHindi, english))
+        // ...but a Hindi one still must know its era, and nothing unknown follows an old song.
+        assertFalse(QueuePicker.confirmed(recentHindi, hindi))
+        assertFalse(QueuePicker.confirmed(recentHindi.copy(era = 1), english))
+        // Mix off (no anchor language): as before.
+        assertFalse(QueuePicker.confirmed(recentHindi.copy(language = ""), english))
+    }
+
+    @Test fun sameSongInAnotherReleaseIsOneSong() {
+        assertTrue(QueuePicker.sameTune("Dhadak Title Track", "Ajay Gogavale, Shreya Ghoshal", "Dhadak - Title Track", "Shreya Ghoshal, Ajay Gogavale"))
+        assertFalse(QueuePicker.sameTune("Tum Hi Ho", "Arijit Singh", "Tum Se Hi", "Mohit Chauhan"))
+        assertFalse(QueuePicker.sameTune("Kesariya", "Arijit Singh", "Tum Hi Ho", "Arijit Singh"))
+    }
+
+    @Test fun mainLanguageIsTheOneSetHighest() {
+        assertEquals("punjabi", RecoPrefs.mainLanguage(mapOf("hindi" to 0.4, "punjabi" to 0.6)))
+        assertEquals("english", RecoPrefs.mainLanguage(mapOf("hindi" to 0.5, "english" to 0.5))) // tie: steady
+        assertEquals("", RecoPrefs.mainLanguage(emptyMap()))
+    }
+
     @Test fun gymSearchNamesYourLanguage() {
         assertEquals("hindi gym workout", Discover.queryFor(Mood.GYM, "hindi"))
         assertEquals("punjabi gym workout", Discover.queryFor(Mood.GYM, "punjabi"))

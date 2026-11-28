@@ -289,26 +289,30 @@ object QueueEngine {
             fromList = if (poolSongs.isNotEmpty()) 0.35 else 0.0,
             rediscover = if (dial == com.music.aalap.data.preferences.RecoPrefs.Discovery.SURPRISE) 0.05 else 0.1,
             surprise = if (profile.isNew) 0.0 else dial.surprise,
-            languageMix = com.music.aalap.data.preferences.RecoPrefs.languageMix(context),
+            languageMix = com.music.aalap.data.preferences.RecoPrefs.languageMix(context).takeIf {
+                com.music.aalap.data.preferences.RecoPrefs.mixing(com.music.aalap.data.preferences.RecoPrefs.mixLanguages(context), it)
+            }.orEmpty(),
         )
         val rediscoverIds = profile.rediscover.toList()
-        // Your language mix: what plays after the seed is mostly in its own language, so
-        // the other languages you asked for come from a radio of each in this feel (fetched
-        // alongside; joins from the pick it's ready for).
-        val mix = targets.languageMix
-        val langRadio = if (mix.isEmpty() || offline) null else scope.async { languageRadio(context, mix, state.lastVibe ?: Vibe.UNKNOWN) }
-        // Automatic language (no mix chosen): the queue stays in the language of the song you
-        // chose (else the session's, when it's clearly one). Other apps' "up next" drifts across
-        // languages (a Hindi song led to Tamil hits), so a song known to be in another language
-        // doesn't play, whoever suggests it. Feel, energy and tempo still pick among the rest.
-        val queueLang = if (mix.isNotEmpty()) "" else
-            VibeStore.language(context, anchor ?: seed).ifBlank {
-                Session(sessionSongs, profile.dayPartFeel).languages.entries.maxByOrNull { it.value }
-                    ?.takeIf { it.value >= 0.6 }?.key.orEmpty()
-            }
+        // Your languages (all of them: a language you turned off never plays, whatever the mix).
+        val mix = com.music.aalap.data.preferences.RecoPrefs.languageMix(context)
+        // "Mix languages" on: what plays after the seed is mostly in its own language, and the
+        // other languages you asked for come from a radio of each in this feel (fetched
+        // alongside; joins from the pick it's ready for), by their levels.
+        val mixing = targets.languageMix.isNotEmpty()
+        val langRadio = if (!mixing || offline) null else scope.async { languageRadio(context, mix, state.lastVibe ?: Vibe.UNKNOWN) }
+        // Mix off (the default), or one language: the queue stays in the language of the song
+        // you started (else the session's, when it's clearly one; else your main language).
+        // Turning on English beside Hindi used to start mixing English into a Hindi queue.
+        // Other apps' "up next" drifts across languages (a Hindi song led to Tamil hits), so a
+        // song known to be in another language doesn't play, whoever suggests it.
+        val queueLang = com.music.aalap.data.preferences.RecoPrefs.queueLanguage(
+            mix, mixing, VibeStore.language(context, anchor ?: seed),
+            Session(sessionSongs, profile.dayPartFeel).languages.entries.maxByOrNull { it.value }?.takeIf { it.value >= 0.6 }?.key.orEmpty(),
+        )
         // More songs in that language and feel, fetched only when the suggestions run short.
         var sameLangRadio: kotlinx.coroutines.Deferred<Map<String, Double>>? = null
-        if (queueLang.isNotBlank()) RecoTrace.log("  language: staying in $queueLang (language mix is automatic)")
+        if (queueLang.isNotBlank()) RecoTrace.log("  language: staying in $queueLang (mix languages is off)")
         RecoTrace.log("━━━━ UP NEXT after '${seed.title}' — ${seed.artists} ━━━━")
         RecoTrace.log("  session: ${sessionSongs.size} songs, feel ${Session(sessionSongs, profile.dayPartFeel).vibe}; " +
             "aim ${"%.0f".format(targets.familiar * 100)}% known songs" + (if (poolSongs.isNotEmpty()) ", ${"%.0f".format(targets.fromList * 100)}% from '${play.poolName}'" else ""))
@@ -319,7 +323,8 @@ object QueueEngine {
         val root = anchor ?: seed
         val rootLabels = VibeStore.labels(context, root)
         val rootVibe = VibeStore.vibe(context, root)
-        var anchorPoint = Anchor(rootVibe.takeIf { it.energyKnown }, rootLabels.era, Trainer.genresOf(rootLabels.genres + rootVibe.styles, rootVibe))
+        var anchorPoint = Anchor(rootVibe.takeIf { it.energyKnown }, rootLabels.era, Trainer.genresOf(rootLabels.genres + rootVibe.styles, rootVibe),
+            language = if (mixing) VibeStore.language(context, root) else "")
         RecoTrace.log("  anchor: '${root.title}' ${anchorPoint.vibe ?: "feel unknown"} era=${anchorPoint.era?.let { Trainer.ERAS[it] } ?: "?"} genres=${anchorPoint.genres}")
         // Mood stations, as the radio uses them: songs from people's playlists of one mood.
         // Drawn on when the suggestions after a song don't have enough that fit its pace, so the
@@ -334,6 +339,12 @@ object QueueEngine {
             }
         }
         if (!offline) QueuePicker.stationMood(state.lastVibe?.takeIf { it.energyKnown }, com.music.aalap.data.recommendation.PlayContext.steer())?.let { station(it) }
+        // Mix on: your other languages join from the first pick (their songs took ~2 s to arrive,
+        // so the first picks were always in the seed's language). Waits at most 6 s; the song
+        // you chose is already playing.
+        if (langRadio != null) withTimeoutOrNull(6_000) { runCatching { langRadio.await() } }
+        // The same song in two releases ("Dhadak Title Track" and "Dhadak - Title Track") played twice.
+        val queued = mutableListOf(root.title to root.artists, seed.title to seed.artists)
         for (step in 0 until length) {
             RecoTrace.log("\n── Pick #${step + 1}: what comes after '${cur.title}'? ──")
             var ranked = if (offline) emptyMap() else ranked(context, cur, if (step == 0) SOURCE_TIMEOUT_MS else BACKGROUND_TIMEOUT_MS)
@@ -369,6 +380,7 @@ object QueueEngine {
             var features = songs.values.mapNotNull { s ->
                 if (s.id in excluded || SongBridge.appId(s) in excludeAppIds || feedback.blocked(s)) return@mapNotNull null
                 if (offline && s.id !in offlineIds) return@mapNotNull null
+                if (queued.any { (t, a) -> QueuePicker.sameTune(t, a, s.title, s.artists) }) return@mapNotNull null
                 // Clips, intros and teasers (under 1½ minutes) aren't songs to queue.
                 if (s.info.durationSec in 1..89) return@mapNotNull null
                 val v = vibes[s.id] ?: Vibe.UNKNOWN
@@ -430,7 +442,8 @@ object QueueEngine {
                     else listOf("ROMANTIC", "SAD", "CHILL", d.name)
                 }.orEmpty()
                 val pool = runCatching { db.songsWithTags(eraTag, feels, 60) }.getOrDefault(emptyList())
-                    .filter { it.id !in have && it.id !in excluded && SongBridge.appId(it) !in excludeAppIds && !feedback.blocked(it) && it.info.durationSec !in 1..89 }
+                    .filter { it.id !in have && it.id !in excluded && SongBridge.appId(it) !in excludeAppIds && !feedback.blocked(it) && it.info.durationSec !in 1..89 &&
+                        queued.none { (t, a) -> QueuePicker.sameTune(t, a, it.title, it.artists) } }
                 val pv = VibeStore.vibes(context, pool)
                 val confirmedPool = pool.mapNotNull { s ->
                     val lang = VibeStore.language(context, s)
@@ -455,7 +468,8 @@ object QueueEngine {
                 val fromStation = withTimeoutOrNull(waitMs) { station(mood).await() }.orEmpty()
                 val have = features.mapTo(HashSet()) { it.song.id }
                 val moodVibe = Vibe(Vibe.forMoodName(mood), 0.4)
-                val added = fromStation.asSequence().filter { it.id !in have && it.id !in excluded && SongBridge.appId(it) !in excludeAppIds && !feedback.blocked(it) && it.info.durationSec !in 1..89 }
+                val added = fromStation.asSequence().filter { it.id !in have && it.id !in excluded && SongBridge.appId(it) !in excludeAppIds && !feedback.blocked(it) && it.info.durationSec !in 1..89 &&
+                    queued.none { (t, a) -> QueuePicker.sameTune(t, a, it.title, it.artists) } }
                     .mapNotNull { s ->
                         val lang = VibeStore.language(context, s)
                         if (mix.isNotEmpty() && !com.music.aalap.data.preferences.RecoPrefs.languageAllowed(mix, lang)) return@mapNotNull null
@@ -523,6 +537,7 @@ object QueueEngine {
                     pick.scored.global, pick.scored.session, pick.scored.fit, pick.scored.taste, pick.scored.habit, pick.scored.final) + "${pick.scored.vibe})")
             onPick(pick)
             excluded += pick.scored.song.id
+            queued += pick.scored.song.title to pick.scored.song.artists
             val pv = pick.scored.vibe.takeIf { it.known } ?: VibeStore.vibe(context, pick.scored.song)
             sessionSongs += SessionSong(pick.scored.song.id, pick.scored.song.artists, pv, VibeStore.language(context, pick.scored.song), 0.25)
             cur = pick.scored.song

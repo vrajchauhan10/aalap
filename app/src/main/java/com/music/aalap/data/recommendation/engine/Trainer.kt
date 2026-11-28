@@ -86,7 +86,10 @@ object Trainer {
         // The first round runs on any network (a few MB, once): without it nothing knows its era or
         // genre. Weekly refreshes wait for Wi-Fi.
         val firstRound = p.getLong("at", 0) == 0L
-        if (!force && !firstRound && !com.music.aalap.data.preferences.OfflineState.unmetered) { Log.d(TAG, "waiting for Wi-Fi"); return }
+        // A language you just turned on runs at once too: until it has a round, none of its songs
+        // know their era, so they can't join a mixed queue for long.
+        val newLanguage = p.getString("langs", null)?.substringBefore('#')?.split(',')?.toSet()?.let { old -> langs.any { it !in old } } ?: true
+        if (!force && !firstRound && !newLanguage && !com.music.aalap.data.preferences.OfflineState.unmetered) { Log.d(TAG, "waiting for Wi-Fi"); return }
         running = true
         Log.d(TAG, "round starting: ${langs.joinToString()}")
         scope.launch {

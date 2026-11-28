@@ -44,9 +44,11 @@ import com.music.aalap.ui.theme.TextMuted
 import com.music.aalap.ui.theme.TextPrimary
 
 /**
- * "Which languages do you listen to?": Off / Low / Medium / High per language. Asked once
- * before entering the app (after this update, or a fresh install), and from Settings any time.
- * Every recommendation, radio and mix plays only these languages, in roughly these amounts.
+ * "Which languages do you listen to?": pick languages, then (two or more) whether to mix them.
+ * Mix off (the default): each queue stays in the language of the song you start, and radio
+ * plays your main language. Mix on: Low / Medium / High per language. Asked once before
+ * entering the app (after an update, or a fresh install), and from Settings any time.
+ * Every recommendation, radio and mix plays only these languages.
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -55,6 +57,7 @@ fun LanguagesScreen(navController: NavController, firstTime: Boolean) {
     var levels by remember {
         mutableStateOf(RecoPrefs.languageLevels(context).ifEmpty { mapOf("hindi" to 3) })
     }
+    var mixOn by remember { mutableStateOf(RecoPrefs.mixLanguages(context)) }
     val anyOn = levels.values.any { it > 0 }
     Column(Modifier.fillMaxSize().background(AppBackground).statusBarsPadding().navigationBarsPadding()) {
         if (!firstTime) Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = TextPrimary,
@@ -89,11 +92,57 @@ fun LanguagesScreen(navController: NavController, firstTime: Boolean) {
                     )
                 }
             }
-            // Step 2: how much of each picked language.
             val picked = RecoPrefs.LANGUAGES.filter { (levels[it.first] ?: 0) > 0 }
-            if (picked.isNotEmpty()) {
+            // Step 2 (two or more languages): mix them in one queue, or keep each queue in one.
+            if (picked.size > 1) {
                 Spacer(Modifier.height(26.dp))
-                Text("2. How much of each?", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.weight(1f)) {
+                        Text("2. Mix languages", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            if (mixOn) "On: queues and radio blend your languages, in the amounts below."
+                            else "Off: each queue stays in the language of the song you start. Radio plays your main language.",
+                            color = TextMuted, fontSize = 13.sp,
+                        )
+                    }
+                    Spacer(Modifier.size(12.dp))
+                    androidx.compose.material3.Switch(
+                        checked = mixOn, onCheckedChange = { mixOn = it },
+                        colors = androidx.compose.material3.SwitchDefaults.colors(checkedTrackColor = Saffron, checkedThumbColor = OnSaffron),
+                    )
+                }
+            }
+            if (picked.size > 1 && !mixOn) {
+                // Step 3, mix off: which one radio and stations play (the one set highest).
+                val main = RecoPrefs.mainLanguage(levels.mapValues { it.value.toDouble() })
+                Spacer(Modifier.height(26.dp))
+                Text("3. Your main language", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(4.dp))
+                Text("For radio, stations and mixes.", color = TextMuted, fontSize = 13.sp)
+                Spacer(Modifier.height(10.dp))
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    picked.forEach { (code, label) ->
+                        val on = code == main
+                        Text(
+                            label,
+                            color = if (on) OnSaffron else TextPrimary, fontSize = 15.sp,
+                            fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                            modifier = Modifier.clip(RoundedCornerShape(50))
+                                .background(if (on) Saffron else Surface)
+                                .clickable { levels = levels.mapValues { (k, v) -> if (v <= 0) 0 else if (k == code) 3 else 2 } }
+                                .padding(horizontal = 18.dp, vertical = 11.dp),
+                        )
+                    }
+                }
+            }
+            // Step 3, mix on: how much of each picked language.
+            if (picked.size > 1 && mixOn) {
+                Spacer(Modifier.height(26.dp))
+                Text("3. How much of each?", color = TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
                 picked.forEach { (code, label) ->
                     val level = levels[code] ?: 0
@@ -130,6 +179,7 @@ fun LanguagesScreen(navController: NavController, firstTime: Boolean) {
                 .background(if (anyOn) Saffron else SurfaceHigh)
                 .clickable(enabled = anyOn) {
                     RecoPrefs.setLanguageLevels(context, levels)
+                    RecoPrefs.setMixLanguages(context, mixOn)
                     RecoPrefs.setLanguagesChosen(context)
                     // Today's mixes and stations were built for the old languages: build them again.
                     com.music.aalap.data.recommendation.LanguageChange.applied(context)
